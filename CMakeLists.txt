@@ -1,0 +1,110 @@
+# ============================================================================
+#  TestLeadToolbox - CMake Build Configuration
+#
+#  This CMakeLists.txt defines the build configuration for the TestLeadToolbox
+#  desktop application, a Qt-based tool that provides engineering utilities
+#  for software test leads. This file sets compiler requirements, locates
+#  Qt6 dependencies, organizes the project source tree, and generates the
+#  application executable.
+#
+#  CMake is the authoritative build specification for this project and must be
+#  kept in sync with the source-code structure. Any new module, UI screen,
+#  or component should be added to the SRC list to ensure proper compilation.
+# ============================================================================
+
+cmake_minimum_required(VERSION 3.16)
+
+# ----------------------------------------------------------------------------
+# Project Metadata
+# ----------------------------------------------------------------------------
+# LANGUAGES CXX specifies that this project only uses modern C++.
+# The project name is used as the executable target name unless overridden.
+
+project(TestLeadToolbox LANGUAGES CXX)
+
+# ----------------------------------------------------------------------------
+# C++ Standard Configuration
+# ----------------------------------------------------------------------------
+# Enforces C++20, required for modern Qt idioms, smart pointers, std::optional,
+# ranges, and other features used across the codebase.
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# ----------------------------------------------------------------------------
+# Locate Qt6 Framework Dependencies
+# ----------------------------------------------------------------------------
+# This ensures the project links against Qt6 Core (base framework),
+# Qt6 Gui (visual rendering), and Qt6 Widgets (UI widgets framework).
+# REQUIRED means the build will fail immediately if Qt6 is not installed
+# or cannot be located by CMake.
+
+find_package(Qt6 COMPONENTS Core Gui Widgets REQUIRED)
+
+# ----------------------------------------------------------------------------
+# Source File List
+# ----------------------------------------------------------------------------
+# Centralized list of .cpp implementation files that form the TestLeadToolbox
+# binary. Headers are not strictly required in this list but may be added
+# to improve IDE visibility.
+#
+# File organization follows a modular architecture:
+#   - src/app/      → Application entry points and primary UI shell
+#   - src/modules/  → Feature modules (timeline, reporting, automation, etc.)
+#
+# Additional modules should append their source files here.
+# ----------------------------------------------------------------------------
+
+set(CMAKE_AUTOMOC ON)
+
+set(SRC
+    src/app/main.cpp
+    src/app/MainWindow.cpp
+
+    # Timeline feature module (QGraphicsScene-based visualization)
+    src/modules/timeline/TimelineModule.cpp
+    src/modules/timeline/TimelineView.cpp
+    src/modules/timeline/TimelineScene.cpp
+    src/modules/timeline/TimelineItem.cpp
+
+    # Add new module sources below:
+    # src/modules/<module_name>/<file>.cpp
+)
+
+# ----------------------------------------------------------------------------
+# Executable Target Declaration
+# ----------------------------------------------------------------------------
+# Generates the main application executable using the source files defined
+# above. ${PROJECT_NAME} automatically expands to "TestLeadToolbox".
+# ----------------------------------------------------------------------------
+
+add_executable(${PROJECT_NAME} ${SRC})
+
+# ----------------------------------------------------------------------------
+# Include Directory Setup
+# ----------------------------------------------------------------------------
+# Makes the entire 'src/' folder available for header lookups. This allows
+# code to include headers with paths such as:
+#
+#       #include "app/MainWindow.h"
+#       #include "modules/timeline/TimelineView.h"
+#
+# PRIVATE limits the include path visibility to this target only.
+# ----------------------------------------------------------------------------
+
+target_include_directories(${PROJECT_NAME} PRIVATE src)
+
+# ----------------------------------------------------------------------------
+# Link Qt6 Framework Libraries
+# ----------------------------------------------------------------------------
+# Links the application against required Qt modules. Without this step,
+# linker errors would occur because the Qt symbol implementations would not
+# be available at build time.
+# ----------------------------------------------------------------------------
+
+target_link_libraries(${PROJECT_NAME}
+    PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Widgets
+)

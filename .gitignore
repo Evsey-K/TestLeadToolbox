@@ -1,0 +1,26 @@
+# Build directories
+build-*/
+
+# CMake cache and files
+CMakeCache.txt
+CMakeFiles/
+Makefile
+
+# Object files
+*.obj
+*.o
+
+# Qt Creator user/session files
+*.user
+*.user.*
+*.pro.user
+
+# Qt specific files
+*.qrc
+*.moc
+
+# Other possible ignored files
+*.log
+*.vs/
+*.idea/
+*.vscode/
