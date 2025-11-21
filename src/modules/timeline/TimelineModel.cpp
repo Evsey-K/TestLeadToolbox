@@ -1,3 +1,6 @@
+// TimelineModel.cpp
 #include "TimelineModel.h"
 
-TimelineModel::TimelineModel() {}
+TimelineModel::TimelineModel() {
+    // TODO: Initialize timeline event storage and data structures
+}

@@ -1,3 +1,7 @@
+// TimelineItem.cpp
 #include "TimelineItem.h"
 
-// currently empty - behavior will be added later (drag, itemChange, etc.)
+// Currently empty implementation file for TimelineItem.
+//
+// Future enhancements may include event handling for drag/drop,
+// item position changes, resizing, tooltips, or custom painting.
