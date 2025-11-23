@@ -11,6 +11,7 @@
  *
  * Note: Currently a placeholder; implementation to be added.
  */
+
 class TimelineModel {
 public:
     TimelineModel();

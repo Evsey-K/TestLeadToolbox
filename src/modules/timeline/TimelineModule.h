@@ -12,18 +12,22 @@ class TimelineView;
  * TimelineModule acts as a container widget holding the TimelineView and
  * any additional controls or panels related to timeline interaction.
  */
+
 class TimelineModule : public QWidget {
     Q_OBJECT
 public:
+
     /**
      * @brief Constructs a TimelineModule instance with an optional parent widget.
      * @param parent Pointer to the parent widget, defaults to nullptr.
      */
+
     explicit TimelineModule(QWidget *parent = nullptr);
 
     /**
      * @brief Destructor.
      */
+
     ~TimelineModule();
 
 private:
