@@ -78,7 +78,10 @@ set(SRC
 # above. ${PROJECT_NAME} automatically expands to "TestLeadToolbox".
 # ----------------------------------------------------------------------------
 
-add_executable(${PROJECT_NAME} ${SRC})
+add_executable(${PROJECT_NAME} ${SRC}
+    src/modules/timeline/TimelineModel.h
+    src/modules/timeline/TimelineModel.cpp
+    src/modules/timeline/TimelineCoordinateMapper.h src/modules/timeline/TimelineCoordinateMapper.cpp)
 
 # ----------------------------------------------------------------------------
 # Include Directory Setup

@@ -1,32 +1,94 @@
 // TimelineItem.h
+
+
 #pragma once
 #include <QGraphicsRectItem>
 #include <QBrush>
+#include <QString>
+
+
+class TimelineModel;
+class TimelineCoordinateMapper;
+
 
 /**
  * @class TimelineItem
- * @brief Represents a single event item on the timeline.
+ * @brief Represents a single draggable event item on the timeline
  *
- * This is a rectangular graphical item that can be selected and moved by the user.
- * It visually represents a timeline event bar.
+ * This item:
+ * - Displays an event as a colored rectangle
+ * - Can be dragged horizontally to change dates
+ * - Updates the model when dragging completes
+ * - Supports selection highlighting
  */
-
-class TimelineItem : public QGraphicsRectItem {
+class TimelineItem : public QGraphicsRectItem
+{
 public:
 
     /**
-     * @brief Constructs a TimelineItem with the specified rectangle geometry.
-     * @param rect Defines the size and shape of the item.
+     * @brief Constructs a TimelineItem with the specified rectangle geometry
+     * @param rect Initial rectangle (position and size)
+     * @param parent Optional parent graphics item
      */
+    explicit TimelineItem(const QRectF& rect, QGraphicsItem* parent = nullptr);
 
-    TimelineItem(const QRectF &rect) : QGraphicsRectItem(rect) {
-        // Enable the item to be movable by the user with mouse dragging
-        setFlag(QGraphicsItem::ItemIsMovable);
-
-        // Enable selection highlighting and interaction
-        setFlag(QGraphicsItem::ItemIsSelectable);
-
-        // Set the fill color of the item to blue
-        setBrush(QBrush(Qt::blue));
+    /**
+     * @brief Set the event ID this item represents
+     */
+    void setEventId(const QString& eventId)
+    {
+        eventId_ = eventId;
     }
+
+    /**
+     * @brief Get the event ID
+     */
+    QString eventId() const
+    {
+        return eventId_;
+    }
+
+    /**
+     * @brief Set the model reference (required for updates)
+     */
+    void setModel(TimelineModel* model)
+    {
+        model_ = model;
+    }
+
+    /**
+     * @brief Set the coordinate mapper (required for date conversion)
+     */
+    void setCoordinateMapper(TimelineCoordinateMapper* mapper)
+    {
+        mapper_ = mapper;
+    }
+
+protected:
+    /**
+     * @brief Override to handle drag completion and update model
+     */
+    QVariant itemChange(GraphicsItemChange change, const QVariant& value) override;
+
+    /**
+     * @brief Track when drag starts
+     */
+    void mousePressEvent(QGraphicsSceneMouseEvent* event) override;
+
+    /**
+     * @brief Track when drag ends
+     */
+    void mouseReleaseEvent(QGraphicsSceneMouseEvent* event) override;
+
+private:
+    /**
+     * @brief Update the model with new dates based on current position
+     */
+    void updateModelFromPosition();
+
+    QString eventId_;                               ///< ID of the event this item represents
+    TimelineModel* model_;                          ///< Model reference (not owned)
+    TimelineCoordinateMapper* mapper_ = nullptr;    ///< Coordinate mapper (not owned)
+    QPointF dragStartPos_;                          ///< Position when drag started
+    bool isDragging_ = false;                        ///< Whether currently being draggeds
 };
