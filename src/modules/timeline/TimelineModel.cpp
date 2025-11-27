@@ -161,7 +161,7 @@ QColor TimelineModel::colorForType(TimelineObjectType type)
             return QColor(50, 205, 50);         // Lime Green
         case TimelineObjectType::DueDate:
             return QColor(220, 20, 60);         // Crimson
-        case TimelineObjectType::Reminer:
+        case TimelineObjectType::Reminder:
             return QColor(255, 215, 0);         // Gold
         default:
             return QColor();                    // Gray fallback

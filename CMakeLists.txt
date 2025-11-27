@@ -60,17 +60,31 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
 set(SRC
+    # App Shell
     src/app/main.cpp
     src/app/MainWindow.cpp
 
-    # Timeline feature module (QGraphicsScene-based visualization)
+    # Timeline Module
     src/modules/timeline/TimelineModule.cpp
+    src/modules/timeline/TimelineModule.h
     src/modules/timeline/TimelineModel.cpp
+    src/modules/timeline/TimelineModel.h
     src/modules/timeline/TimelineCoordinateMapper.cpp
+    src/modules/timeline/TimelineCoordinateMapper.h
     src/modules/timeline/TimelineView.cpp
+    src/modules/timeline/TimelineView.h
     src/modules/timeline/TimelineScene.cpp
+    src/modules/timeline/TimelineScene.h
     src/modules/timeline/TimelineItem.cpp
-    # src/modules/timeline/AddEventDialog.cpp
+    src/modules/timeline/TimelineItem.h
+
+    src/modules/timeline/AddEventDialog.cpp
+    src/modules/timeline/AddEventDialog.h
+    src/modules/timeline/AddEventDialog.ui
+
+    src/modules/timeline/TimelineSidePanel.cpp
+    src/modules/timeline/TimelineSidePanel.h
+    src/modules/timeline/TimelineSidePanel.ui
 
     # Add new 'module' sources below:
     # src/modules/<module_name>/<file>.cpp
@@ -83,14 +97,7 @@ set(SRC
 # above. ${PROJECT_NAME} automatically expands to "TestLeadToolbox".
 # ----------------------------------------------------------------------------
 
-add_executable(${PROJECT_NAME} ${SRC}
-    src/modules/timeline/TimelineModel.h
-    src/modules/timeline/TimelineModel.cpp
-    src/modules/timeline/TimelineCoordinateMapper.h src/modules/timeline/TimelineCoordinateMapper.cpp
-    src/modules/timeline/AddEventDialog.h
-    src/modules/timeline/AddEventDialog.cpp
-    src/modules/timeline/AddEventDialog.ui
-)
+add_executable(${PROJECT_NAME} ${SRC})
 
 # ----------------------------------------------------------------------------
 # Include Directory Setup
