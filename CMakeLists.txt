@@ -56,6 +56,8 @@ find_package(Qt6 COMPONENTS Core Gui Widgets REQUIRED)
 # ----------------------------------------------------------------------------
 
 set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTOUIC ON)
+set(CMAKE_AUTORCC ON)
 
 set(SRC
     src/app/main.cpp
@@ -63,11 +65,14 @@ set(SRC
 
     # Timeline feature module (QGraphicsScene-based visualization)
     src/modules/timeline/TimelineModule.cpp
+    src/modules/timeline/TimelineModel.cpp
+    src/modules/timeline/TimelineCoordinateMapper.cpp
     src/modules/timeline/TimelineView.cpp
     src/modules/timeline/TimelineScene.cpp
     src/modules/timeline/TimelineItem.cpp
+    # src/modules/timeline/AddEventDialog.cpp
 
-    # Add new module sources below:
+    # Add new 'module' sources below:
     # src/modules/<module_name>/<file>.cpp
 )
 
@@ -81,7 +86,11 @@ set(SRC
 add_executable(${PROJECT_NAME} ${SRC}
     src/modules/timeline/TimelineModel.h
     src/modules/timeline/TimelineModel.cpp
-    src/modules/timeline/TimelineCoordinateMapper.h src/modules/timeline/TimelineCoordinateMapper.cpp)
+    src/modules/timeline/TimelineCoordinateMapper.h src/modules/timeline/TimelineCoordinateMapper.cpp
+    src/modules/timeline/AddEventDialog.h
+    src/modules/timeline/AddEventDialog.cpp
+    src/modules/timeline/AddEventDialog.ui
+)
 
 # ----------------------------------------------------------------------------
 # Include Directory Setup

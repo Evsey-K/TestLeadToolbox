@@ -18,7 +18,7 @@ enum class TimelineObjectType
     Action,
     TestEvent,
     DueDate,
-    Reminer
+    Reminder
 };
 
 
