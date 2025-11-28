@@ -5,7 +5,6 @@
 #include <QWidget>
 
 
-// Forward declaration to reduce header dependencies
 class TimelineView;
 class TimelineModel;
 class TimelineCoordinateMapper;
@@ -31,7 +30,7 @@ public:
      * @brief Constructs a TimelineModule instance
      * @param parent Optional parent widget
      */
-    explicit TimelineModule(QWidget *parent = nullptr);
+    explicit TimelineModule(QWidget* parent = nullptr);
 
     /**
      * @brief Destructor
@@ -52,12 +51,12 @@ private slots:
     /**
      * @brief Handle event selection from side panel
      */
-    void onEventSelectedInPAnel(const QString& eventId);
+    void onEventSelectedInPanel(const QString& eventId);
 
 private:
     void setupUi();
     void setupConnections();
-    void createSampleData();    // Temporary: add some sample events
+    void createSampleData(); // Temporary: add some sample events
 
     TimelineModel* model_;
     TimelineCoordinateMapper* mapper_;

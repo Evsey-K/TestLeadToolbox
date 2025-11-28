@@ -43,7 +43,7 @@ QString TimelineModel::addEvent(const TimelineObject& event)
     TimelineObject newEvent = event;
     if(newEvent.id.isEmpty())
     {
-        newEvent.id = generateEventID();
+        newEvent.id = generateEventId();
     }
 
     // Assign color based on type if not set
