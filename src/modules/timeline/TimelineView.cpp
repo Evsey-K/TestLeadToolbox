@@ -1,35 +1,70 @@
 // TimelineView.cpp
+
+
 #include "TimelineView.h"
 #include "TimelineScene.h"
+#include "TimelineModel.h"
+#include "TimelineCoordinateMapper.h"
 #include <QWheelEvent>
 
-TimelineView::TimelineView(QWidget *parent) : QGraphicsView(parent) {
-    // Instantiate the TimelineScene and assign it to this view
-    scene_ = new TimelineScene(this);
+
+TimelineView::TimelineView(TimelineModel* model,
+                           TimelineCoordinateMapper* mapper,
+                           QWidget* parent)
+    : QGraphicsView(parent)
+    , mapper_(mapper)
+{
+    // Create the scene with model and mapper
+    scene_ = new TimelineScene(model, mapper, this);
     setScene(scene_);
 
-    // Enable anti-aliasing for smooth graphical rendering
+    // Enable anti-aliasing for smooth rendering
     setRenderHint(QPainter::Antialiasing, true);
 
-    // Disable vertical scroll bar; prefer horizontal scrolling only
+    // Disable vertical scroll bar
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
-    // Enable hand drag mode for intuitive panning with mouse drag
+    // Enable horizontal scroll bar
+    setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+
+    // Enable hand drag mode for panning
     setDragMode(QGraphicsView::ScrollHandDrag);
+
+    // Set background color
+    setBackgroundBrush(QBrush(QColor(250, 250, 250)));
 }
 
-void TimelineView::wheelEvent(QWheelEvent *event) {
-    // Define zoom scaling factor for horizontal zoom
-    const double scaleFactor = 1.15;
 
-    // Zoom in or out horizontally based on wheel scroll direction
-    if (event->angleDelta().y() > 0) {
-        // Scroll up → zoom in horizontally
-        scale(scaleFactor, 1.0);
-    } else {
-        // Scroll down → zoom out horizontally
-        scale(1.0 / scaleFactor, 1.0);
+void TimelineView::wheelEvent(QWheelEvent* event)
+{
+    // Check if Ctrl key is pressed for zoom
+    if (event->modifiers() & Qt::ControlModifier)
+    {
+        // Define zoom factor
+        const double zoomFactor = 1.15;
+
+        // Determine zoom direction
+        if (event->angleDelta().y() > 0)
+        {
+            // Zoom in
+            mapper_->zoom(zoomFactor);
+            scale(zoomFactor, 1.0);
+        }
+        else
+        {
+            // Zoom out
+            mapper_->zoom(1.0 / zoomFactor);
+            scale(1.0 / zoomFactor, 1.0);
+        }
+
+        // Rebuild scene with new scale
+        scene_->rebuildFromModel();
+
+        event->accept();
     }
-
-    // Note: Vertical scaling remains fixed at 1.0 to prevent vertical zoom
+    else
+    {
+        // Normal scroll behavior (horizontal pan)
+        QGraphicsView::wheelEvent(event);
+    }
 }

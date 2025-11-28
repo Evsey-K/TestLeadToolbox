@@ -1,38 +1,51 @@
 // TimelineView.h
+
+
 #pragma once
 #include <QGraphicsView>
 
-// Forward declaration to reduce header dependencies
+
 class TimelineScene;
+class TimelineModel;
+class TimelineCoordinateMapper;
+
 
 /**
  * @class TimelineView
- * @brief Custom QGraphicsView subclass to display and interact with the timeline scene.
+ * @brief Custom QGraphicsView for displaying and interacting with the timeline
  *
- * TimelineView provides the viewport for the timeline graphics scene (TimelineScene),
- * enabling features such as horizontal zooming and drag-based panning.
+ * Provides:
+ * - Viewport for the timeline scene
+ * - Horizontal zoom via mouse wheel
+ * - Drag-based panning
+ * - Scene management
  */
-
 class TimelineView : public QGraphicsView {
     Q_OBJECT
+
 public:
+    /**
+     * @brief Constructs a TimelineView with model and coordinate mapper
+     * @param model Timeline data model
+     * @param mapper Coordinate mapping utility
+     * @param parent Optional parent widget
+     */
+    explicit TimelineView(TimelineModel* model,
+                          TimelineCoordinateMapper* mapper,
+                          QWidget* parent = nullptr);
 
     /**
-     * @brief Constructs a TimelineView instance with an optional parent widget.
-     * @param parent Pointer to parent widget, defaults to nullptr.
+     * @brief Get the timeline scene
      */
-
-    explicit TimelineView(QWidget *parent = nullptr);
+    TimelineScene* timelineScene() const { return scene_; }
 
 protected:
-
     /**
-     * @brief Overridden to implement horizontal zoom behavior on mouse wheel events.
-     * @param event Pointer to the wheel event.
+     * @brief Override to implement horizontal zoom on mouse wheel
      */
-
-    void wheelEvent(QWheelEvent *event) override;
+    void wheelEvent(QWheelEvent* event) override;
 
 private:
-    TimelineScene *scene_ = nullptr; ///< The custom graphics scene displayed in this view.
+    TimelineScene* scene_;
+    TimelineCoordinateMapper* mapper_;
 };
