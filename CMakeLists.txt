@@ -97,7 +97,8 @@ set(SRC
 # above. ${PROJECT_NAME} automatically expands to "TestLeadToolbox".
 # ----------------------------------------------------------------------------
 
-add_executable(${PROJECT_NAME} ${SRC})
+add_executable(${PROJECT_NAME} ${SRC}
+    src/modules/timeline/LaneAssigner.h src/modules/timeline/LaneAssigner.cpp)
 
 # ----------------------------------------------------------------------------
 # Include Directory Setup

@@ -3,6 +3,7 @@
 
 #include "TimelineModel.h"
 #include <QUuid>
+#include <algorithm>
 
 
 TimelineModel::TimelineModel(QObject* parent)
@@ -16,45 +17,59 @@ TimelineModel::TimelineModel(QObject* parent)
 
 void TimelineModel::setVersionDates(const QDate& start, const QDate& end)
 {
-    if(start.isValid() && end.isValid() && start <= end)
+    if (start > end)
     {
-        versionStart_ = start;
-        versionEnd_ = end;
-        emit versionDatesChanged();
+        qWarning() << "Invalid version range: start > end";
+        return;
     }
+
+    versionStart_ = start;
+    versionEnd_ = end;
+    emit versionDatesChanged(start, end);
 }
 
 
-int TimelineModel::versionDurationDays() const
+QString TimelineModel::addEvent(const TimelineEvent& event)
 {
-    return versionStart_.daysTo(versionEnd_) + 1;
-}
-
-
-QString TimelineModel::addEvent(const TimelineObject& event)
-{
-    // Validate event dates are within range
+    // Validate event dates are within Version range
     if(event.startDate < versionStart_ || event.endDate > versionEnd_)
     {
-        // ACTION: Add Error notification here for invalid date range of event for the current version (event timeframe lies outside the version time frame)
+        qWarning() << "Event dates outside version range:"
+                   << "Event:" << event.startDate << "to" << event.endDate
+                   << "Version:" << versionStart_ << "to" << versionEnd_;
     }
 
     // Create a copy with generated Id if empty
-    TimelineObject newEvent = event;
+    TimelineEvent newEvent = event;
     if(newEvent.id.isEmpty())
     {
         newEvent.id = generateEventId();
     }
 
+    // Check for duplicate ID
+    if (events_.contains(newEvent.id))
+    {
+        qWarning() << "Event with ID" << newEvent.id << "already exists";
+
+        return QString();   // Return empty QString on failure
+    }
+
     // Assign color based on type if not set
     if(!newEvent.color.isValid())
     {
-        newEvent.color = colorForType(newEvent.type);
+        newEvent.color = TimelineEvent::colorForType(newEvent.type);
     }
 
+    // Add to internal storage
     events_.append(newEvent);
+
+    // Recalculate lanes after adding new event (Sprint 2 enhancement)
+    assignLanesToEvents();
+
+    // Emit signal
     emit eventAdded(newEvent.id);
 
+    // Return the event ID
     return newEvent.id;
 }
 
@@ -74,14 +89,14 @@ bool TimelineModel::removeEvent(const QString& eventId)
 }
 
 
-bool TimelineModel::updateEvent(const QString& eventId, const TimelineObject& updatedEvent)
+bool TimelineModel::updateEvent(const QString& eventId, const TimelineEvent& updatedEvent)
 {
     for(int i = 0; i < events_.size(); ++i)
     {
         if(events_[i].id == eventId)
         {
             // Preserve the Id
-            TimelineObject updated = updatedEvent;
+            TimelineEvent updated = updatedEvent;
             updated.id = eventId;
             events_[i] = updated;
             emit eventUpdated(eventId);
