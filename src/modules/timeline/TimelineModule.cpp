@@ -107,7 +107,7 @@ void TimelineModule::onAddEventClicked()
 
     if (dialog.exec() == QDialog::Accepted)
     {
-        TimelineObject newEvent = dialog.getEvent();
+        TimelineEvent newEvent = dialog.getEvent();
         QString eventId = model_->addEvent(newEvent);
 
         // Optional: Show confirmation
@@ -144,8 +144,8 @@ void TimelineModule::createSampleData()
     // Add a few sample events for demonstration
     QDate start = model_->versionStartDate();
 
-    TimelineObject event1;
-    event1.type = TimelineObjectType::Meeting;
+    TimelineEvent event1;
+    event1.type = TimelineEventType_Meeting;
     event1.title = "Sprint Planning";
     event1.startDate = start.addDays(5);
     event1.endDate = start.addDays(5);
@@ -153,8 +153,8 @@ void TimelineModule::createSampleData()
     event1.priority = 4;
     model_->addEvent(event1);
 
-    TimelineObject event2;
-    event2.type = TimelineObjectType::TestEvent;
+    TimelineEvent event2;
+    event2.type = TimelineEventType_TestEvent;
     event2.title = "Integration Testing";
     event2.startDate = start.addDays(20);
     event2.endDate = start.addDays(25);
@@ -162,8 +162,8 @@ void TimelineModule::createSampleData()
     event2.priority = 5;
     model_->addEvent(event2);
 
-    TimelineObject event3;
-    event3.type = TimelineObjectType::DueDate;
+    TimelineEvent event3;
+    event3.type = TimelineEventType_DueDate;
     event3.title = "Release Candidate";
     event3.startDate = start.addDays(60);
     event3.endDate = start.addDays(60);
@@ -171,8 +171,8 @@ void TimelineModule::createSampleData()
     event3.priority = 5;
     model_->addEvent(event3);
 
-    TimelineObject event4;
-    event4.type = TimelineObjectType::Action;
+    TimelineEvent event4;
+    event4.type = TimelineEventType_Action;
     event4.title = "Code Freeze";
     event4.startDate = start.addDays(55);
     event4.endDate = start.addDays(59);

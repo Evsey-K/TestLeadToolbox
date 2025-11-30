@@ -3,9 +3,11 @@
 
 #pragma once
 #include <QWidget>
+#include "TimelineModel.h"
 
 
 // Forward declaration
+class QTabWidget;
 class QListWidget;
 class QListWidgetItem;
 class TimelineModel;
@@ -21,17 +23,20 @@ class TimelineSidePanel;
  * @class TimelineSidePanel
  * @brief Side panel displaying all timeline events in a list
  *
+ * - Tab 1: All Events (existing functionality)
+ * - Tab 2: Lookahead (next 2 weeks)
+ * - Tab 3: Today's Events
+ *
  * Shows all events sorted by date with:
  * - Event title
  * - Date range
  * - Color indicator matching timeline
  *
- * Responds to model changes to keep list synchronized.
+ * All tabs automatically update when model changes.
  */
 class TimelineSidePanel : public QWidget
 {
     Q_OBJECT
-
 
 public:
     /**
@@ -41,18 +46,15 @@ public:
      */
     explicit TimelineSidePanel(TimelineModel* model, QWidget* parent = nullptr);
 
-
     /**
      * @brief Destructor - cleans up UI
      */
     ~TimelineSidePanel();
 
-
     /**
-     * @brief Refresh the entire list from the model
+     * @brief Refresh all tabs from the model
      */
-    void refreshList();
-
+    void refreshAllTabs();
 
 signals:
     /**
@@ -60,25 +62,38 @@ signals:
      */
     void eventSelected(const QString& eventId);
 
-
 private slots:
     void onEventAdded(const QString& eventiD);
     void onEventRemoved(const QString& eventiD);
     void onEventUpdated(const QString& eventiD);
-    void onItemClicked(QListWidgetItem* item);
+    void onLanesRecalculated();
 
+    void onAllEventsItemClicked(QListWidgetItem* item);
+    void onLookaheadItemClicked(QListWidgetItem* item);
+    void onTodayItemClicked(QListWidgetItem* item);
 
 private:
+    void setupUi();
     void connectSignals();
-    void addEventToList(const QString& eventId);
-    void removeEventFromList(const QString& eventId);
-    void updateEventInList(const QString& eventId);
-    QListWidgetItem* findListItem(const QString& eventId) const;
-    QString formatEventText(const QString& eventId) const;
 
+    // Tab refresh methods
+    void refreshAllEventsTab();
+    void refreshLookaheadTab();
+    void refreshTodayTab();
 
-    Ui::TimelineSidePanel *ui;  // Ui Form Pointer
+    // Helper methods
+    void populateListWidget(QListWidget* listWidget, const QVector<TimelineEvent>& events);
+    QListWidgetItem* createListItem(const TimelineEvent& event);
+    QString formatEventText(const TimelineEvent& event) const;
+    QString formatEventDateRange(const TimelineEvent& event) const;
+
     TimelineModel* model_;
+
+    // UI components (Three tabs)
+    QTabWidget* tabWidget_;
+    QListWidget* allEventsList_;
+    QListWidget* lookaheadList_;
+    QListWidget* todayList_;
 };
 
 

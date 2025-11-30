@@ -21,8 +21,9 @@
  *
  * Usage:
  * @code
- *   LaneAssigner assigner;
- *   assigner.assignLanes(events);
+ *   QVector<LaneAssigner::EventData> events;
+ *   // ... populate events ...
+ *   int maxLane = LaneAssigner::assignLanes(events);
  *   // events now have .lane field populated
  * @endcode
  */
@@ -92,7 +93,7 @@ public:
 
             if (assignedLane > maxLane)
             {
-                maxLane = assignedLane
+                maxLane = assignedLane;
             }
         }
 

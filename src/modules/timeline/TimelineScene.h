@@ -13,7 +13,7 @@ class TimelineItem;
 
 /**
  * @class TimelineScene
- * @brief Custom QGraphicsScene that manages timeline items and their layout
+ * @brief Custom QGraphicsScene that manages timeline items and their layout w/ collision avoidance
  *
  * This scene is responsible for:
  * - Creating visual items from model data
@@ -34,12 +34,17 @@ public:
      * @param parent Optional QObject parent
      */
 
-    explicit TimelineScene(TimelineModel* model, TimelineCoordinateMapper* mapper, QObject *parent = nullptr);
+    explicit TimelineScene(TimelineModel* model,
+                           TimelineCoordinateMapper* mapper,
+                           QObject *parent = nullptr);
 
     /**
      * @brief Get the coordinate mapper
      */
-    TimelineCoordinateMapper* coordinateMapper() const { return mapper_; }
+    TimelineCoordinateMapper* coordinateMapper() const
+    {
+        return mapper_;
+    }
 
     /**
      * @brief Rebuild all items from the model (useful after zoom or major changes)
@@ -72,6 +77,11 @@ public slots:
      */
     void onVersionDatesChanged();
 
+    /**
+     * @brief Handle lanes being recalculated (Sprint 2)
+     */
+    void onLanesRecalculated();
+
 private:
     /**
      * @brief Create a single timeline item from event data
@@ -83,10 +93,16 @@ private:
      */
     void updateItemFromEvent(TimelineItem* item, const QString& eventId);
 
+    /**
+     * @brief Update scene height based on current lane count (Sprint 2)
+     */
+    void updateSceneHeight();
+
     TimelineModel* model_;                              ///< Data model (not owned)
     TimelineCoordinateMapper* mapper_;                  ///< Coordinate mapper (not owned)
     QMap<QString, TimelineItem*> eventIdToItem_;        ///< Map event IDs to scene items
 
+    // Lane-based layout constants
     static constexpr double ITEM_HEIGHT = 30.0;         ///< Default height of timeline bars
-    static constexpr double ITEM_Y_POSITION = 50.0;     ///< Default Y position (will be replaced with lane logic later)
+    static constexpr double LANE_SPACING = 5.0;         ///< Vertical spacing between lanes
 };

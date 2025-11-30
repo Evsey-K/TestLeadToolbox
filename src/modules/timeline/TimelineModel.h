@@ -8,7 +8,59 @@
 #include <QString>
 #include <QColor>
 #include <QMap>
-#include "LaneAssigner.h"
+
+
+// Forward declarations
+using TimelineEventType = int;
+constexpr TimelineEventType TimelineEventType_Meeting = 0;
+constexpr TimelineEventType TimelineEventType_Action = 1;
+constexpr TimelineEventType TimelineEventType_TestEvent = 2;
+constexpr TimelineEventType TimelineEventType_DueDate = 3;
+constexpr TimelineEventType TimelineEventType_Reminder = 4;
+
+
+/**
+ * @struct TimelineEvent
+ * @brief Represents a single timeline event with collision avoidance support
+ */
+struct TimelineEvent
+{
+    QString id;                 ///< Unuqie identifier for the event
+    TimelineEventType type;     ///< Type of timeline event
+    QDate startDate;            ///< Start date of the event
+    QDate endDate;              ///< End date of the event (same as start for single-day events)
+    QString title;              ///< Display title of the event
+    QString description;        ///< Detailed description of the event
+    QColor color;               ///< Visual color based on type
+    int priority = 0;           ///< Prioty level (0-5, lower = more important)
+    int lane = 0;               ///< Vertical lane for collision avoidance
+
+    TimelineEvent() = default;
+
+    /**
+     * @brief Checks if this event occurs on a specific date
+     */
+    bool occursOnDate(const QDate& date) const
+    {
+        return date >= startDate && date <= endDate;
+    }
+
+    /**
+     * @brief Checks if this event overlaps with another
+     */
+    bool overlaps(const TimelineEvent& other) const
+    {
+        return !(endDate < other.startDate || startDate > other.endDate);
+    }
+
+    /**
+     * @brief Returns duration in days (inclusive)
+     */
+    int cudrationDats() const
+    {
+        return startDate.daysTo(endDate) + 1;
+    }
+};
 
 
 /**
@@ -20,80 +72,6 @@ class TimelineModel : public QObject
     Q_OBJECT
 
 public:
-    /**
-     * @enum EventType
-     * @brief Categories of timeline events with distinct visual styling
-     */
-    enum class EventType
-    {
-        Meeting,
-        Action,
-        TestEvent,
-        DueDate,
-        Reminder
-    };
-    Q_ENUM(EventType)
-
-    /**
-    * @struct TimelineEvent
-    * @brief Represents a single timeline event with all metadata
-    */
-    struct TimelineEvent
-    {
-        QString id;                 ///< Unuqie identifier for the event
-        EventType type;             ///< Type of timeline event
-        QDate startDate;            ///< Start date of the event
-        QDate endDate;              ///< End date of the event (same as start for single-day events)
-        QString title;              ///< Display title of the event
-        QString description;        ///< Detailed description of the event
-        QColor color;               ///< Visual color based on type
-        int priority = 0;           ///< Prioty level (0-5, lower = more important)
-        int lane = 0;               ///< Vertical lane for collision avoidance
-
-        TimelineEvent() = default;
-
-        TimelineEvent(const QString& id_, EventType type_, const QDate& start,
-                      const QDate& end, const QString& title_, const QString& desc = "",
-                      int prio = 0)
-            : id(id_), type(type_), startDate(start), endDate(end),
-            title(title_), description(desc), priority(prio)
-        {
-            color = colorForType(type_);
-        }
-
-        /**
-         * @brief Returns display color based on event type
-         */
-        static QColor colorForType(EventType type)
-        {
-            switch (type)
-            {
-            case EventType::Meeting:   return QColor(66, 133, 244);  // Blue
-            case EventType::Action:    return QColor(219, 68, 55);   // Red
-            case EventType::TestEvent: return QColor(15, 157, 88);   // Green
-            case EventType::DueDate:   return QColor(244, 160, 0);   // Orange
-            case EventType::Reminder:  return QColor(171, 71, 188);  // Purple
-            default:                   return QColor(100, 100, 100); // Gray
-            }
-        }
-
-        /**
-         * @brief Checks if this event overlaps with another in date range
-         */
-        bool overlaps(const TimelineEvent& other) const
-        {
-            return !(endDate < other.startDate || startDate > other.endDate);
-        }
-
-        /**
-         * @brief Returns duration in days (inclusive)
-         */
-        int durationDays() const
-        {
-            return startDate.daysTo(endDate) + 1;
-        }
-    };
-
     /**
      * @brief Constructs a TimelineModel with version date range
      * @param parent Qt parent object
@@ -138,9 +116,12 @@ public:
     bool updateEvent(const QString& eventId, const TimelineEvent& updatedEvent);
 
     /**
-     * @brief Gets an event by ID
-     * @param eventId Event ID
-     * @return Pointer to event, or nullptr if not found
+     * @brief Gets an event by ID (mutable)
+     */
+    TimelineEvent* getEvent(const QString& eventId);
+
+    /**
+     * @brief Gets an event by ID (const)
      */
     const TimelineEvent* getEvent(const QString& eventId) const;
 
@@ -183,6 +164,11 @@ public:
      * @brief Force recalculation of all lanes
      */
     void recalculateLanes();
+
+    /**
+     * @brief Returns color for a given event type
+     */
+    static QColor colorForType(TimelineEventType type);
 
 signals:
     /**

@@ -42,6 +42,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(Qt6 COMPONENTS Core Gui Widgets REQUIRED)
 
 # ----------------------------------------------------------------------------
+# Qt Auto-Generation Settings
+# ----------------------------------------------------------------------------
+
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTOUIC ON)
+set(CMAKE_AUTORCC ON)
+
+# ----------------------------------------------------------------------------
 # Source File List
 # ----------------------------------------------------------------------------
 # Centralized list of .cpp implementation files that form the TestLeadToolbox
@@ -55,14 +63,11 @@ find_package(Qt6 COMPONENTS Core Gui Widgets REQUIRED)
 # Additional modules should append their source files here.
 # ----------------------------------------------------------------------------
 
-set(CMAKE_AUTOMOC ON)
-set(CMAKE_AUTOUIC ON)
-set(CMAKE_AUTORCC ON)
-
 set(SRC
     # App Shell
     src/app/main.cpp
     src/app/MainWindow.cpp
+    src/app/MainWindow.h
 
     # Timeline Module
     src/modules/timeline/TimelineModule.cpp
@@ -86,6 +91,9 @@ set(SRC
     src/modules/timeline/TimelineSidePanel.h
     src/modules/timeline/TimelineSidePanel.ui
 
+    src/modules/timeline/LaneAssigner.h
+    src/modules/timeline/LaneAssigner.cpp
+
     # Add new 'module' sources below:
     # src/modules/<module_name>/<file>.cpp
 )
@@ -97,8 +105,7 @@ set(SRC
 # above. ${PROJECT_NAME} automatically expands to "TestLeadToolbox".
 # ----------------------------------------------------------------------------
 
-add_executable(${PROJECT_NAME} ${SRC}
-    src/modules/timeline/LaneAssigner.h src/modules/timeline/LaneAssigner.cpp)
+add_executable(${PROJECT_NAME} ${SRC})
 
 # ----------------------------------------------------------------------------
 # Include Directory Setup

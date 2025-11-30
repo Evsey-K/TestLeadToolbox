@@ -7,6 +7,7 @@
 #include <QListWidget>
 #include <QPixmap>
 #include <QPainter>
+#include <QDate>
 #include <algorithm>
 
 
@@ -16,184 +17,245 @@ TimelineSidePanel::TimelineSidePanel(TimelineModel* model, QWidget* parent)
     , model_(model)
 {
     ui->setupUi(this);
+
     connectSignals();
-    refreshList();
+    refreshAllTabs();
 }
 
 
 TimelineSidePanel::~TimelineSidePanel()
 {
+    // Clean up the UI pointer allocated in the constructor
     delete ui;
 }
 
 
 void TimelineSidePanel::connectSignals()
 {
-    // Connect to Model signals
+    // Connect to model signals
     connect(model_, &TimelineModel::eventAdded, this, &TimelineSidePanel::onEventAdded);
     connect(model_, &TimelineModel::eventRemoved, this, &TimelineSidePanel::onEventRemoved);
     connect(model_, &TimelineModel::eventUpdated, this, &TimelineSidePanel::onEventUpdated);
+    connect(model_, &TimelineModel::lanesRecalculated, this, &TimelineSidePanel::onLanesRecalculated);
 
-    // Connect to List Widget signals
-    connect(ui->listWidget, &QListWidget::itemClicked, this, &TimelineSidePanel::onItemClicked);
+    // Connect to list widget click signals
+    connect(ui->allEventsList, &QListWidget::itemClicked, this, &TimelineSidePanel::onAllEventsItemClicked);
+    connect(ui->lookaheadList, &QListWidget::itemClicked, this, &TimelineSidePanel::onLookaheadItemClicked);
+    connect(ui->todayList, &QListWidget::itemClicked, this, &TimelineSidePanel::onTodayItemClicked);
 }
 
 
-void TimelineSidePanel::refreshList()
+void TimelineSidePanel::refreshAllTabs()
 {
-    ui->listWidget->clear();
+    refreshAllEventsTab();
+    refreshLookaheadTab();
+    refreshTodayTab();
+}
 
-    // Get all events sorted by start date
-    QVector<TimelineObject> events = model_->allEvents();
+void TimelineSidePanel::refreshAllEventsTab()
+{
+    QVector<TimelineEvent> events = model_->getAllEvents();
+
+    // Sort by start date
     std::sort(events.begin(), events.end(),
-              [](const TimelineObject& a, const TimelineObject& b)
+              [](const TimelineEvent& a, const TimelineEvent& b)
               {
-                return a.startDate < b.startDate;
+                  return a.startDate < b.startDate;
               });
 
-    // Add each event to the list
-    for (const auto& event : events)
+    populateListWidget(ui->allEventsList, events);
+}
+
+void TimelineSidePanel::refreshLookaheadTab()
+{
+    // Show events in next 2 weeks
+    QVector<TimelineEvent> events = model_->getEventsLookahead(14);
+
+    // Sort by start date
+    std::sort(events.begin(), events.end(),
+              [](const TimelineEvent& a, const TimelineEvent& b)
+              {
+                  return a.startDate < b.startDate;
+              });
+
+    populateListWidget(ui->lookaheadList, events);
+
+    // Update tab label with count
+    ui->tabWidget->setTabText(1, QString("Lookahead (%1)").arg(events.size()));
+}
+
+
+void TimelineSidePanel::refreshTodayTab()
+{
+    // Show today's events
+    QVector<TimelineEvent> events = model_->getEventsForToday();
+
+    // Sort by priority (higher priority first), then by start time
+    std::sort(events.begin(), events.end(),
+              [](const TimelineEvent& a, const TimelineEvent& b)
+              {
+                  if (a.priority != b.priority)
+                  {
+                      return a.priority > b.priority; // Higher priority first
+                  }
+                  return a.startDate < b.startDate;
+              });
+
+    populateListWidget(ui->todayList, events);
+
+    // Update tab label with count and today's date
+    QString todayLabel = QString("Today (%1) - %2")
+                             .arg(events.size())
+                             .arg(QDate::currentDate().toString("MMM dd"));
+
+    ui->tabWidget->setTabText(2, todayLabel);
+}
+
+
+void TimelineSidePanel::populateListWidget(QListWidget* listWidget, const QVector<TimelineEvent>& events)
+{
+    listWidget->clear();
+
+    if (events.isEmpty())
     {
-        addEventToList(event.id);
-    }
-}
+        auto emptyItem = new QListWidgetItem("No events");
+        emptyItem->setFlags(Qt::NoItemFlags); // Make it non-selectable
+        emptyItem->setForeground(Qt::gray);
 
+        listWidget->addItem(emptyItem);
 
-void TimelineSidePanel::onEventAdded(const QString& eventId)
-{
-    addEventToList(eventId);
-}
-
-
-void TimelineSidePanel::onEventRemoved(const QString& eventId)
-{
-    removeEventFromList(eventId);
-}
-
-
-void TimelineSidePanel::onEventUpdated(const QString& eventId)
-{
-    updateEventInList(eventId);
-}
-
-
-void TimelineSidePanel::onItemClicked(QListWidgetItem* item)
-{
-    if (item)
-    {
-        QString eventId = item->data(Qt::UserRole).toString();
-        emit eventSelected(eventId);
-    }
-}
-
-
-void TimelineSidePanel::addEventToList(const QString& eventId)
-{
-    const TimelineObject* event = model_->findEvent(eventId);
-    if(!event)
-    {
         return;
     }
 
-    // Create list item
+    for (const auto& event : events)
+    {
+        QListWidgetItem* item = createListItem(event);
+        listWidget->addItem(item);
+    }
+}
+
+
+QListWidgetItem* TimelineSidePanel::createListItem(const TimelineEvent& event)
+{
     auto item = new QListWidgetItem();
-    item->setText(formatEventText(eventId));
-    item->setData(Qt::UserRole, eventId);
+    item->setText(formatEventText(event));
+    item->setData(Qt::UserRole, event.id);
 
     // Create color indicator icon
     QPixmap colorPixmap(16, 16);
-    colorPixmap.fill(event->color);
+    colorPixmap.fill(event.color);
     item->setIcon(QIcon(colorPixmap));
 
-    // Insert in sorted position by date
-    int insertPos = 0;
-    for (int i = 0; i < ui->listWidget->count(); ++i)
-    {
-        QString existingId = ui->listWidget->item(i)->data(Qt::UserRole).toString();
-        const TimelineObject* existing = model_->findEvent(existingId);
+    // Add lane information to tooltip
+    QString tooltip = QString("%1\n%2\nPriority: %3\nLane: %4")
+                          .arg(event.title)
+                          .arg(formatEventDateRange(event))
+                          .arg(event.priority)
+                          .arg(event.lane);
 
-        if (existing && existing->startDate > event->startDate)
-        {
-            break;
-        }
-        insertPos = i + 1;
+    if (!event.description.isEmpty())
+    {
+        tooltip += "\n\n" + event.description;
     }
 
-    ui->listWidget->insertItem(insertPos, item);
+    item->setToolTip(tooltip);
+
+    return item;
 }
 
 
-void TimelineSidePanel::removeEventFromList(const QString& eventId)
+QString TimelineSidePanel::formatEventText(const TimelineEvent& event) const
 {
-    QListWidgetItem* item = findListItem(eventId);
+    QString dateRange = formatEventDateRange(event);
 
-    if (item)
-    {
-        ui->listWidget->takeItem(ui->listWidget->row(item));
-    }
+    // Include priority indicator for high-priority events
+    QString priorityIndicator = (event.priority >= 4) ? "🔴 " : "";
+
+    return QString("%1%2\n%3")
+        .arg(priorityIndicator)
+        .arg(event.title)
+        .arg(dateRange);
 }
 
 
-void TimelineSidePanel::updateEventInList(const QString& eventId)
+QString TimelineSidePanel::formatEventDateRange(const TimelineEvent& event) const
 {
-    QListWidgetItem* item = findListItem(eventId);
-    if (item)
+    if (event.startDate == event.endDate)
     {
-        // Update text
-        item->setText(formatEventText(eventId));
-
-        // Update color
-        const TimelineObject* event = model_->findEvent(eventId);
-
-        if (event)
-        {
-            QPixmap colorPixmap(16, 16);
-            colorPixmap.fill(event->color);
-            item->setIcon(QIcon(colorPixmap));
-        }
-
-        // Restore list (remove and re-add)
-        removeEventFromList(eventId);
-        addEventToList(eventId);
-    }
-}
-
-
-QListWidgetItem* TimelineSidePanel::findListItem(const QString& eventId) const
-{
-    for (int i = 0; i < ui->listWidget->count(); ++i)
-    {
-        QListWidgetItem* item = ui->listWidget->item(i);
-
-        if (item->data(Qt::UserRole).toString() == eventId)
-        {
-            return item;
-        }
-    }
-
-    return nullptr;
-}
-
-
-QString TimelineSidePanel::formatEventText(const QString& eventId) const
-{
-    const TimelineObject* event = model_->findEvent(eventId);
-    if (!event)
-    {
-        return QString();
-    }
-
-    QString dateRange;
-    if (event->startDate == event->endDate)
-    {
-        dateRange = event->startDate.toString("MMM dd");
+        return event.startDate.toString("MMM dd, yyyy");
     }
     else
     {
-        dateRange = QString("%1 - %2")
-        .arg(event->startDate.toString("MMM dd"))
-            .arg(event->endDate.toString("MMM dd"));
+        return QString("%1 - %2")
+        .arg(event.startDate.toString("MMM dd"))
+            .arg(event.endDate.toString("MMM dd, yyyy"));
     }
-
-    return QString("%1\n%2").arg(event->title, dateRange);
 }
+
+
+void TimelineSidePanel::onEventAdded(const QString& /*eventId*/)
+{
+    refreshAllTabs();
+}
+
+
+void TimelineSidePanel::onEventRemoved(const QString& /*eventId*/)
+{
+    refreshAllTabs();
+}
+
+
+void TimelineSidePanel::onEventUpdated(const QString& /*eventId*/)
+{
+    refreshAllTabs();
+}
+
+
+void TimelineSidePanel::onLanesRecalculated()
+{
+    // SPRINT 2: Refresh all tabs when lanes change (updates lane info in tooltips)
+    refreshAllTabs();
+}
+
+
+void TimelineSidePanel::onAllEventsItemClicked(QListWidgetItem* item)
+{
+    if (item && item->flags() != Qt::NoItemFlags)
+    {
+        QString eventId = item->data(Qt::UserRole).toString();
+        if (!eventId.isEmpty())
+        {
+            emit eventSelected(eventId);
+        }
+    }
+}
+
+
+void TimelineSidePanel::onLookaheadItemClicked(QListWidgetItem* item)
+{
+    if (item && item->flags() != Qt::NoItemFlags)
+    {
+        QString eventId = item->data(Qt::UserRole).toString();
+        if (!eventId.isEmpty())
+        {
+            emit eventSelected(eventId);
+        }
+    }
+}
+
+
+void TimelineSidePanel::onTodayItemClicked(QListWidgetItem* item)
+{
+    if (item && item->flags() != Qt::NoItemFlags)
+    {
+        QString eventId = item->data(Qt::UserRole).toString();
+        if (!eventId.isEmpty())
+        {
+            emit eventSelected(eventId);
+        }
+    }
+}
+
+
+
+

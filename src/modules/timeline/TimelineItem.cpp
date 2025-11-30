@@ -32,11 +32,11 @@ QVariant TimelineItem::itemChange(GraphicsItemChange change, const QVariant& val
 {
     if (change == ItemPositionHasChanged && scene())
     {
-        // Constrain movement to horizontal only
+        // Constrain movement to horizontal only (preserve lane)
         QPointF newPos = value.toPointF();
 
-        // Keep Y position fixed (prevent vertical dragging)
-        newPos.setY(pos().y());
+        // Keep Y position fixed to preserve lane assignment
+        newPos.setY(rect().y());
 
         return newPos;
     }
@@ -81,15 +81,15 @@ void TimelineItem::updateModelFromPosition()
     }
 
     // Get current event data
-    const TimelineObject* currentEvent = model_->findEvent(eventId_);
-    if(!currentEvent)
+    const TimelineEvent* currentEvent = model_->getEvent(eventId_);
+    if (!currentEvent)
     {
         return;
     }
 
     // Calculate new start date based on current X position
-    // rect().x() is relative to item position, so we use pos().x()
-    double xPos = pos().x();
+    // Use rect().x() which includes the item's horizontal offset
+    double xPos = rect().x() + pos().x();
     QDate newStartDate = mapper_->xToDate(xPos);
 
     // Calculate duration to preserve event length
@@ -97,14 +97,16 @@ void TimelineItem::updateModelFromPosition()
     QDate newEndDate = newStartDate.addDays(duration);
 
     // Create updated event
-    TimelineObject updatedEvent = *currentEvent;
+    TimelineEvent updatedEvent = *currentEvent;
     updatedEvent.startDate = newStartDate;
     updatedEvent.endDate = newEndDate;
+    // Lane is preserved - model will recalculate if needed
 
-    // Update model (this will trigger eventUpdated signal)
+    // Update model (this will trigger lane recalculation and eventUpdated signal)
     model_->updateEvent(eventId_, updatedEvent);
 
-    // Note: The scene will update our visual representation via the signal
-    // But since we're the one who moved, we're already in the right place
+    // IMPORTANT: Don't manually update position here
+    // The scene will update our visual representation via the eventUpdated signal
+    // This ensures proper lane assignment after the drag
 }
 

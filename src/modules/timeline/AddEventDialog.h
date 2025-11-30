@@ -67,7 +67,7 @@ public:
      * The ID field is left empty; the model will assign a unique ID.
      * The color is determined by the TimelineModel based on the selected type.
      */
-    TimelineObject getEvent() const;
+    TimelineEvent getEvent() const;
 
 private slots:
     /**

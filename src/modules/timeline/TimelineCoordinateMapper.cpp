@@ -91,26 +91,3 @@ double TimelineCoordinateMapper::totalWidth() const
     return totalDays * pixelsPerDay_;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

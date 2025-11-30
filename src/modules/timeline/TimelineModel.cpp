@@ -2,8 +2,8 @@
 
 
 #include "TimelineModel.h"
+#include "LaneAssigner.h"
 #include <QUuid>
-#include <algorithm>
 
 
 TimelineModel::TimelineModel(QObject* parent)
@@ -47,17 +47,17 @@ QString TimelineModel::addEvent(const TimelineEvent& event)
     }
 
     // Check for duplicate ID
-    if (events_.contains(newEvent.id))
+    if (getEvent(newEvent.id) != nullptr)
     {
         qWarning() << "Event with ID" << newEvent.id << "already exists";
 
-        return QString();   // Return empty QString on failure
+        return QString(); // Return empty QString on failure
     }
 
     // Assign color based on type if not set
     if(!newEvent.color.isValid())
     {
-        newEvent.color = TimelineEvent::colorForType(newEvent.type);
+        newEvent.color = colorForType(newEvent.type);
     }
 
     // Add to internal storage
@@ -81,7 +81,9 @@ bool TimelineModel::removeEvent(const QString& eventId)
         if(events_[i].id == eventId)
         {
             events_.removeAt(i);
+            assignLanesToEvents();          // Recalculate lanes after removal
             emit eventRemoved(eventId);
+
             return true;
         }
     }
@@ -99,7 +101,10 @@ bool TimelineModel::updateEvent(const QString& eventId, const TimelineEvent& upd
             TimelineEvent updated = updatedEvent;
             updated.id = eventId;
             events_[i] = updated;
+
+            assignLanesToEvents();          // Recalculate lanes after update
             emit eventUpdated(eventId);
+
             return true;
         }
     }
@@ -107,7 +112,7 @@ bool TimelineModel::updateEvent(const QString& eventId, const TimelineEvent& upd
 }
 
 
-TimelineObject* TimelineModel::findEvent(const QString& eventId)
+TimelineEvent* TimelineModel::getEvent(const QString& eventId)
 {
     for(int i = 0; i < events_.size(); ++i)
     {
@@ -120,7 +125,7 @@ TimelineObject* TimelineModel::findEvent(const QString& eventId)
 }
 
 
-const TimelineObject* TimelineModel::findEvent(const QString& eventId) const
+const TimelineEvent* TimelineModel::getEvent(const QString& eventId) const
 {
     for(int i = 0; i < events_.size(); ++i)
     {
@@ -133,24 +138,9 @@ const TimelineObject* TimelineModel::findEvent(const QString& eventId) const
 }
 
 
-QVector<TimelineObject> TimelineModel::eventsOnDate(const QDate& date) const
+QVector<TimelineEvent> TimelineModel::getEventsInRange(const QDate& start, const QDate& end) const
 {
-    QVector<TimelineObject> result;
-
-    for(const auto& event : events_)
-    {
-        if(event.occursOnDate(date))
-        {
-            result.append(event);
-        }
-    }
-    return result;
-}
-
-
-QVector<TimelineObject> TimelineModel::eventsBetween(const QDate& start, const QDate& end) const
-{
-    QVector<TimelineObject> result;
+    QVector<TimelineEvent> result;
 
     for(const auto& event : events_)
     {
@@ -164,19 +154,27 @@ QVector<TimelineObject> TimelineModel::eventsBetween(const QDate& start, const Q
 }
 
 
-QColor TimelineModel::colorForType(TimelineObjectType type)
+void TimelineModel::clear()
+{
+    events_.clear();
+    maxLane_ = 0;
+    emit eventsCleared();
+}
+
+
+QColor TimelineModel::colorForType(TimelineEventType type)
 {
     switch (type)
     {
-        case TimelineObjectType::Meeting:
+        case TimelineEventType_Meeting:
             return QColor(100, 149, 237);       // Cornflower Blue
-        case TimelineObjectType::Action:
+        case TimelineEventType_Action:
             return QColor(255, 165, 0);         // Orange
-        case TimelineObjectType::TestEvent:
+        case TimelineEventType_TestEvent:
             return QColor(50, 205, 50);         // Lime Green
-        case TimelineObjectType::DueDate:
+        case TimelineEventType_DueDate:
             return QColor(220, 20, 60);         // Crimson
-        case TimelineObjectType::Reminder:
+        case TimelineEventType_Reminder:
             return QColor(255, 215, 0);         // Gold
         default:
             return QColor();                    // Gray fallback
@@ -189,6 +187,61 @@ QString TimelineModel::generateEventId() const
     // Use QUuid for guarenteed uniqueness
     return QUuid::createUuid().toString(QUuid::WithoutBraces);
 }
+
+
+void TimelineModel::assignLanesToEvents()
+{
+    // Lane Assignment Algorithm
+    // Uses LaneAssigner utility to prevent visual overlap
+
+    if (events_.isEmpty())
+    {
+        maxLane_ = 0;
+
+        return;
+    }
+
+    // Step 1: Convert our events to LaneAssigner format
+    QVector<LaneAssigner::EventData> laneEvents;
+
+    laneEvents.reserve(events_.size());
+
+    for(int i = 0; i < events_.size(); ++i)
+    {
+        laneEvents.append(LaneAssigner::EventData(
+            events_[i].id,
+            events_[i].startDate,
+            events_[i].endDate,
+            &events_[i]             // Store pointer for eay update
+        ));
+    }
+
+    // Step 2: Run lane assignment algorithm
+    maxLane_ = LaneAssigner::assignLanes(laneEvents);
+
+    // Step 3: Update our events with assigned lanes
+    for (const auto& laneEvent : laneEvents)
+    {
+        TimelineEvent* event = static_cast<TimelineEvent*>(laneEvent.userData);
+        if (event)
+        {
+            event->lane = laneEvent.lane;
+        }
+    }
+
+    // Step 4: Emit signal that lanes have been recalculated
+    emit lanesRecalculated();
+}
+
+
+
+
+
+
+
+
+
+
 
 
 

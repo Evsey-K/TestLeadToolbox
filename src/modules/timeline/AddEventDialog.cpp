@@ -20,11 +20,11 @@ AddEventDialog::AddEventDialog(const QDate& versionStart,
 
     // Populate the type combo box with all event types
     // Must be done in code because we need to attach enum values as UserRole data
-    ui->typeCombo->addItem("Meeting", static_cast<int>(TimelineObjectType::Meeting));
-    ui->typeCombo->addItem("Action", static_cast<int>(TimelineObjectType::Action));
-    ui->typeCombo->addItem("Test Event", static_cast<int>(TimelineObjectType::TestEvent));
-    ui->typeCombo->addItem("Deadline", static_cast<int>(TimelineObjectType::DueDate));
-    ui->typeCombo->addItem("Reminder", static_cast<int>(TimelineObjectType::Reminder));
+    ui->typeCombo->addItem("Meeting", static_cast<int>(TimelineEventType_Meeting));
+    ui->typeCombo->addItem("Action", static_cast<int>(TimelineEventType_Action));
+    ui->typeCombo->addItem("Test Event", static_cast<int>(TimelineEventType_TestEvent));
+    ui->typeCombo->addItem("Deadline", static_cast<int>(TimelineEventType_DueDate));
+    ui->typeCombo->addItem("Reminder", static_cast<int>(TimelineEventType_Reminder));
 
     // Configure start date picker with validation boundaries
     // Default to today's date for convenience
@@ -102,13 +102,13 @@ void AddEventDialog::validateAndAccept()
 }
 
 
-TimelineObject AddEventDialog::getEvent() const
+TimelineEvent AddEventDialog::getEvent() const
 {
-    TimelineObject event;
+    TimelineEvent event;
 
     // Extract type from combo box user data (stored as integer enum value)
     int typeValue = ui->typeCombo->currentData().toInt();
-    event.type = static_cast<TimelineObjectType>(typeValue);
+    event.type = static_cast<TimelineEventType>(typeValue);
 
     // Extract and trim title text to remove leading/trailing whitespace
     event.title = ui->titleEdit->text().trimmed();
@@ -132,13 +132,4 @@ TimelineObject AddEventDialog::getEvent() const
 
     return event;
 }
-
-
-
-
-
-
-
-
-
 
