@@ -102,7 +102,13 @@
      <item row="4" column="1">
       <widget class="QSpinBox" name="prioritySpinner">
        <property name="toolTip">
-        <string>Priority level (0=lowest, 5=highest)</string>
+        <string>Priority level (1=highest, 5=lowest)</string>
+       </property>
+       <property name="buttonSymbols">
+        <enum>QAbstractSpinBox::ButtonSymbols::UpDownArrows</enum>
+       </property>
+       <property name="minimum">
+        <number>1</number>
        </property>
        <property name="maximum">
         <number>5</number>

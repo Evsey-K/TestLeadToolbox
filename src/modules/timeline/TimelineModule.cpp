@@ -72,13 +72,13 @@ void TimelineModule::setupUi()
 
     // Create side panel
     sidePanel_ = new TimelineSidePanel(model_, this);
-    sidePanel_->setMinimumWidth(200);
-    sidePanel_->setMaximumWidth(300);
+    sidePanel_->setMinimumWidth(300);
+    sidePanel_->setMaximumWidth(500);
     splitter->addWidget(sidePanel_);
 
-    // Set initial splitter sizes (80% timeline, 20% panel)
-    splitter->setStretchFactor(0, 4);
-    splitter->setStretchFactor(1, 1);
+    // Set initial splitter sizes (70% timeline, 30% panel)
+    splitter->setStretchFactor(0, 7);
+    splitter->setStretchFactor(1, 3);
 
     mainLayout->addWidget(splitter, 1); // Give splitter all remaining space
 }

@@ -18,8 +18,16 @@ TimelineSidePanel::TimelineSidePanel(TimelineModel* model, QWidget* parent)
 {
     ui->setupUi(this);
 
+    // Set initial splitter sizes (70% for tabs, 30% for details)
+    ui->splitter->setStretchFactor(0, 7);
+    ui->splitter->setStretchFactor(1, 3);
+
+    // Hide details panel initially
+    ui->eventDetailsGroupBox->setVisible(false);
+
     connectSignals();
     refreshAllTabs();
+    adjustWidthToFitTabs();
 }
 
 
@@ -67,6 +75,8 @@ void TimelineSidePanel::refreshAllEventsTab()
 
     // Update tab label with count
     ui->tabWidget->setTabText(2, QString("All Events (%1)").arg(events.size()));
+
+    adjustWidthToFitTabs();
 }
 
 void TimelineSidePanel::refreshLookaheadTab()
@@ -85,6 +95,8 @@ void TimelineSidePanel::refreshLookaheadTab()
 
     // Update tab label with count
     ui->tabWidget->setTabText(1, QString("Lookahead (%1)").arg(events.size()));
+
+    adjustWidthToFitTabs();
 }
 
 
@@ -112,6 +124,8 @@ void TimelineSidePanel::refreshTodayTab()
                              .arg(QDate::currentDate().toString("MMM dd"));
 
     ui->tabWidget->setTabText(0, todayLabel);
+
+    adjustWidthToFitTabs();
 }
 
 
@@ -172,7 +186,7 @@ QString TimelineSidePanel::formatEventText(const TimelineEvent& event) const
     QString dateRange = formatEventDateRange(event);
 
     // Include priority indicator for high-priority events
-    QString priorityIndicator = (event.priority >= 4) ? "🔴 " : "";
+    QString priorityIndicator = (event.priority <= 2) ? "🔴 " : "";
 
     return QString("%1%2\n%3")
         .arg(priorityIndicator)
@@ -193,6 +207,102 @@ QString TimelineSidePanel::formatEventDateRange(const TimelineEvent& event) cons
         .arg(event.startDate.toString("MMM dd"))
             .arg(event.endDate.toString("MMM dd, yyyy"));
     }
+}
+
+
+void TimelineSidePanel::adjustWidthToFitTabs()
+{
+    // Get the tab bar to measure actual tab widths
+    QTabBar* tabBar = ui->tabWidget->tabBar();
+    QFontMetrics fm(tabBar->font());
+
+    int totalWidth = 0;
+
+    // Measure each tab's actual width
+    for (int i = 0; i < ui->tabWidget->count(); ++i)
+    {
+        QString tabText = ui->tabWidget->tabText(i);
+        int textWidth = fm.horizontalAdvance(tabText);
+
+        // Add padding per tab (Qt adds ~20-30px per tab for margins/spacing)
+        totalWidth += textWidth + 30;
+    }
+
+    // Add small margin for tab bar frame and borders (~20px)
+    totalWidth += 20;
+
+    // Set minimum width to fit all tabs snugly
+    setMinimumWidth(totalWidth);
+}
+
+
+void TimelineSidePanel::displayEventDetails(const QString& eventId)
+{
+    const TimelineEvent* event = model_->getEvent(eventId);
+
+    if (event)
+    {
+        updateEventDetails(*event);
+    }
+    else
+    {
+        clearEventDetails();
+    }
+}
+
+
+void TimelineSidePanel::updateEventDetails(const TimelineEvent& event)
+{
+    // Update all detail labels
+    ui->titleValueLabel->setText(event.title);
+
+    // Convert type enum to string
+    QString typeText;
+    switch (event.type)
+    {
+    case TimelineEventType_Meeting: typeText = "Meeting"; break;
+    case TimelineEventType_Action: typeText = "Action"; break;
+    case TimelineEventType_TestEvent: typeText = "Test Event"; break;
+    case TimelineEventType_DueDate: typeText = "Deadline"; break;
+    case TimelineEventType_Reminder: typeText = "Reminder"; break;
+    default: typeText = "Unknown"; break;
+    }
+    ui->typeValueLabel->setText(typeText);
+
+    // Format dates
+    QString dateRange;
+    if (event.startDate == event.endDate)
+    {
+        dateRange = event.startDate.toString("MMM dd, yyyy");
+    }
+    else
+    {
+        dateRange = QString("%1 to %2")
+        .arg(event.startDate.toString("MMM dd, yyyy"))
+            .arg(event.endDate.toString("MMM dd, yyyy"));
+    }
+    ui->datesValueLabel->setText(dateRange);
+
+    ui->priorityValueLabel->setText(QString::number(event.priority));
+    ui->laneValueLabel->setText(QString::number(event.lane));
+    ui->descriptionTextEdit->setPlainText(event.description);
+
+    // Make the group box visible
+    ui->eventDetailsGroupBox->setVisible(true);
+}
+
+
+void TimelineSidePanel::clearEventDetails()
+{
+    ui->titleValueLabel->clear();
+    ui->typeValueLabel->clear();
+    ui->datesValueLabel->clear();
+    ui->priorityValueLabel->clear();
+    ui->laneValueLabel->clear();
+    ui->descriptionTextEdit->clear();
+
+    // Optionally hide the group box when no selection
+    ui->eventDetailsGroupBox->setVisible(false);
 }
 
 
@@ -226,8 +336,10 @@ void TimelineSidePanel::onAllEventsItemClicked(QListWidgetItem* item)
     if (item && item->flags() != Qt::NoItemFlags)
     {
         QString eventId = item->data(Qt::UserRole).toString();
+
         if (!eventId.isEmpty())
         {
+            displayEventDetails(eventId);
             emit eventSelected(eventId);
         }
     }
@@ -241,6 +353,7 @@ void TimelineSidePanel::onLookaheadItemClicked(QListWidgetItem* item)
         QString eventId = item->data(Qt::UserRole).toString();
         if (!eventId.isEmpty())
         {
+            displayEventDetails(eventId);
             emit eventSelected(eventId);
         }
     }
@@ -254,6 +367,7 @@ void TimelineSidePanel::onTodayItemClicked(QListWidgetItem* item)
         QString eventId = item->data(Qt::UserRole).toString();
         if (!eventId.isEmpty())
         {
+            displayEventDetails(eventId);
             emit eventSelected(eventId);
         }
     }

@@ -56,6 +56,11 @@ public:
      */
     void refreshAllTabs();
 
+    /**
+     * @brief Adjust side panel width to get all tabs in view
+     */
+    void adjustWidthToFitTabs();
+
 signals:
     /**
      * @brief Emitted when user clicks on an event in the list
@@ -72,6 +77,8 @@ private slots:
     void onLookaheadItemClicked(QListWidgetItem* item);
     void onTodayItemClicked(QListWidgetItem* item);
 
+    void displayEventDetails(const QString& eventId);
+
 private:
     void connectSignals();
 
@@ -80,6 +87,10 @@ private:
     void refreshLookaheadTab();
     void refreshTodayTab();
 
+    // Event Details methods
+    void clearEventDetails();
+    void updateEventDetails(const TimelineEvent& event);
+
     // Helper methods
     void populateListWidget(QListWidget* listWidget, const QVector<TimelineEvent>& events);
     QListWidgetItem* createListItem(const TimelineEvent& event);
@@ -87,6 +98,7 @@ private:
     QString formatEventDateRange(const TimelineEvent& event) const;
 
     Ui::TimelineSidePanel* ui;      ///< UI pointer
+
     TimelineModel* model_;
 };
 
