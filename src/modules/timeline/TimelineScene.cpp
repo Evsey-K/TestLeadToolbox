@@ -138,11 +138,11 @@ TimelineItem* TimelineScene::createItemForEvent(const QString& eventId)
     // Set visual properties
     item->setBrush(QBrush(event->color));
     item->setPen(QPen(Qt::black, 1));
-    item->setToolTip(QString("%1\n%2 to %3")
+    item->setToolTip(QString("%1\n%2 to %3\nLane: %4")
                          .arg(event->title)
-                         .arg(event->startDate.toString(Qt::ISODate)
+                         .arg(event->startDate.toString(Qt::ISODate))
                          .arg(event->endDate.toString(Qt::ISODate))
-                         .arg(event->lane)));
+                         .arg(event->lane));
 
     // Add to scene and tracking map
     addItem(item);
@@ -173,7 +173,7 @@ void TimelineScene::updateItemFromEvent(TimelineItem* item, const QString& event
     item->setRect(newRect);
     item->setPos(0, 0);     // Reset position since rect includes the position
     item->setBrush(QBrush(event->color));
-    item->setToolTip(QString("%1\n%2 to %3")
+    item->setToolTip(QString("%1\n%2 to %3\nLane: %4")
                          .arg(event->title)
                          .arg(event->startDate.toString(Qt::ISODate))
                          .arg(event->endDate.toString(Qt::ISODate))

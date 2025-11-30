@@ -73,7 +73,6 @@ private slots:
     void onTodayItemClicked(QListWidgetItem* item);
 
 private:
-    void setupUi();
     void connectSignals();
 
     // Tab refresh methods
@@ -87,13 +86,8 @@ private:
     QString formatEventText(const TimelineEvent& event) const;
     QString formatEventDateRange(const TimelineEvent& event) const;
 
+    Ui::TimelineSidePanel* ui;      ///< UI pointer
     TimelineModel* model_;
-
-    // UI components (Three tabs)
-    QTabWidget* tabWidget_;
-    QListWidget* allEventsList_;
-    QListWidget* lookaheadList_;
-    QListWidget* todayList_;
 };
 
 

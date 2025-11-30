@@ -120,7 +120,7 @@ public:
      * @param laneSpacing Vertical spacing between lanes
      * @return Total height needed for the scene
      */
-    double calculateSceneHeight(int maxLane, double laneHeight = 30.0, double laneSpacing = 5.0)
+    static double calculateSceneHeight(int maxLane, double laneHeight = 30.0, double laneSpacing = 5.0)
     {
         return (maxLane + 1) * (laneHeight + laneSpacing) + 50;     // +50 for padding
     }

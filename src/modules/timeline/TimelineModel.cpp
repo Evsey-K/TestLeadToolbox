@@ -154,6 +154,49 @@ QVector<TimelineEvent> TimelineModel::getEventsInRange(const QDate& start, const
 }
 
 
+QVector<TimelineEvent> TimelineModel::getAllEvents() const
+{
+    return events_;
+}
+
+
+QVector<TimelineEvent> TimelineModel::getEventsForToday() const
+{
+    QDate today = QDate::currentDate();
+    QVector<TimelineEvent> result;
+
+    for (const auto& event : events_)
+    {
+        if (event.occursOnDate(today))
+        {
+            result.append(event);
+        }
+    }
+
+    return result;
+}
+
+
+QVector<TimelineEvent> TimelineModel::getEventsLookahead(int days) const
+{
+    QDate today = QDate::currentDate();
+    QDate endDate = today.addDays(days);
+
+    QVector<TimelineEvent> result;
+
+    for (const auto& event : events_)
+    {
+        // Include events that start within the lookahead window
+        if (event.startDate >= today && event.startDate <= endDate)
+        {
+            result.append(event);
+        }
+    }
+
+    return result;
+}
+
+
 void TimelineModel::clear()
 {
     events_.clear();

@@ -64,6 +64,9 @@ void TimelineSidePanel::refreshAllEventsTab()
               });
 
     populateListWidget(ui->allEventsList, events);
+
+    // Update tab label with count
+    ui->tabWidget->setTabText(2, QString("All Events (%1)").arg(events.size()));
 }
 
 void TimelineSidePanel::refreshLookaheadTab()
@@ -108,7 +111,7 @@ void TimelineSidePanel::refreshTodayTab()
                              .arg(events.size())
                              .arg(QDate::currentDate().toString("MMM dd"));
 
-    ui->tabWidget->setTabText(2, todayLabel);
+    ui->tabWidget->setTabText(0, todayLabel);
 }
 
 

@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>400</width>
-    <height>265</height>
+    <height>291</height>
    </rect>
   </property>
   <property name="minimumSize">
@@ -42,33 +42,7 @@
       </widget>
      </item>
      <item row="0" column="1">
-      <widget class="QComboBox" name="typeCombo">
-       <item>
-        <property name="text">
-         <string>Meeting</string>
-        </property>
-       </item>
-       <item>
-        <property name="text">
-         <string>Action</string>
-        </property>
-       </item>
-       <item>
-        <property name="text">
-         <string>Test Event</string>
-        </property>
-       </item>
-       <item>
-        <property name="text">
-         <string>Due Date</string>
-        </property>
-       </item>
-       <item>
-        <property name="text">
-         <string>Reminder</string>
-        </property>
-       </item>
-      </widget>
+      <widget class="QComboBox" name="typeCombo"/>
      </item>
      <item row="1" column="0">
       <widget class="QLabel" name="titleLabel">
