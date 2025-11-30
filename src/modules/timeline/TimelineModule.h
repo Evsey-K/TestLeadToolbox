@@ -21,6 +21,7 @@ class QPushButton;
  * - TimelineView with Scene (visualization)
  * - TimelineSidePanel (event list)
  * - Add Event button and dialog
+ * - Version Settings button and dialog
  */
 class TimelineModule : public QWidget {
     Q_OBJECT
@@ -49,6 +50,11 @@ private slots:
     void onAddEventClicked();
 
     /**
+     * @brief Handle Version Settings button click (NEW)
+     */
+    void onVersionSettingsClicked();
+
+    /**
      * @brief Handle event selection from side panel
      */
     void onEventSelectedInPanel(const QString& eventId);
@@ -63,4 +69,5 @@ private:
     TimelineView* view_;
     TimelineSidePanel* sidePanel_;
     QPushButton* addEventButton_;
+    QPushButton* versionSettingsButton_;
 };

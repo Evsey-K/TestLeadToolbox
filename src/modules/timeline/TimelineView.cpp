@@ -6,6 +6,7 @@
 #include "TimelineModel.h"
 #include "TimelineCoordinateMapper.h"
 #include <QWheelEvent>
+#include <QScrollBar>
 
 
 TimelineView::TimelineView(TimelineModel* model,
@@ -43,7 +44,14 @@ void TimelineView::wheelEvent(QWheelEvent* event)
         // Define zoom factor
         const double zoomFactor = 1.15;
 
-        // Determine zoom direction
+        // Get the mouse position in widget coordinates
+        // Qt 6 uses position() which returns QPointF
+        QPointF widgetPos = event->position();
+
+        // Convert to scene coordinates before zoom
+        QPointF scenePosBefore = mapToScene(widgetPos.toPoint());
+
+        // Determine zoom direction and apply zoom
         if (event->angleDelta().y() > 0)
         {
             // Zoom in
@@ -59,6 +67,17 @@ void TimelineView::wheelEvent(QWheelEvent* event)
 
         // Rebuild scene with new scale
         scene_->rebuildFromModel();
+
+        // Convert same widget position to scene coordinates after zoom
+        QPointF scenePosAfter = mapToScene(widgetPos.toPoint());
+
+        // Calculate how much the scene position shifted
+        QPointF delta = scenePosAfter - scenePosBefore;
+
+        // Adjust horizontal scroll to compensate for the shift
+        // This keeps the point under the mouse cursor stationary
+        int newScrollValue = horizontalScrollBar()->value() + static_cast<int>(delta.x());
+        horizontalScrollBar()->setValue(newScrollValue);
 
         event->accept();
     }

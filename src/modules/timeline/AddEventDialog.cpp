@@ -23,7 +23,7 @@ AddEventDialog::AddEventDialog(const QDate& versionStart,
     ui->typeCombo->addItem("Meeting", static_cast<int>(TimelineEventType_Meeting));
     ui->typeCombo->addItem("Action", static_cast<int>(TimelineEventType_Action));
     ui->typeCombo->addItem("Test Event", static_cast<int>(TimelineEventType_TestEvent));
-    ui->typeCombo->addItem("Deadline", static_cast<int>(TimelineEventType_DueDate));
+    ui->typeCombo->addItem("Due Date", static_cast<int>(TimelineEventType_DueDate));
     ui->typeCombo->addItem("Reminder", static_cast<int>(TimelineEventType_Reminder));
 
     // Configure start date picker with validation boundaries

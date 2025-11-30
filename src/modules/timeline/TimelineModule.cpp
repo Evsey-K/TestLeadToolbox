@@ -9,6 +9,7 @@
 #include "TimelineScene.h"
 #include "TimelineSidePanel.h"
 #include "AddEventDialog.h"
+#include "VersionSettingsDialog.h"
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QPushButton>
@@ -30,20 +31,19 @@ TimelineModule::TimelineModule(QWidget* parent)
     mapper_ = new TimelineCoordinateMapper(
         model_->versionStartDate(),
         model_->versionEndDate(),
-        TimelineCoordinateMapper::DEFAULT_PIXELS_PER_DAY
-        );
+        TimelineCoordinateMapper::DEFAULT_PIXELS_PER_DAY);
 
     setupUi();
     setupConnections();
 
-    // Add some sample data for testing
+    // Temporary - Add some sample data for testing
     createSampleData();
 }
 
 
 TimelineModule::~TimelineModule()
 {
-    delete mapper_; // Model and widgets are owned by Qt parent hierarchy
+    delete mapper_;     // Model and widgets are owned by Qt parent hierarchy
 }
 
 
@@ -52,13 +52,20 @@ void TimelineModule::setupUi()
     auto mainLayout = new QVBoxLayout(this);
     mainLayout->setContentsMargins(0, 0, 0, 0);
 
-    // Toolbar with Add Event button
+    // Toolbar with Add Event and Version Settings buttons
     auto toolbar = new QWidget();
     auto toolbarLayout = new QHBoxLayout(toolbar);
 
+    // Add Event button
     addEventButton_ = new QPushButton("Add Event");
     addEventButton_->setIcon(QIcon::fromTheme("list-add"));
     toolbarLayout->addWidget(addEventButton_);
+
+    // Version Settings button
+    versionSettingsButton_ = new QPushButton("Version Settings");
+    versionSettingsButton_->setIcon(QIcon::fromTheme("document-properties"));
+    toolbarLayout->addWidget(versionSettingsButton_);
+
     toolbarLayout->addStretch();
 
     mainLayout->addWidget(toolbar);
@@ -89,6 +96,9 @@ void TimelineModule::setupConnections()
     // Add Event button
     connect(addEventButton_, &QPushButton::clicked, this, &TimelineModule::onAddEventClicked);
 
+    // Version Settings button
+    connect(versionSettingsButton_, &QPushButton::clicked, this, &TimelineModule::onVersionSettingsClicked);
+
     // Side panel event selection
     connect(sidePanel_, &TimelineSidePanel::eventSelected, this, &TimelineModule::onEventSelectedInPanel);
 
@@ -113,6 +123,43 @@ void TimelineModule::onAddEventClicked()
         // Optional: Show confirmation
         QMessageBox::information(this, "Event Added", QString("Event '%1' has been added.")
                                  .arg(newEvent.title));
+    }
+}
+
+
+void TimelineModule::onVersionSettingsClicked()
+{
+    // Show version settings dialog
+    VersionSettingsDialog dialog(model_->versionStartDate(),
+                                 model_->versionEndDate(),
+                                 this);
+
+    if (dialog.exec() == QDialog::Accepted)
+    {
+        QDate newStart = dialog.startDate();
+        QDate newEnd = dialog.endDate();
+
+        // Update model (this will trigger versionDatesChanged signal)
+        model_->setVersionDates(newStart, newEnd);
+
+        // Update mapper
+        mapper_->setVersionDates(newStart, newEnd);
+
+        // Rebuild the entire scene with new date range
+        view_->timelineScene()->rebuildFromModel();
+
+        // Show confirmation
+        QString versionName = dialog.versionName();
+        QString message = versionName.isEmpty()
+                              ? QString("Version dates updated:\n%1 to %2")
+                                    .arg(newStart.toString(Qt::ISODate))
+                                    .arg(newEnd.toString(Qt::ISODate))
+                              : QString("Version '%1' dates updated:\n%2 to %3")
+                                    .arg(versionName)
+                                    .arg(newStart.toString(Qt::ISODate))
+                                    .arg(newEnd.toString(Qt::ISODate));
+
+        QMessageBox::information(this, "Version Settings Updated", message);
     }
 }
 

@@ -6,6 +6,8 @@
 #include "TimelineCoordinateMapper.h"
 #include "TimelineItem.h"
 #include "LaneAssigner.h"
+#include "TimelineDateScale.h"
+#include "CurrentDateMarker.h"
 #include <QPen>
 
 
@@ -13,6 +15,8 @@ TimelineScene::TimelineScene(TimelineModel* model, TimelineCoordinateMapper* map
     : QGraphicsScene(parent)
     , model_(model)
     , mapper_(mapper)
+    , dateScale_(nullptr)
+    , currentDateMarker_(nullptr)
 {
     // Connect to model signals
     connect(model_, &TimelineModel::eventAdded, this, &TimelineScene::onEventAdded);
@@ -23,15 +27,34 @@ TimelineScene::TimelineScene(TimelineModel* model, TimelineCoordinateMapper* map
     // Connect to lane recalculation signal
     connect(model_, &TimelineModel::lanesRecalculated, this, &TimelineScene::onLanesRecalculated);
 
+    // Setup date scale and current date marker (Phase 1 & 3)
+    setupDateScale();
+
     // Build initial scene from existing model data
     rebuildFromModel();
 }
 
 
+void TimelineScene::setupDateScale()
+{
+    // Create date scale
+    dateScale_ = new TimelineDateScale(mapper_);
+    addItem(dateScale_);
+
+    // Create current date marker
+    currentDateMarker_ = new CurrentDateMarker(mapper_);
+    addItem(currentDateMarker_);
+}
+
+
 void TimelineScene::rebuildFromModel()
 {
-    // Clear all existing items
-    clear();
+    // Clear all existing event items (but keep date scale and marker)
+    for (auto* item : eventIdToItem_.values())
+    {
+        removeItem(item);
+        delete item;
+    }
     eventIdToItem_.clear();
 
     // Create items for all events in the model
@@ -41,10 +64,23 @@ void TimelineScene::rebuildFromModel()
         createItemForEvent(event.id);
     }
 
-    // Update scene rect to include all lanes
+    // Update scene rect to include date scale and all lanes
     double width = mapper_->totalWidth();
-    double height = LaneAssigner::calculateSceneHeight(model_->maxLane(), ITEM_HEIGHT, LANE_SPACING);
+    double height = DATE_SCALE_OFFSET + LaneAssigner::calculateSceneHeight(model_->maxLane(), ITEM_HEIGHT, LANE_SPACING);
     setSceneRect(0, 0, width, height);
+
+    // Update date scale and current date marker heights
+    if (dateScale_)
+    {
+        dateScale_->setTimelineHeight(height);
+        dateScale_->updateScale();
+    }
+
+    if (currentDateMarker_)
+    {
+        currentDateMarker_->setTimelineHeight(height);
+        currentDateMarker_->updatePosition();
+    }
 }
 
 
@@ -101,6 +137,7 @@ void TimelineScene::onLanesRecalculated()
     for (const auto& event : events)
     {
         TimelineItem* item = findItemByEventId(event.id);
+
         if (item)
         {
             updateItemFromEvent(item, event.id);
@@ -119,8 +156,8 @@ TimelineItem* TimelineScene::createItemForEvent(const QString& eventId)
         return nullptr;
     }
 
-    // Calculate Y position based on lane
-    double yPos = LaneAssigner::laneToY(event->lane, ITEM_HEIGHT, LANE_SPACING);
+    // Calculate Y position based on lane (offset by date scale height)
+    double yPos = DATE_SCALE_OFFSET + LaneAssigner::laneToY(event->lane, ITEM_HEIGHT, LANE_SPACING);
 
     // Calculate rectangle using coordinate mapper
     QRectF rect = mapper_->dateRangeToRect(event->startDate,
@@ -161,8 +198,8 @@ void TimelineScene::updateItemFromEvent(TimelineItem* item, const QString& event
         return;
     }
 
-    // Calculate Y position based on lane
-    double yPos = LaneAssigner::laneToY(event->lane, ITEM_HEIGHT, LANE_SPACING);
+    // Calculate Y position based on lane (offset by date scale height)
+    double yPos = DATE_SCALE_OFFSET + LaneAssigner::laneToY(event->lane, ITEM_HEIGHT, LANE_SPACING);
 
     // Recalculate position and size
     QRectF newRect = mapper_->dateRangeToRect(event->startDate,
@@ -183,9 +220,22 @@ void TimelineScene::updateItemFromEvent(TimelineItem* item, const QString& event
 
 void TimelineScene::updateSceneHeight()
 {
-    // SPRINT 2: Dynamically adjust scene height based on lane count
+    // Dynamically adjust scene height based on lane count
     double width = mapper_->totalWidth();
-    double height = LaneAssigner::calculateSceneHeight(model_->maxLane(), ITEM_HEIGHT, LANE_SPACING);
+    double height = DATE_SCALE_OFFSET + LaneAssigner::calculateSceneHeight(model_->maxLane(), ITEM_HEIGHT, LANE_SPACING);
     setSceneRect(0, 0, width, height);
+
+    // Update date scale and marker heights
+    if (dateScale_)
+    {
+        dateScale_->setTimelineHeight(height);
+        dateScale_->updateScale();
+    }
+
+    if (currentDateMarker_)
+    {
+        currentDateMarker_->setTimelineHeight(height);
+        currentDateMarker_->updatePosition();
+    }
 }
 

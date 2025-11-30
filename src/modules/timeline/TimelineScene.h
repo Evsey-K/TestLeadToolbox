@@ -9,6 +9,8 @@
 class TimelineModel;
 class TimelineCoordinateMapper;
 class TimelineItem;
+class TimelineDateScale;
+class CurrentDateMarker;
 
 
 /**
@@ -19,8 +21,8 @@ class TimelineItem;
  * - Creating visual items from model data
  * - Positioning items using coordinate mapper
  * - Responding to model changes via signals/slots
+ * - Rendering date scale and current date marker (Phase 1 & 3)
  */
-
 class TimelineScene : public QGraphicsScene
 {
     Q_OBJECT
@@ -33,7 +35,6 @@ public:
      * @param mapper Pointer to coordinate mapping utility
      * @param parent Optional QObject parent
      */
-
     explicit TimelineScene(TimelineModel* model,
                            TimelineCoordinateMapper* mapper,
                            QObject *parent = nullptr);
@@ -98,11 +99,20 @@ private:
      */
     void updateSceneHeight();
 
+    /**
+     * @brief Initialize date scale and current date marker (Phase 1 & 3)
+     */
+    void setupDateScale();
+
     TimelineModel* model_;                              ///< Data model (not owned)
     TimelineCoordinateMapper* mapper_;                  ///< Coordinate mapper (not owned)
     QMap<QString, TimelineItem*> eventIdToItem_;        ///< Map event IDs to scene items
 
+    TimelineDateScale* dateScale_;                      ///< Date scale renderer (owned by scene)
+    CurrentDateMarker* currentDateMarker_;              ///< Today marker (owned by scene)
+
     // Lane-based layout constants
     static constexpr double ITEM_HEIGHT = 30.0;         ///< Default height of timeline bars
     static constexpr double LANE_SPACING = 5.0;         ///< Vertical spacing between lanes
+    static constexpr double DATE_SCALE_OFFSET = 70.0;   ///< Y offset for events (below date scale)
 };
