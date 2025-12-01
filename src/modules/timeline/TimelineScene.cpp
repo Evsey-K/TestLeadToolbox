@@ -8,6 +8,8 @@
 #include "LaneAssigner.h"
 #include "TimelineDateScale.h"
 #include "CurrentDateMarker.h"
+#include "VersionBoundaryMarker.h"
+#include <QGraphicsSceneMouseEvent>
 #include <QPen>
 
 
@@ -17,6 +19,8 @@ TimelineScene::TimelineScene(TimelineModel* model, TimelineCoordinateMapper* map
     , mapper_(mapper)
     , dateScale_(nullptr)
     , currentDateMarker_(nullptr)
+    , versionStartMarker_(nullptr)
+    , versionEndMarker_(nullptr)
 {
     // Connect to model signals
     connect(model_, &TimelineModel::eventAdded, this, &TimelineScene::onEventAdded);
@@ -29,6 +33,9 @@ TimelineScene::TimelineScene(TimelineModel* model, TimelineCoordinateMapper* map
 
     // Setup date scale and current date marker (Phase 1 & 3)
     setupDateScale();
+
+    // Setup version boundary markers (Feature 3a)
+    setupVersionBoundaryMarkers();
 
     // Build initial scene from existing model data
     rebuildFromModel();
@@ -47,9 +54,21 @@ void TimelineScene::setupDateScale()
 }
 
 
+void TimelineScene::setupVersionBoundaryMarkers()
+{
+    // Create version start marker
+    versionStartMarker_ = new VersionBoundaryMarker(mapper_, VersionBoundaryMarker::VersionStart);
+    addItem(versionStartMarker_);
+
+    // Create version end marker
+    versionEndMarker_ = new VersionBoundaryMarker(mapper_, VersionBoundaryMarker::VersionEnd);
+    addItem(versionEndMarker_);
+}
+
+
 void TimelineScene::rebuildFromModel()
 {
-    // Clear all existing event items (but keep date scale and marker)
+    // Clear all existing event items (but keep date scale and markers)
     for (auto* item : eventIdToItem_.values())
     {
         removeItem(item);
@@ -59,19 +78,29 @@ void TimelineScene::rebuildFromModel()
 
     // Create items for all events in the model
     const auto& events = model_->getAllEvents();
-    for(const auto& event : events)
+
+    for (const auto& event : events)
     {
         createItemForEvent(event.id);
     }
 
-    // Update scene rect to include date scale and all lanes
-    double width = mapper_->totalWidth();
+    // Feature 3b: Calculate scene rect with +1 month padding before/after version dates
+    QDate paddedStart = model_->versionStartDate().addMonths(-1);
+    QDate paddedEnd = model_->versionEndDate().addMonths(1);
+
+    double startX = mapper_->dateToX(paddedStart);
+    double endX = mapper_->dateToX(paddedEnd);
+    double width = endX - startX;
+
     double height = DATE_SCALE_OFFSET + LaneAssigner::calculateSceneHeight(model_->maxLane(), ITEM_HEIGHT, LANE_SPACING);
-    setSceneRect(0, 0, width, height);
+
+    // Set scene rect with padding
+    setSceneRect(startX, 0, width, height);
 
     // Update date scale and current date marker heights
     if (dateScale_)
     {
+        dateScale_->setPaddedDateRange(paddedStart, paddedEnd);
         dateScale_->setTimelineHeight(height);
         dateScale_->updateScale();
     }
@@ -81,12 +110,48 @@ void TimelineScene::rebuildFromModel()
         currentDateMarker_->setTimelineHeight(height);
         currentDateMarker_->updatePosition();
     }
+
+    // Update version boundary markers
+    if (versionStartMarker_)
+    {
+        versionStartMarker_->setTimelineHeight(height);
+        versionStartMarker_->updatePosition();
+    }
+
+    if (versionEndMarker_)
+    {
+        versionEndMarker_->setTimelineHeight(height);
+        versionEndMarker_->updatePosition();
+    }
 }
 
 
 TimelineItem* TimelineScene::findItemByEventId(const QString& eventId) const
 {
     return eventIdToItem_.value(eventId, nullptr);
+}
+
+
+void TimelineScene::mousePressEvent(QGraphicsSceneMouseEvent* event)
+{
+    // Detect item clicks and emit signal
+    QGraphicsItem* clickedItem = itemAt(event->scenePos(), QTransform());
+
+    if (clickedItem)
+    {
+        TimelineItem* timelineItem = dynamic_cast<TimelineItem*>(clickedItem);
+        if (timelineItem)
+        {
+            QString eventId = timelineItem->eventId();
+            if (!eventId.isEmpty())
+            {
+                emit itemClicked(eventId);
+            }
+        }
+    }
+
+    // Call base implementation to handle default behavior (selection, dragging, etc.)
+    QGraphicsScene::mousePressEvent(event);
 }
 
 
@@ -118,6 +183,10 @@ void TimelineScene::onEventUpdated(const QString& eventId)
     if (item)
     {
         updateItemFromEvent(item, eventId);
+
+        // Emit drag completed signal when event is updated
+        // (This will be triggered after TimelineItem updates the model)
+        emit itemDragCompleted(eventId);
     }
 }
 
@@ -220,14 +289,23 @@ void TimelineScene::updateItemFromEvent(TimelineItem* item, const QString& event
 
 void TimelineScene::updateSceneHeight()
 {
+    // Calculate scene width with +1 month padding
+    QDate paddedStart = model_->versionStartDate().addMonths(-1);
+    QDate paddedEnd = model_->versionEndDate().addMonths(1);
+
+    double startX = mapper_->dateToX(paddedStart);
+    double endX = mapper_->dateToX(paddedEnd);
+    double width = endX - startX;
+
     // Dynamically adjust scene height based on lane count
-    double width = mapper_->totalWidth();
     double height = DATE_SCALE_OFFSET + LaneAssigner::calculateSceneHeight(model_->maxLane(), ITEM_HEIGHT, LANE_SPACING);
-    setSceneRect(0, 0, width, height);
+
+    setSceneRect(startX, 0, width, height);
 
     // Update date scale and marker heights
     if (dateScale_)
     {
+        dateScale_->setPaddedDateRange(paddedStart, paddedEnd);
         dateScale_->setTimelineHeight(height);
         dateScale_->updateScale();
     }
@@ -236,6 +314,18 @@ void TimelineScene::updateSceneHeight()
     {
         currentDateMarker_->setTimelineHeight(height);
         currentDateMarker_->updatePosition();
+    }
+
+    if (versionStartMarker_)
+    {
+        versionStartMarker_->setTimelineHeight(height);
+        versionStartMarker_->updatePosition();
+    }
+
+    if (versionEndMarker_)
+    {
+        versionEndMarker_->setTimelineHeight(height);
+        versionEndMarker_->updatePosition();
     }
 }
 

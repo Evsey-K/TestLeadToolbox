@@ -96,8 +96,12 @@ set(SRC
 
     src/modules/timeline/TimelineDateScale.cpp
     src/modules/timeline/TimelineDateScale.h
+
     src/modules/timeline/CurrentDateMarker.cpp
     src/modules/timeline/CurrentDateMarker.h
+    src/modules/timeline/VersionBoundaryMarker.cpp
+    src/modules/timeline/VersionBoundaryMarker.h
+
     src/modules/timeline/VersionSettingsDialog.cpp
     src/modules/timeline/VersionSettingsDialog.h
     src/modules/timeline/VersionSettingsDialog.ui

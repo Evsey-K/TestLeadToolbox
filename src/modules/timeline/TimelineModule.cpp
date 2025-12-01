@@ -102,6 +102,12 @@ void TimelineModule::setupConnections()
     // Side panel event selection
     connect(sidePanel_, &TimelineSidePanel::eventSelected, this, &TimelineModule::onEventSelectedInPanel);
 
+    // Timeline item clicks update side panel
+    connect(view_->timelineScene(), &TimelineScene::itemClicked, sidePanel_, &TimelineSidePanel::displayEventDetails);
+
+    // Drag completion updates side panel
+    connect(view_->timelineScene(), &TimelineScene::itemDragCompleted, sidePanel_, &TimelineSidePanel::displayEventDetails);
+
     // Update mapper when version dates change
     connect(model_, &TimelineModel::versionDatesChanged, [this]()
             {

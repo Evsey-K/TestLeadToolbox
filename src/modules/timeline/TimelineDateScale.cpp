@@ -12,6 +12,8 @@ TimelineDateScale::TimelineDateScale(TimelineCoordinateMapper* mapper, QGraphics
     : QGraphicsItem(parent)
     , mapper_(mapper)
     , timelineHeight_(500.0)
+    , paddedStart_(mapper->versionStart())
+    , paddedEnd_(mapper->versionEnd())
 {
     // Set Z-value to draw below event items but above background
     setZValue(-1);
@@ -20,9 +22,12 @@ TimelineDateScale::TimelineDateScale(TimelineCoordinateMapper* mapper, QGraphics
 
 QRectF TimelineDateScale::boundingRect() const
 {
-    double width = mapper_->totalWidth();
+    // Calculate width based on padded range, not version range
+    double startX = mapper_->dateToX(paddedStart_);
+    double endX = mapper_->dateToX(paddedEnd_);
+    double width = endX - startX;
 
-    return QRectF(0, 0, width, SCALE_HEIGHT * timelineHeight_);
+    return QRectF(startX, 0, width, SCALE_HEIGHT + timelineHeight_);
 }
 
 
@@ -32,13 +37,18 @@ void TimelineDateScale::paint(QPainter* painter,
 {
     painter->setRenderHint(QPainter::Antialiasing, false);      // Crisp lines
 
-    // Draw background for date scale area
-    QRectF scaleRect(0, 0, mapper_->totalWidth(), SCALE_HEIGHT);
+    // Calculate the padded range coordinates
+    double startX = mapper_->dateToX(paddedStart_);
+    double endX = mapper_->dateToX(paddedEnd_);
+    double width = endX - startX;
+
+    // Draw background for date scale area across full padded range
+    QRectF scaleRect(startX, 0, width, SCALE_HEIGHT);
     painter->fillRect(scaleRect, QColor(240, 240, 240));
 
-    // Draw border line below date scale
+    // Draw border line below date scale across full padded range
     painter->setPen(QPen(Qt::darkGray, 2));
-    painter->drawLine(0, SCALE_HEIGHT, mapper_->totalWidth(), SCALE_HEIGHT);
+    painter->drawLine(startX, SCALE_HEIGHT, endX, SCALE_HEIGHT);
 
     // Draw grid lines first (behind ticks and labels)
     drawGridLines(painter);
@@ -60,8 +70,9 @@ void TimelineDateScale::paint(QPainter* painter,
 
 void TimelineDateScale::drawMonthTicks(QPainter* painter)
 {
-    QDate currentDate = mapper_->versionStart();
-    QDate endDate = mapper_->versionEnd();
+    // Use padded date range instead of version dates
+    QDate currentDate = paddedStart_;
+    QDate endDate = paddedEnd_;
 
     // Start from the first day of the month containing version start
     QDate monthStart(currentDate.year(), currentDate.month(), 1);
@@ -92,8 +103,9 @@ void TimelineDateScale::drawMonthTicks(QPainter* painter)
 
 void TimelineDateScale::drawWeekTicks(QPainter* painter)
 {
-    QDate currentDate = mapper_->versionStart();
-    QDate endDate = mapper_->versionEnd();
+    // Use padded date range instead of version dates
+    QDate currentDate = paddedStart_;
+    QDate endDate = paddedEnd_;
 
     // Find the first Monday on or after version start
     while (currentDate.dayOfWeek() != Qt::Monday && currentDate <= endDate)
@@ -121,8 +133,9 @@ void TimelineDateScale::drawWeekTicks(QPainter* painter)
 
 void TimelineDateScale::drawDayTicks(QPainter* painter)
 {
-    QDate currentDate = mapper_->versionStart();
-    QDate endDate = mapper_->versionEnd();
+    // Use padded date range instead of version dates
+    QDate currentDate = paddedStart_;
+    QDate endDate = paddedEnd_;
 
     painter->setPen(QPen(Qt::lightGray, 1));
     QFont dayFont = painter->font();
@@ -156,8 +169,9 @@ void TimelineDateScale::drawDayTicks(QPainter* painter)
 
 void TimelineDateScale::drawGridLines(QPainter* painter)
 {
-    QDate currentDate = mapper_->versionStart();
-    QDate endDate = mapper_->versionEnd();
+    // Use padded date range instead of version dates
+    QDate currentDate = paddedStart_;
+    QDate endDate = paddedEnd_;
 
     // Start from first of month
     QDate monthStart(currentDate.year(), currentDate.month(), 1);
@@ -206,7 +220,12 @@ void TimelineDateScale::setTimelineHeight(double height)
 }
 
 
-
+void TimelineDateScale::setPaddedDateRange(const QDate& paddedStart, const QDate& paddedEnd)
+{
+    paddedStart_ = paddedStart;
+    paddedEnd_ = paddedEnd;
+    update();
+}
 
 
 

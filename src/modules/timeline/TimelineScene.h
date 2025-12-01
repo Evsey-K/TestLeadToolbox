@@ -11,6 +11,7 @@ class TimelineCoordinateMapper;
 class TimelineItem;
 class TimelineDateScale;
 class CurrentDateMarker;
+class VersionBoundaryMarker;
 
 
 /**
@@ -22,6 +23,7 @@ class CurrentDateMarker;
  * - Positioning items using coordinate mapper
  * - Responding to model changes via signals/slots
  * - Rendering date scale and current date marker (Phase 1 & 3)
+ * - Emitting selection events when items are clicked
  */
 class TimelineScene : public QGraphicsScene
 {
@@ -57,6 +59,19 @@ public:
      */
     TimelineItem* findItemByEventId(const QString& eventId) const;
 
+signals:
+    /**
+     * @brief Emitted when a timeline item is clicked (Feature 1)
+     * @param eventId ID of the clicked event
+     */
+    void itemClicked(const QString& eventId);
+
+    /**
+     * @brief Emitted when a timeline item drag is completed (Feature 2)
+     * @param eventId ID of the dragged event
+     */
+    void itemDragCompleted(const QString& eventId);
+
 public slots:
     /**
      * @brief Handle a new event being added to the model
@@ -83,6 +98,12 @@ public slots:
      */
     void onLanesRecalculated();
 
+protected:
+    /**
+     * @brief Override to detect item clicks (Feature 1)
+     */
+    void mousePressEvent(QGraphicsSceneMouseEvent* event) override;
+
 private:
     /**
      * @brief Create a single timeline item from event data
@@ -104,12 +125,19 @@ private:
      */
     void setupDateScale();
 
+    /**
+     * @brief Setup version boundary markers (Feature 3a)
+     */
+    void setupVersionBoundaryMarkers();
+
     TimelineModel* model_;                              ///< Data model (not owned)
     TimelineCoordinateMapper* mapper_;                  ///< Coordinate mapper (not owned)
     QMap<QString, TimelineItem*> eventIdToItem_;        ///< Map event IDs to scene items
 
     TimelineDateScale* dateScale_;                      ///< Date scale renderer (owned by scene)
     CurrentDateMarker* currentDateMarker_;              ///< Today marker (owned by scene)
+    VersionBoundaryMarker* versionStartMarker_;         ///< Version start marker (owned by scene)
+    VersionBoundaryMarker* versionEndMarker_;           ///< Version end marker (owned by scene)
 
     // Lane-based layout constants
     static constexpr double ITEM_HEIGHT = 30.0;         ///< Default height of timeline bars

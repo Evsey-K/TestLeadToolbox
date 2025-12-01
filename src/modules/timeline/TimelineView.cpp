@@ -83,7 +83,18 @@ void TimelineView::wheelEvent(QWheelEvent* event)
     }
     else
     {
-        // Normal scroll behavior (horizontal pan)
-        QGraphicsView::wheelEvent(event);
+        // Plain wheel = horizontal scroll
+        // Calculate scroll amount (typical wheel delta is ±120)
+        int delta = event->angleDelta().y();
+
+        // Convert wheel delta to scroll pixels
+        // Negative delta = scroll right, positive = scroll left (natural scrolling)
+        int scrollAmount = -delta;
+
+        // Apply scroll to horizontal scrollbar
+        int currentValue = horizontalScrollBar()->value();
+        horizontalScrollBar()->setValue(currentValue + scrollAmount);
+
+        event->accept();
     }
 }

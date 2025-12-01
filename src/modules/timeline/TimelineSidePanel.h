@@ -67,6 +67,13 @@ signals:
      */
     void eventSelected(const QString& eventId);
 
+public slots:
+    /**
+     * @brief Display event details in the details group box
+     * @param eventId Event ID to display
+     */
+    void displayEventDetails(const QString& eventId);
+
 private slots:
     void onEventAdded(const QString& eventiD);
     void onEventRemoved(const QString& eventiD);
@@ -76,8 +83,6 @@ private slots:
     void onAllEventsItemClicked(QListWidgetItem* item);
     void onLookaheadItemClicked(QListWidgetItem* item);
     void onTodayItemClicked(QListWidgetItem* item);
-
-    void displayEventDetails(const QString& eventId);
 
 private:
     void connectSignals();

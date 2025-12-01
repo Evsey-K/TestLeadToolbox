@@ -52,6 +52,13 @@ public:
      */
     void setTimelineHeight(double height);
 
+    /**
+     * @brief Set the padded date range for rendering ticks beyond version dates
+     * @param paddedStart Start date including padding
+     * @param paddedEnd End date including padding
+     */
+    void setPaddedDateRange(const QDate& paddedStart, const QDate& paddedEnd);
+
     // Visual constants
     static constexpr double SCALE_HEIGHT = 60.0;            ///< Height of date scale area
     static constexpr double MAJOR_TICK_HEIGHT = 20.0;       ///< Height of month ticks
@@ -90,5 +97,7 @@ private:
     bool shouldShowWeekTicks() const;
 
     TimelineCoordinateMapper* mapper_;      ///< Coordinate mapper (not owned)
-    double timelineHeight_;                 ///< Height of timeline for grid lines
+    double timelineHeight_;                 ///< Height of timeline for grid lines    
+    QDate paddedStart_;                     ///< Padded start date (includes buffer)
+    QDate paddedEnd_;                       ///< Padded end date (includes buffer)
 };
