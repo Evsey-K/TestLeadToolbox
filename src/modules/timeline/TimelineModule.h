@@ -9,12 +9,16 @@ class TimelineView;
 class TimelineModel;
 class TimelineCoordinateMapper;
 class TimelineSidePanel;
+class AutoSaveManager;
+class TimelineScrollAnimator;
 class QPushButton;
+class QToolBar;
+class QLabel;
 
 
 /**
  * @class TimelineModule
- * @brief Main container for the timeline feature
+ * @brief Main container for the timeline feature with Phase 4 enhancements
  *
  * Integrates:
  * - TimelineModel (data)
@@ -22,6 +26,11 @@ class QPushButton;
  * - TimelineSidePanel (event list)
  * - Add Event button and dialog
  * - Version Settings button and dialog
+ * - Auto-save/load timeline data (JSON)
+ * - Export screenshot
+ * - Export list view to CSV/PDF
+ * - Drag resizing for multi-day events
+ * - Smart scroll-to-date functionality
  */
 class TimelineModule : public QWidget {
     Q_OBJECT
@@ -41,7 +50,10 @@ public:
     /**
      * @brief Get access to the model (useful for testing or external integration)
      */
-    TimelineModel* model() const { return model_; }
+    TimelineModel* model() const
+    {
+        return model_;
+    }
 
 private slots:
     /**
@@ -59,15 +71,56 @@ private slots:
      */
     void onEventSelectedInPanel(const QString& eventId);
 
+    /**
+     * @brief Handle Save button click
+     */
+    void onSaveClicked();
+
+    /**
+     * @brief Handle Load button click
+     */
+    void onLoadClicked();
+
+    /**
+     * @brief Handle Export Screenshot action
+     */
+    void onExportScreenshot();
+
+    /**
+     * @brief Handle Export CSV action
+     */
+    void onExportCSV();
+
+    /**
+     * @brief Handle Export PDF action
+     */
+    void onExportPDF();
+
+    /**
+     * @brief Handle Scroll to Date action
+     */
+    void onScrollToDate();
+
 private:
     void setupUi();
     void setupConnections();
+    void setupAutoSave();
+    void loadTimelineData();
     void createSampleData(); // Temporary: add some sample events
+
+    /**
+     * @brief Create toolbar with all actions
+     */
+    QToolBar* createToolbar();
 
     TimelineModel* model_;
     TimelineCoordinateMapper* mapper_;
     TimelineView* view_;
     TimelineSidePanel* sidePanel_;
     QPushButton* addEventButton_;
-    QPushButton* versionSettingsButton_;
+    QPushButton* versionSettingsButton_;    
+    AutoSaveManager* autoSaveManager_;
+    TimelineScrollAnimator* scrollAnimator_;
+    QLabel* statusLabel_;
+    QLabel* unsavedIndicator_;
 };

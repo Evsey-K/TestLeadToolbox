@@ -10,15 +10,27 @@
 #include "TimelineSidePanel.h"
 #include "AddEventDialog.h"
 #include "VersionSettingsDialog.h"
+#include "TimelineSerializer.h"
+#include "AutoSaveManager.h"
+#include "TimelineExporter.h"
+#include "ScrollToDateDialog.h"
+#include "TimelineScrollAnimator.h"
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QPushButton>
 #include <QSplitter>
 #include <QMessageBox>
+#include <QFileDialog>
+#include <QToolBar>
+#include <QAction>
+#include <QMenu>
+#include <QLabel>
 
 
 TimelineModule::TimelineModule(QWidget* parent)
     : QWidget(parent)
+    , autoSaveManager_(nullptr)
+    , scrollAnimator_(nullptr)
 {
     // Create model
     model_ = new TimelineModel(this);
@@ -35,14 +47,24 @@ TimelineModule::TimelineModule(QWidget* parent)
 
     setupUi();
     setupConnections();
+    setupAutoSave();
 
     // Temporary - Add some sample data for testing
     createSampleData();
+
+    // Try to load existing timeline data
+    loadTimelineData();
 }
 
 
 TimelineModule::~TimelineModule()
 {
+    // Save before exit
+    if (autoSaveManager_)
+    {
+        autoSaveManager_->saveNow();
+    }
+
     delete mapper_;     // Model and widgets are owned by Qt parent hierarchy
 }
 
@@ -52,22 +74,8 @@ void TimelineModule::setupUi()
     auto mainLayout = new QVBoxLayout(this);
     mainLayout->setContentsMargins(0, 0, 0, 0);
 
-    // Toolbar with Add Event and Version Settings buttons
-    auto toolbar = new QWidget();
-    auto toolbarLayout = new QHBoxLayout(toolbar);
-
-    // Add Event button
-    addEventButton_ = new QPushButton("Add Event");
-    addEventButton_->setIcon(QIcon::fromTheme("list-add"));
-    toolbarLayout->addWidget(addEventButton_);
-
-    // Version Settings button
-    versionSettingsButton_ = new QPushButton("Version Settings");
-    versionSettingsButton_->setIcon(QIcon::fromTheme("document-properties"));
-    toolbarLayout->addWidget(versionSettingsButton_);
-
-    toolbarLayout->addStretch();
-
+    // Create toolbar
+    auto toolbar = createToolbar();
     mainLayout->addWidget(toolbar);
 
     // Splitter for timeline view and side panel
@@ -76,6 +84,9 @@ void TimelineModule::setupUi()
     // Create timeline view (which creates the scene internally)
     view_ = new TimelineView(model_, mapper_, this);
     splitter->addWidget(view_);
+
+    // Create scroll animator
+    scrollAnimator_ = new TimelineScrollAnimator(view_, mapper_, this);
 
     // Create side panel
     sidePanel_ = new TimelineSidePanel(model_, this);
@@ -88,6 +99,73 @@ void TimelineModule::setupUi()
     splitter->setStretchFactor(1, 3);
 
     mainLayout->addWidget(splitter, 1); // Give splitter all remaining space
+
+    // Status bar for feedback
+    statusLabel_ = new QLabel("Ready");
+    auto statusLayout = new QHBoxLayout();
+    statusLayout->addWidget(statusLabel_);
+    statusLayout->addStretch();
+
+    unsavedIndicator_ = new QLabel();
+    statusLayout->addWidget(unsavedIndicator_);
+
+    mainLayout->addLayout(statusLayout);
+}
+
+
+QToolBar* TimelineModule::createToolbar()
+{
+    auto toolbar = new QToolBar();
+    toolbar->setIconSize(QSize(24, 24));
+
+    // File operations
+    auto saveAction = toolbar->addAction("💾 Save");
+    saveAction->setToolTip("Save timeline data");
+    connect(saveAction, &QAction::triggered, this, &TimelineModule::onSaveClicked);
+
+    auto loadAction = toolbar->addAction("📂 Load");
+    loadAction->setToolTip("Load timeline data");
+    connect(loadAction, &QAction::triggered, this, &TimelineModule::onLoadClicked);
+
+
+    toolbar->addSeparator();
+
+
+    // Event operations
+    addEventButton_ = new QPushButton("➕ Add Event");
+    toolbar->addWidget(addEventButton_);
+
+    versionSettingsButton_ = new QPushButton("⚙️ Version Settings");
+    toolbar->addWidget(versionSettingsButton_);
+
+
+    toolbar->addSeparator();
+
+
+    // Export operations
+    auto exportMenu = new QMenu();
+    auto exportScreenshotAction = exportMenu->addAction("Export Screenshot (PNG)");
+    auto exportCSVAction = exportMenu->addAction("Export to CSV");
+    auto exportPDFAction = exportMenu->addAction("Export to PDF");
+
+    connect(exportScreenshotAction, &QAction::triggered, this, &TimelineModule::onExportScreenshot);
+    connect(exportCSVAction, &QAction::triggered, this, &TimelineModule::onExportCSV);
+    connect(exportPDFAction, &QAction::triggered, this, &TimelineModule::onExportPDF);
+
+    auto exportButton = new QPushButton("📤 Export");
+    exportButton->setMenu(exportMenu);
+    toolbar->addWidget(exportButton);
+
+
+    toolbar->addSeparator();
+
+
+    // Navigation
+    auto scrollToDateAction = toolbar->addAction("📅 Go to Date");
+    scrollToDateAction->setToolTip("Scroll to specific date");
+    connect(scrollToDateAction, &QAction::triggered, this, &TimelineModule::onScrollToDate);
+
+    return toolbar;
 }
 
 
@@ -113,6 +191,58 @@ void TimelineModule::setupConnections()
             {
                 mapper_->setVersionDates(model_->versionStartDate(), model_->versionEndDate());
             });
+
+    // Scroll animator completion
+    connect(scrollAnimator_, &TimelineScrollAnimator::scrollCompleted, [this](const QDate& date)
+            {
+                statusLabel_->setText(QString("Scrolled to: %1").arg(date.toString("yyyy-MM-dd")));
+            });
+}
+
+
+void TimelineModule::setupAutoSave()
+{
+    QString saveFilePath = TimelineSerializer::getDefaultSaveLocation();
+
+    autoSaveManager_ = new AutoSaveManager(model_, saveFilePath, this);
+
+    // Start auto-save with 5-minute interval
+    autoSaveManager_->startAutoSave(300000); // 5 minutes in milliseconds
+
+    // Connect to auto-save signals
+    connect(autoSaveManager_, &AutoSaveManager::autoSaveCompleted, [this](const QString& filePath)
+            {
+                statusLabel_->setText("Auto-saved to: " + filePath);
+            });
+
+    connect(autoSaveManager_, &AutoSaveManager::autoSaveFailed, [this](const QString& error)
+            {
+                statusLabel_->setText("Auto-save failed: " + error);
+            });
+
+    connect(autoSaveManager_, &AutoSaveManager::unsavedChangesChanged, [this](bool hasUnsavedChanges)
+            {
+                unsavedIndicator_->setText(hasUnsavedChanges ? "● Unsaved changes" : "");
+            });
+}
+
+
+void TimelineModule::loadTimelineData()
+{
+    QString defaultPath = TimelineSerializer::getDefaultSaveLocation();
+
+    if (QFile::exists(defaultPath))
+    {
+        bool success = TimelineSerializer::loadFromFile(model_, defaultPath);
+        if (success)
+        {
+            // Rebuild view
+            mapper_->setVersionDates(model_->versionStartDate(), model_->versionEndDate());
+            view_->timelineScene()->rebuildFromModel();
+
+            statusLabel_->setText("Timeline loaded from: " + defaultPath);
+        }
+    }
 }
 
 
@@ -126,9 +256,7 @@ void TimelineModule::onAddEventClicked()
         TimelineEvent newEvent = dialog.getEvent();
         QString eventId = model_->addEvent(newEvent);
 
-        // Optional: Show confirmation
-        QMessageBox::information(this, "Event Added", QString("Event '%1' has been added.")
-                                 .arg(newEvent.title));
+        statusLabel_->setText(QString("Event '%1' added").arg(newEvent.title));
     }
 }
 
@@ -154,18 +282,9 @@ void TimelineModule::onVersionSettingsClicked()
         // Rebuild the entire scene with new date range
         view_->timelineScene()->rebuildFromModel();
 
-        // Show confirmation
-        QString versionName = dialog.versionName();
-        QString message = versionName.isEmpty()
-                              ? QString("Version dates updated:\n%1 to %2")
-                                    .arg(newStart.toString(Qt::ISODate))
-                                    .arg(newEnd.toString(Qt::ISODate))
-                              : QString("Version '%1' dates updated:\n%2 to %3")
-                                    .arg(versionName)
-                                    .arg(newStart.toString(Qt::ISODate))
-                                    .arg(newEnd.toString(Qt::ISODate));
-
-        QMessageBox::information(this, "Version Settings Updated", message);
+        statusLabel_->setText(QString("Version dates updated: %1 to %2")
+                                  .arg(newStart.toString("yyyy-MM-dd"))
+                                  .arg(newEnd.toString("yyyy-MM-dd")));
     }
 }
 
@@ -178,6 +297,7 @@ void TimelineModule::onEventSelectedInPanel(const QString& eventId)
     if (scene)
     {
         TimelineItem* item = scene->findItemByEventId(eventId);
+
         if (item)
         {
             // Clear previous selection
@@ -188,9 +308,195 @@ void TimelineModule::onEventSelectedInPanel(const QString& eventId)
 
             // Center the view on the item
             view_->centerOn(item);
+
+            const TimelineEvent* event = model_->getEvent(eventId);
+            if (event)
+            {
+                statusLabel_->setText(QString("Selected: %1").arg(event->title));
+            }
         }
     }
 }
+
+
+void TimelineModule::onSaveClicked()
+{
+    QString filePath = QFileDialog::getSaveFileName(
+        this,
+        "Save Timeline",
+        TimelineSerializer::getDefaultSaveLocation(),
+        "JSON Files (*.json);;All Files (*)"
+        );
+
+    if (!filePath.isEmpty())
+    {
+        bool success = TimelineSerializer::saveToFile(model_, filePath);
+
+        if (success)
+        {
+            statusLabel_->setText("Timeline saved to: " + filePath);
+            autoSaveManager_->markClean();
+            QMessageBox::information(this, "Success", "Timeline saved successfully!");
+        }
+        else
+        {
+            QMessageBox::warning(this, "Error", "Failed to save timeline.");
+        }
+    }
+}
+
+
+void TimelineModule::onLoadClicked()
+{
+    // Warn if unsaved changes
+    if (autoSaveManager_->hasUnsavedChanges())
+    {
+        auto result = QMessageBox::question(
+            this,
+            "Unsaved Changes",
+            "You have unsaved changes. Do you want to save before loading?",
+            QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel
+            );
+
+        if (result == QMessageBox::Save)
+        {
+            autoSaveManager_->saveNow();
+        }
+        else if (result == QMessageBox::Cancel)
+        {
+            return;
+        }
+    }
+
+    QString filePath = QFileDialog::getOpenFileName(
+        this,
+        "Load Timeline",
+        TimelineSerializer::getDefaultSaveLocation(),
+        "JSON Files (*.json);;All Files (*)"
+        );
+
+    if (!filePath.isEmpty())
+    {
+        bool success = TimelineSerializer::loadFromFile(model_, filePath);
+
+        if (success)
+        {
+            // Rebuild view
+            mapper_->setVersionDates(model_->versionStartDate(), model_->versionEndDate());
+            view_->timelineScene()->rebuildFromModel();
+
+            statusLabel_->setText("Timeline loaded from: " + filePath);
+            autoSaveManager_->markClean();
+            QMessageBox::information(this, "Success", "Timeline loaded successfully!");
+        }
+        else
+        {
+            QMessageBox::warning(this, "Error", "Failed to load timeline.");
+        }
+    }
+}
+
+
+void TimelineModule::onExportScreenshot()
+{
+    QString filePath = QFileDialog::getSaveFileName(
+        this,
+        "Export Screenshot",
+        "timeline_screenshot.png",
+        "PNG Images (*.png);;JPEG Images (*.jpg *.jpeg);;All Files (*)"
+        );
+
+    if (!filePath.isEmpty())
+    {
+        bool success = TimelineExporter::exportScreenshot(view_, filePath, true);
+
+        if (success)
+        {
+            statusLabel_->setText("Screenshot exported to: " + filePath);
+            QMessageBox::information(this, "Success", "Screenshot exported successfully!");
+        }
+        else
+        {
+            QMessageBox::warning(this, "Error", "Failed to export screenshot.");
+        }
+    }
+}
+
+
+void TimelineModule::onExportCSV()
+{
+    QString filePath = QFileDialog::getSaveFileName(
+        this,
+        "Export to CSV",
+        "timeline_events.csv",
+        "CSV Files (*.csv);;All Files (*)"
+        );
+
+    if (!filePath.isEmpty())
+    {
+        bool success = TimelineExporter::exportToCSV(model_, filePath);
+
+        if (success)
+        {
+            statusLabel_->setText("CSV exported to: " + filePath);
+            QMessageBox::information(this, "Success",
+                                     QString("Exported %1 events to CSV successfully!")
+                                         .arg(model_->eventCount()));
+        }
+        else
+        {
+            QMessageBox::warning(this, "Error", "Failed to export to CSV.");
+        }
+    }
+}
+
+
+void TimelineModule::onExportPDF()
+{
+    QString filePath = QFileDialog::getSaveFileName(
+        this,
+        "Export to PDF",
+        "timeline_report.pdf",
+        "PDF Files (*.pdf);;All Files (*)"
+        );
+
+    if (!filePath.isEmpty())
+    {
+        bool success = TimelineExporter::exportToPDF(model_, view_, filePath, true);
+
+        if (success)
+        {
+            statusLabel_->setText("PDF exported to: " + filePath);
+            QMessageBox::information(this, "Success", "PDF report generated successfully!");
+        }
+        else
+        {
+            QMessageBox::warning(this, "Error", "Failed to export to PDF.");
+        }
+    }
+}
+
+
+void TimelineModule::onScrollToDate()
+{
+    ScrollToDateDialog dialog(
+        QDate::currentDate(),
+        model_->versionStartDate(),
+        model_->versionEndDate(),
+        this
+        );
+
+    if (dialog.exec() == QDialog::Accepted)
+    {
+        QDate targetDate = dialog.targetDate();
+        bool animate = dialog.shouldAnimate();
+
+        scrollAnimator_->scrollToDate(targetDate, animate, 750);
+
+        statusLabel_->setText(QString("Scrolling to: %1").arg(targetDate.toString("yyyy-MM-dd")));
+    }
+}
+
 
 void TimelineModule::createSampleData()
 {

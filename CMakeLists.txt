@@ -39,7 +39,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # REQUIRED means the build will fail immediately if Qt6 is not installed
 # or cannot be located by CMake.
 
-find_package(Qt6 COMPONENTS Core Gui Widgets REQUIRED)
+find_package(Qt6 COMPONENTS Core Gui Widgets PrintSupport REQUIRED)
 
 # ----------------------------------------------------------------------------
 # Qt Auto-Generation Settings
@@ -86,25 +86,35 @@ set(SRC
     src/modules/timeline/AddEventDialog.cpp
     src/modules/timeline/AddEventDialog.h
     src/modules/timeline/AddEventDialog.ui
-
     src/modules/timeline/TimelineSidePanel.cpp
     src/modules/timeline/TimelineSidePanel.h
     src/modules/timeline/TimelineSidePanel.ui
-
-    src/modules/timeline/LaneAssigner.h
-    src/modules/timeline/LaneAssigner.cpp
-
-    src/modules/timeline/TimelineDateScale.cpp
-    src/modules/timeline/TimelineDateScale.h
-
-    src/modules/timeline/CurrentDateMarker.cpp
-    src/modules/timeline/CurrentDateMarker.h
-    src/modules/timeline/VersionBoundaryMarker.cpp
-    src/modules/timeline/VersionBoundaryMarker.h
-
     src/modules/timeline/VersionSettingsDialog.cpp
     src/modules/timeline/VersionSettingsDialog.h
     src/modules/timeline/VersionSettingsDialog.ui
+
+    src/modules/timeline/LaneAssigner.h
+    src/modules/timeline/LaneAssigner.cpp
+    src/modules/timeline/TimelineDateScale.cpp
+    src/modules/timeline/TimelineDateScale.h
+    src/modules/timeline/CurrentDateMarker.cpp
+    src/modules/timeline/CurrentDateMarker.h    
+    src/modules/timeline/VersionBoundaryMarker.cpp
+    src/modules/timeline/VersionBoundaryMarker.h
+
+    src/modules/timeline/TimelineSerializer.h
+    src/modules/timeline/TimelineSerializer.cpp
+    src/modules/timeline/AutoSaveManager.h
+    src/modules/timeline/AutoSaveManager.cpp
+
+    src/modules/timeline/TimelineExporter.h
+    src/modules/timeline/TimelineExporter.cpp
+
+    src/modules/timeline/TimelineScrollAnimator.h
+    src/modules/timeline/TimelineScrollAnimator.cpp
+    src/modules/timeline/ScrollToDateDialog.h
+    src/modules/timeline/ScrollToDateDialog.cpp
+    src/modules/timeline/ScrollToDateDialog.ui
 
     # Add new 'module' sources below:
     # src/modules/<module_name>/<file>.cpp
@@ -146,4 +156,5 @@ target_link_libraries(${PROJECT_NAME}
         Qt6::Core
         Qt6::Gui
         Qt6::Widgets
+        Qt6::PrintSupport
 )
