@@ -4,9 +4,9 @@
 #pragma once
 #include <QString>
 #include <QPixmap>
+#include "TimelineModel.h"
 
 
-class TimelineModel;
 class TimelineView;
 class QGraphicsScene;
 
