@@ -15,6 +15,7 @@
 #include "TimelineExporter.h"
 #include "ScrollToDateDialog.h"
 #include "TimelineScrollAnimator.h"
+#include "EditEventDialog.h"
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QPushButton>
@@ -171,32 +172,36 @@ QToolBar* TimelineModule::createToolbar()
 
 void TimelineModule::setupConnections()
 {
-    // Add Event button
-    connect(addEventButton_, &QPushButton::clicked, this, &TimelineModule::onAddEventClicked);
-
-    // Version Settings button
-    connect(versionSettingsButton_, &QPushButton::clicked, this, &TimelineModule::onVersionSettingsClicked);
-
-    // Side panel event selection
-    connect(sidePanel_, &TimelineSidePanel::eventSelected, this, &TimelineModule::onEventSelectedInPanel);
-
-    // Timeline item clicks update side panel
-    connect(view_->timelineScene(), &TimelineScene::itemClicked, sidePanel_, &TimelineSidePanel::displayEventDetails);
-
-    // Drag completion updates side panel
-    connect(view_->timelineScene(), &TimelineScene::itemDragCompleted, sidePanel_, &TimelineSidePanel::displayEventDetails);
-
-    // Update mapper when version dates change
-    connect(model_, &TimelineModel::versionDatesChanged, [this]()
-            {
-                mapper_->setVersionDates(model_->versionStartDate(), model_->versionEndDate());
-            });
+    connect(addEventButton_, &QPushButton::clicked, this, &TimelineModule::onAddEventClicked);                                      // Add Event button
+    connect(versionSettingsButton_, &QPushButton::clicked, this, &TimelineModule::onVersionSettingsClicked);                        // Version Settings button
+    connect(sidePanel_, &TimelineSidePanel::eventSelected, this, &TimelineModule::onEventSelectedInPanel);                          // Side panel event selection
+    connect(view_->timelineScene(), &TimelineScene::itemClicked, sidePanel_, &TimelineSidePanel::displayEventDetails);              // Timeline item clicks update side panel
+    connect(view_->timelineScene(), &TimelineScene::itemDragCompleted, sidePanel_, &TimelineSidePanel::displayEventDetails);        // Drag completion updates side panel
+    connect(view_->timelineScene(), &TimelineScene::editEventRequested, this, &TimelineModule::onEditEventRequested);               //
+    connect(view_->timelineScene(), &TimelineScene::deleteEventRequested, this, &TimelineModule::onDeleteEventRequested);           //
+    connect(sidePanel_, &TimelineSidePanel::editEventRequested, this, &TimelineModule::onEditEventRequested);                       //
+    connect(sidePanel_, &TimelineSidePanel::deleteEventRequested, this, &TimelineModule::onDeleteEventRequested);                   //
+    connect(model_, &TimelineModel::versionDatesChanged, [this]()                                                                   // Update mapper when version dates change
+    {
+        mapper_->setVersionDates(model_->versionStartDate(), model_->versionEndDate());
+    });
 
     // Scroll animator completion
     connect(scrollAnimator_, &TimelineScrollAnimator::scrollCompleted, [this](const QDate& date)
-            {
-                statusLabel_->setText(QString("Scrolled to: %1").arg(date.toString("yyyy-MM-dd")));
-            });
+    {
+        statusLabel_->setText(QString("Scrolled to: %1").arg(date.toString("yyyy-MM-dd")));
+    });
+
+    // Timeline item clicks also update status bar
+    connect(view_->timelineScene(), &TimelineScene::itemClicked, this, [this](const QString& eventId)
+    {
+        const TimelineEvent* event = model_->getEvent(eventId);
+
+        if (event)
+        {
+            statusLabel_->setText(QString("Selected: %1").arg(event->title));
+        }
+    });
 }
 
 
@@ -497,6 +502,109 @@ void TimelineModule::onScrollToDate()
     }
 }
 
+
+void TimelineModule::onEditEventRequested(const QString& eventId)
+{
+    EditEventDialog dialog(eventId, model_,
+                           model_->versionStartDate(),
+                           model_->versionEndDate(),
+                           this);
+
+    int result = dialog.exec();
+
+    if (result == QDialog::Accepted)
+    {
+        TimelineEvent updatedEvent = dialog.getEvent();
+        bool success = model_->updateEvent(eventId, updatedEvent);
+
+        if (success)
+        {
+            statusLabel_->setText(QString("Event '%1' updated").arg(updatedEvent.title));
+        }
+        else
+        {
+            QMessageBox::warning(this, "Update Failed", "Failed to update event.");
+            statusLabel_->setText("Event update failed");
+        }
+    }
+    else if (result == EditEventDialog::DeleteRequested)
+    {
+        deleteEvent(eventId);
+    }
+}
+
+
+void TimelineModule::onDeleteEventRequested(const QString& eventId)
+{
+    deleteEvent(eventId);
+}
+
+
+bool TimelineModule::confirmDeletion(const QString& eventId)
+{
+    const TimelineEvent* event = model_->getEvent(eventId);
+
+    if (!event) return false;
+
+    auto result = QMessageBox::question(
+        this,
+        "Confirm Deletion",
+        QString("Are you sure you want to delete this event?\n\n"
+                "Title: %1\n"
+                "Dates: %2 to %3\n\n"
+                "This action cannot be undone.")
+            .arg(event->title)
+            .arg(event->startDate.toString("yyyy-MM-dd"))
+            .arg(event->endDate.toString("yyyy-MM-dd")),
+        QMessageBox::Yes | QMessageBox::No,
+        QMessageBox::No
+        );
+
+    return (result == QMessageBox::Yes);
+}
+
+
+bool TimelineModule::deleteEvent(const QString& eventId)
+{
+    const TimelineEvent* event = model_->getEvent(eventId);
+
+    if (!event)
+    {
+        QMessageBox::warning(this, "Deletion Failed", "Event not found.");
+        statusLabel_->setText("Event deletion failed - event not found");
+
+        return false;
+    }
+
+    QString eventTitle = event->title;
+
+    if (!confirmDeletion(eventId))
+    {
+        statusLabel_->setText("Deletion cancelled");
+
+        return false;
+    }
+
+    bool success = model_->removeEvent(eventId);
+
+    if (success)
+    {
+        statusLabel_->setText(QString("Event '%1' deleted successfully").arg(eventTitle));
+
+        return true;
+    }
+    else
+    {
+        QMessageBox::critical(this, "Deletion Failed", "An error occurred while deleting the event.");
+        statusLabel_->setText("Event deletion failed");
+
+        return false;
+    }
+}
+
+
+
+// -----------------------------------------------------------------------------------------------------------------
 
 void TimelineModule::createSampleData()
 {

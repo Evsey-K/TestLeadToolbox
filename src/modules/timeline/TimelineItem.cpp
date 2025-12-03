@@ -4,10 +4,12 @@
 #include "TimelineItem.h"
 #include "TimelineModel.h"
 #include "TimelineCoordinateMapper.h"
+#include <QGraphicsSceneContextMenuEvent>
 #include <QGraphicsSceneMouseEvent>
 #include <QGraphicsSceneHoverEvent>
-#include <QPen>
 #include <QCursor>
+#include <QPen>
+#include <QMenu>
 
 
 TimelineItem::TimelineItem(const QRectF& rect, QGraphicsItem* parent)
@@ -249,7 +251,7 @@ void TimelineItem::updateModelFromSize()
 
     // Calculate new dates based on current rectangle
     QDate newStartDate = mapper_->xToDate(rect().left() + pos().x());
-    QDate newEndDate = mapper_->xToDate(rect().right() + pos().x());
+    QDate newEndDate = mapper_->xToDate(rect().right() + pos().x()).addDays(-1);
 
     // Ensure at least 1-day duration
     if (newEndDate < newStartDate)
@@ -300,4 +302,36 @@ void TimelineItem::updateCursor(ResizeHandle handle)
         unsetCursor();
         break;
     }
+}
+
+
+void TimelineItem::contextMenuEvent(QGraphicsSceneContextMenuEvent* event)
+{
+    // Create context menu (Phase 5)
+    QMenu menu;
+
+    QAction* editAction = menu.addAction("✏️ Edit Event");
+    editAction->setToolTip("Open edit dialog for this event");
+
+    menu.addSeparator();
+
+    QAction* deleteAction = menu.addAction("🗑️ Delete Event");
+    deleteAction->setToolTip("Delete this event permanently");
+
+    QFont deleteFont = deleteAction->font();
+    deleteFont.setBold(true);
+    deleteAction->setFont(deleteFont);
+
+    QAction* selected = menu.exec(event->screenPos());
+
+    if (selected == editAction)
+    {
+        emit editRequested(eventId_);
+    }
+    else if (selected == deleteAction)
+    {
+        emit deleteRequested(eventId_);
+    }
+
+    event->accept();
 }

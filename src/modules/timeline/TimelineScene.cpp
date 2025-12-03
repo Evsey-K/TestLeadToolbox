@@ -11,6 +11,7 @@
 #include "VersionBoundaryMarker.h"
 #include <QGraphicsSceneMouseEvent>
 #include <QPen>
+#include <QKeyEvent>
 
 
 TimelineScene::TimelineScene(TimelineModel* model, TimelineCoordinateMapper* mapper, QObject* parent)
@@ -254,6 +255,8 @@ TimelineItem* TimelineScene::createItemForEvent(const QString& eventId)
     addItem(item);
     eventIdToItem_[eventId] = item;
 
+    connectItemSignals(item);
+
     return item;
 }
 
@@ -329,3 +332,45 @@ void TimelineScene::updateSceneHeight()
     }
 }
 
+
+void TimelineScene::keyPressEvent(QKeyEvent* event)
+{
+    // Phase 5: Handle Delete key
+    if (event->key() == Qt::Key_Delete || event->key() == Qt::Key_Backspace)
+    {
+        QList<QGraphicsItem*> selected = selectedItems();
+
+        if (!selected.isEmpty())
+        {
+            QStringList eventIds;
+
+            for (QGraphicsItem* item : selected)
+            {
+                TimelineItem* timelineItem = qgraphicsitem_cast<TimelineItem*>(item);
+
+                if (timelineItem && !timelineItem->eventId().isEmpty())
+                {
+                    eventIds.append(timelineItem->eventId());
+                }
+            }
+
+            for (const QString& eventId : eventIds)
+            {
+                emit deleteEventRequested(eventId);
+            }
+
+            event->accept();
+
+            return;
+        }
+    }
+
+    QGraphicsScene::keyPressEvent(event);
+}
+
+
+void TimelineScene::connectItemSignals(TimelineItem* item)
+{
+    connect(item, &TimelineItem::editRequested, this, &TimelineScene::editEventRequested);
+    connect(item, &TimelineItem::deleteRequested, this, &TimelineScene::deleteEventRequested);
+}

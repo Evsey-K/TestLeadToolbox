@@ -67,6 +67,10 @@ signals:
      */
     void eventSelected(const QString& eventId);
 
+    void editEventRequested(const QString& eventId);
+
+    void deleteEventRequested(const QString& eventId);
+
 public slots:
     /**
      * @brief Display event details in the details group box
@@ -83,6 +87,8 @@ private slots:
     void onAllEventsItemClicked(QListWidgetItem* item);
     void onLookaheadItemClicked(QListWidgetItem* item);
     void onTodayItemClicked(QListWidgetItem* item);
+
+    void onListContextMenuRequested(const QPoint& pos);
 
 private:
     void connectSignals();
@@ -101,6 +107,10 @@ private:
     QListWidgetItem* createListItem(const TimelineEvent& event);
     QString formatEventText(const TimelineEvent& event) const;
     QString formatEventDateRange(const TimelineEvent& event) const;
+
+    // Context Menu methods
+    void setupListWidgetContextMenu(QListWidget* listWidget);
+    void showListItemContextMenu(QListWidget* listWidget, const QPoint& pos);
 
     Ui::TimelineSidePanel* ui;      ///< UI pointer
 

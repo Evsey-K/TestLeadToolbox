@@ -86,12 +86,22 @@ set(SRC
     src/modules/timeline/AddEventDialog.cpp
     src/modules/timeline/AddEventDialog.h
     src/modules/timeline/AddEventDialog.ui
+
     src/modules/timeline/TimelineSidePanel.cpp
     src/modules/timeline/TimelineSidePanel.h
     src/modules/timeline/TimelineSidePanel.ui
+
     src/modules/timeline/VersionSettingsDialog.cpp
     src/modules/timeline/VersionSettingsDialog.h
     src/modules/timeline/VersionSettingsDialog.ui
+
+    src/modules/timeline/ScrollToDateDialog.h
+    src/modules/timeline/ScrollToDateDialog.cpp
+    src/modules/timeline/ScrollToDateDialog.ui
+
+    src/modules/timeline/EditEventDialog.h
+    src/modules/timeline/EditEventDialog.cpp
+    src/modules/timeline/EditEventDialog.ui
 
     src/modules/timeline/LaneAssigner.h
     src/modules/timeline/LaneAssigner.cpp
@@ -112,9 +122,6 @@ set(SRC
 
     src/modules/timeline/TimelineScrollAnimator.h
     src/modules/timeline/TimelineScrollAnimator.cpp
-    src/modules/timeline/ScrollToDateDialog.h
-    src/modules/timeline/ScrollToDateDialog.cpp
-    src/modules/timeline/ScrollToDateDialog.ui
 
     # Add new 'module' sources below:
     # src/modules/<module_name>/<file>.cpp

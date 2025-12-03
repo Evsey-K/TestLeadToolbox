@@ -2,6 +2,7 @@
 
 
 #pragma once
+#include <QObject>
 #include <QGraphicsRectItem>
 #include <QBrush>
 #include <QString>
@@ -25,6 +26,8 @@ class TimelineCoordinateMapper;
  */
 class TimelineItem : public QGraphicsRectItem
 {
+    Q_OBJECT
+
 public:
 
     /**
@@ -34,115 +37,33 @@ public:
      */
     explicit TimelineItem(const QRectF& rect, QGraphicsItem* parent = nullptr);
 
-    /**
-     * @brief Set the event ID this item represents
-     */
-    void setEventId(const QString& eventId)
-    {
-        eventId_ = eventId;
-    }
+    void setEventId(const QString& eventId) { eventId_ = eventId; }                     ///< @brief Set the event ID this item represents
+    QString eventId() const { return eventId_; }                                        ///< @brief Get the event ID
+    void setModel(TimelineModel* model) { model_ = model; }                             ///< @brief Set the model reference (required for updates)
+    void setCoordinateMapper(TimelineCoordinateMapper* mapper) { mapper_ = mapper; }    ///< @brief Set the coordinate mapper (required for date conversion)
+    void setResizable(bool resizable) { resizable_ = resizable; }                       ///< @brief Enable or disable resize functionality
+    bool isResizable() const { return resizable_; }                                     ///< @brief Check if item is resizable
 
-    /**
-     * @brief Get the event ID
-     */
-    QString eventId() const
-    {
-        return eventId_;
-    }
-
-    /**
-     * @brief Set the model reference (required for updates)
-     */
-    void setModel(TimelineModel* model)
-    {
-        model_ = model;
-    }
-
-    /**
-     * @brief Set the coordinate mapper (required for date conversion)
-     */
-    void setCoordinateMapper(TimelineCoordinateMapper* mapper)
-    {
-        mapper_ = mapper;
-    }
-
-    /**
-     * @brief Enable or disable resize functionality
-     */
-    void setResizable(bool resizable)
-    {
-        resizable_ = resizable;
-    }
-
-    /**
-     * @brief Check if item is resizable
-     */
-    bool isResizable() const
-    {
-        return resizable_;
-    }
+signals:
+    void editRequested(const QString& eventId);
+    void deleteRequested(const QString& eventId);
 
 protected:
-    /**
-     * @brief Override to handle drag completion and update model
-     */
-    QVariant itemChange(GraphicsItemChange change, const QVariant& value) override;
-
-    /**
-     * @brief Track when drag starts
-     */
-    void mousePressEvent(QGraphicsSceneMouseEvent* event) override;
-
-    /**
-     * @brief Handle mouse move for dragging and resizing
-     */
-    void mouseMoveEvent(QGraphicsSceneMouseEvent* event) override;
-
-    /**
-     * @brief Track when drag ends
-     */
-    void mouseReleaseEvent(QGraphicsSceneMouseEvent* event) override;
-
-    /**
-     * @brief Update cursor based on mouse position (for resize handles)
-     */
-    void hoverMoveEvent(QGraphicsSceneHoverEvent* event) override;
-
-    /**
-     * @brief Restore cursor when leaving item
-     */
-    void hoverLeaveEvent(QGraphicsSceneHoverEvent* event) override;
+    QVariant itemChange(GraphicsItemChange change, const QVariant& value) override;     ///< @brief Override to handle drag completion and update model
+    void mousePressEvent(QGraphicsSceneMouseEvent* event) override;                     ///< @brief Track when drag starts
+    void mouseMoveEvent(QGraphicsSceneMouseEvent* event) override;                      ///< @brief Handle mouse move for dragging and resizing
+    void mouseReleaseEvent(QGraphicsSceneMouseEvent* event) override;                   ///< @brief Track when drag ends
+    void hoverMoveEvent(QGraphicsSceneHoverEvent* event) override;                      ///< @brief Update cursor based on mouse position (for resize handles)
+    void hoverLeaveEvent(QGraphicsSceneHoverEvent* event) override;                     ///< @brief Restore cursor when leaving item
+    void contextMenuEvent(QGraphicsSceneContextMenuEvent* event) override;              ///< @brief
 
 private:
-    /**
-     * @brief Update the model with new dates based on current position
-     */
-    void updateModelFromPosition();
+    void updateModelFromPosition();     ///< @brief Update the model with new dates based on current position
+    void updateModelFromSize();         ///< @brief Update the model with new dates based on current size (after resize)
 
-    /**
-     * @brief Update the model with new dates based on current size (after resize)
-     */
-    void updateModelFromSize();
-
-    /**
-     * @brief Detect which edge/corner is under mouse cursor
-     */
-    enum ResizeHandle
-    {
-        None,
-        LeftEdge,
-        RightEdge
-    };
-
-    /**
-     * @brief Get resize handle at given position
-     */
-    ResizeHandle getResizeHandle(const QPointF& pos) const;
-
-    /**
-     * @brief Update cursor based on resize handle
-     */
-    void updateCursor(ResizeHandle handle);
+    enum ResizeHandle { None, LeftEdge, RightEdge };            ///< @brief Detect which edge/corner is under mouse cursor
+    ResizeHandle getResizeHandle(const QPointF& pos) const;     ///< @brief Get resize handle at given position
+    void updateCursor(ResizeHandle handle);                     ///< @brief Update cursor based on resize handle
 
     QString eventId_;                                       ///< ID of the event this item represents
     TimelineModel* model_ = nullptr;                        ///< Model reference (not owned)

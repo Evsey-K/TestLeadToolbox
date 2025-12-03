@@ -72,6 +72,10 @@ signals:
      */
     void itemDragCompleted(const QString& eventId);
 
+    void editEventRequested(const QString& eventId);
+
+    void deleteEventRequested(const QString& eventId);
+
 public slots:
     /**
      * @brief Handle a new event being added to the model
@@ -104,6 +108,8 @@ protected:
      */
     void mousePressEvent(QGraphicsSceneMouseEvent* event) override;
 
+    void keyPressEvent(QKeyEvent* event) override;
+
 private:
     /**
      * @brief Create a single timeline item from event data
@@ -129,6 +135,8 @@ private:
      * @brief Setup version boundary markers (Feature 3a)
      */
     void setupVersionBoundaryMarkers();
+
+    void connectItemSignals(TimelineItem* item);
 
     TimelineModel* model_;                              ///< Data model (not owned)
     TimelineCoordinateMapper* mapper_;                  ///< Coordinate mapper (not owned)

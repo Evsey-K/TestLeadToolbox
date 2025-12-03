@@ -8,6 +8,7 @@
 #include <QPixmap>
 #include <QPainter>
 #include <QDate>
+#include <QMenu>
 #include <algorithm>
 
 
@@ -28,6 +29,10 @@ TimelineSidePanel::TimelineSidePanel(TimelineModel* model, QWidget* parent)
     connectSignals();
     refreshAllTabs();
     adjustWidthToFitTabs();
+
+    setupListWidgetContextMenu(ui->allEventsList);
+    setupListWidgetContextMenu(ui->lookaheadList);
+    setupListWidgetContextMenu(ui->todayList);
 }
 
 
@@ -365,6 +370,7 @@ void TimelineSidePanel::onTodayItemClicked(QListWidgetItem* item)
     if (item && item->flags() != Qt::NoItemFlags)
     {
         QString eventId = item->data(Qt::UserRole).toString();
+
         if (!eventId.isEmpty())
         {
             displayEventDetails(eventId);
@@ -374,5 +380,62 @@ void TimelineSidePanel::onTodayItemClicked(QListWidgetItem* item)
 }
 
 
+void TimelineSidePanel::setupListWidgetContextMenu(QListWidget* listWidget)
+{
+    listWidget->setContextMenuPolicy(Qt::CustomContextMenu);
 
+    connect(listWidget, &QListWidget::customContextMenuRequested,
+            this, &TimelineSidePanel::onListContextMenuRequested);
+}
+
+
+void TimelineSidePanel::onListContextMenuRequested(const QPoint& pos)
+{
+    QListWidget* listWidget = qobject_cast<QListWidget*>(sender());
+
+    if (!listWidget)
+    {
+        return;
+    }
+
+    showListItemContextMenu(listWidget, pos);
+}
+
+
+void TimelineSidePanel::showListItemContextMenu(QListWidget* listWidget, const QPoint& pos)
+{
+    QListWidgetItem* item = listWidget->itemAt(pos);
+
+    if (!item || item->flags() == Qt::NoItemFlags)
+    {
+        return;
+    }
+
+    QString eventId = item->data(Qt::UserRole).toString();
+
+    if (eventId.isEmpty())
+    {
+        return;
+    }
+
+    QMenu menu(this);
+    QAction* editAction = menu.addAction("✏️ Edit Event");
+    menu.addSeparator();
+    QAction* deleteAction = menu.addAction("🗑️ Delete Event");
+
+    QFont deleteFont = deleteAction->font();
+    deleteFont.setBold(true);
+    deleteAction->setFont(deleteFont);
+
+    QAction* selected = menu.exec(listWidget->mapToGlobal(pos));
+
+    if (selected == editAction)
+    {
+        emit editEventRequested(eventId);
+    }
+    else if (selected == deleteAction)
+    {
+        emit deleteEventRequested(eventId);
+    }
+}
 

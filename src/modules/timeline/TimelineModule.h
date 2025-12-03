@@ -101,6 +101,9 @@ private slots:
      */
     void onScrollToDate();
 
+    void onEditEventRequested(const QString& eventId);
+    void onDeleteEventRequested(const QString& eventId);
+
 private:
     void setupUi();
     void setupConnections();
@@ -108,10 +111,10 @@ private:
     void loadTimelineData();
     void createSampleData(); // Temporary: add some sample events
 
-    /**
-     * @brief Create toolbar with all actions
-     */
-    QToolBar* createToolbar();
+    QToolBar* createToolbar();                          ///< @brief Create toolbar with all actions
+
+    bool confirmDeletion(const QString& eventId);       ///<
+    bool deleteEvent(const QString& eventId);           ///<
 
     TimelineModel* model_;
     TimelineCoordinateMapper* mapper_;
