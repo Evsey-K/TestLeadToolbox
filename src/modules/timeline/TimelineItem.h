@@ -2,10 +2,11 @@
 
 
 #pragma once
-#include <QObject>
-#include <QGraphicsRectItem>
+#include <QGraphicsObject>
 #include <QBrush>
+#include <QPen>
 #include <QString>
+#include <QRectF>
 
 
 class TimelineModel;
@@ -23,8 +24,10 @@ class TimelineCoordinateMapper;
  * - Updates the model when dragging or resizing completes
  * - Supports selection highlighting
  * - Shows appropriate cursors for resize handles
+ *
+ * NOTE: Inherits from QGraphicsObject (not QGraphicsRectItem) to support signals/slots
  */
-class TimelineItem : public QGraphicsRectItem
+class TimelineItem : public QGraphicsObject
 {
     Q_OBJECT
 
@@ -36,6 +39,26 @@ public:
      * @param parent Optional parent graphics item
      */
     explicit TimelineItem(const QRectF& rect, QGraphicsItem* parent = nullptr);
+
+    /**
+     * @brief Required by QGraphicsItem - returns bounding rectangle
+     */
+    QRectF boundingRect() const override;
+
+    /**
+     * @brief Required by QGraphicsItem - paints the item
+     */
+    void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget = nullptr) override;
+
+    // Rectangle management (replacing QGraphicsRectItem methods)
+    void setRect(const QRectF& rect);
+    QRectF rect() const { return rect_; }
+
+    // Brush and pen (for styling)
+    void setBrush(const QBrush& brush) { brush_ = brush; update(); }
+    QBrush brush() const { return brush_; }
+    void setPen(const QPen& pen) { pen_ = pen; update(); }
+    QPen pen() const { return pen_; }
 
     void setEventId(const QString& eventId) { eventId_ = eventId; }                     ///< @brief Set the event ID this item represents
     QString eventId() const { return eventId_; }                                        ///< @brief Get the event ID
@@ -55,7 +78,7 @@ protected:
     void mouseReleaseEvent(QGraphicsSceneMouseEvent* event) override;                   ///< @brief Track when drag ends
     void hoverMoveEvent(QGraphicsSceneHoverEvent* event) override;                      ///< @brief Update cursor based on mouse position (for resize handles)
     void hoverLeaveEvent(QGraphicsSceneHoverEvent* event) override;                     ///< @brief Restore cursor when leaving item
-    void contextMenuEvent(QGraphicsSceneContextMenuEvent* event) override;              ///< @brief
+    void contextMenuEvent(QGraphicsSceneContextMenuEvent* event) override;              ///< @brief Show context menu
 
 private:
     void updateModelFromPosition();     ///< @brief Update the model with new dates based on current position
@@ -74,6 +97,11 @@ private:
     bool isResizing_ = false;                               ///< Whether currently being resized
     bool resizable_ = true;                                 ///< Whether item can be resized
     ResizeHandle activeHandle_ = None;                      ///< Currently active resize handle
+
+    // Rectangle geometry and styling
+    QRectF rect_;                                           ///< Item's rectangle
+    QBrush brush_;                                          ///< Fill brush
+    QPen pen_;                                              ///< Border pen
 
     static constexpr double RESIZE_HANDLE_WIDTH = 8.0;      ///< Width of resize hit area
 };

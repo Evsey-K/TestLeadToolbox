@@ -8,12 +8,17 @@
 #include <QGraphicsSceneMouseEvent>
 #include <QGraphicsSceneHoverEvent>
 #include <QCursor>
+#include <QPainter>
 #include <QPen>
 #include <QMenu>
+#include <QStyleOptionGraphicsItem>
 
 
 TimelineItem::TimelineItem(const QRectF& rect, QGraphicsItem* parent)
-    : QGraphicsRectItem(rect, parent)
+    : QGraphicsObject(parent)
+    , rect_(rect)
+    , brush_(Qt::blue)
+    , pen_(Qt::black, 1)
 {
     // Enable the item to be movable by the user with mouse dragging
     setFlag(QGraphicsItem::ItemIsMovable);
@@ -26,12 +31,41 @@ TimelineItem::TimelineItem(const QRectF& rect, QGraphicsItem* parent)
 
     // Enable hover events for resize cursor
     setAcceptHoverEvents(true);
+}
 
-    // Set default brush (will be overriden by scene)
-    setBrush(QBrush(Qt::blue));
 
-    // Set pen for border
-    setPen(QPen(Qt::black, 1));
+QRectF TimelineItem::boundingRect() const
+{
+    // Return the rectangle bounds (with some padding for pen width)
+    return rect_.adjusted(-pen_.widthF()/2, -pen_.widthF()/2,
+                          pen_.widthF()/2, pen_.widthF()/2);
+}
+
+
+void TimelineItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* /*widget*/)
+{
+    painter->setBrush(brush_);
+    painter->setPen(pen_);
+
+    // Draw rectangle
+    painter->drawRect(rect_);
+
+    // Draw selection highlight if selected
+    if (option->state & QStyle::State_Selected)
+    {
+        QPen highlightPen(Qt::yellow, 2, Qt::DashLine);
+        painter->setPen(highlightPen);
+        painter->setBrush(Qt::NoBrush);
+        painter->drawRect(rect_);
+    }
+}
+
+
+void TimelineItem::setRect(const QRectF& rect)
+{
+    prepareGeometryChange();
+    rect_ = rect;
+    update();
 }
 
 
@@ -54,7 +88,7 @@ QVariant TimelineItem::itemChange(GraphicsItemChange change, const QVariant& val
         // For now, we'll update the model only on release
     }
 
-    return QGraphicsRectItem::itemChange(change, value);
+    return QGraphicsObject::itemChange(change, value);
 }
 
 
@@ -62,13 +96,12 @@ void TimelineItem::mousePressEvent(QGraphicsSceneMouseEvent* event)
 {
     if (event->button() != Qt::LeftButton)
     {
-        QGraphicsRectItem::mousePressEvent(event);
-
+        QGraphicsObject::mousePressEvent(event);
         return;
     }
 
     dragStartPos_ = pos();
-    resizeStartRect_ = rect();
+    resizeStartRect_ = rect_;
 
     // Check if clicking on a resize handle
     if (resizable_)
@@ -79,14 +112,13 @@ void TimelineItem::mousePressEvent(QGraphicsSceneMouseEvent* event)
             isResizing_ = true;
             activeHandle_ = handle;
             event->accept();
-
             return;
         }
     }
 
     // Otherwise, it's a drag operation
     isDragging_ = true;
-    QGraphicsRectItem::mousePressEvent(event);
+    QGraphicsObject::mousePressEvent(event);
 }
 
 
@@ -94,7 +126,7 @@ void TimelineItem::mouseMoveEvent(QGraphicsSceneMouseEvent* event)
 {
     if (isResizing_)
     {
-        QRectF newRect = rect();
+        QRectF newRect = rect_;
         QPointF delta = event->pos() - event->lastPos();
 
         if (activeHandle_ == LeftEdge)
@@ -128,7 +160,7 @@ void TimelineItem::mouseMoveEvent(QGraphicsSceneMouseEvent* event)
 
     if (isDragging_)
     {
-        QGraphicsRectItem::mouseMoveEvent(event);
+        QGraphicsObject::mouseMoveEvent(event);
     }
 }
 
@@ -137,8 +169,7 @@ void TimelineItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event)
 {
     if (event->button() != Qt::LeftButton)
     {
-        QGraphicsRectItem::mouseReleaseEvent(event);
-
+        QGraphicsObject::mouseReleaseEvent(event);
         return;
     }
 
@@ -149,13 +180,12 @@ void TimelineItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event)
         activeHandle_ = None;
 
         // Check if size actually changed
-        if (rect() != resizeStartRect_)
+        if (rect_ != resizeStartRect_)
         {
             updateModelFromSize();
         }
 
         event->accept();
-
         return;
     }
 
@@ -171,7 +201,7 @@ void TimelineItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event)
         }
     }
 
-    QGraphicsRectItem::mouseReleaseEvent(event);
+    QGraphicsObject::mouseReleaseEvent(event);
 }
 
 
@@ -179,15 +209,14 @@ void TimelineItem::hoverMoveEvent(QGraphicsSceneHoverEvent* event)
 {
     if (!resizable_ || isResizing_ || isDragging_)
     {
-        QGraphicsRectItem::hoverMoveEvent(event);
-
+        QGraphicsObject::hoverMoveEvent(event);
         return;
     }
 
     ResizeHandle handle = getResizeHandle(event->pos());
     updateCursor(handle);
 
-    QGraphicsRectItem::hoverMoveEvent(event);
+    QGraphicsObject::hoverMoveEvent(event);
 }
 
 
@@ -198,7 +227,7 @@ void TimelineItem::hoverLeaveEvent(QGraphicsSceneHoverEvent* event)
         unsetCursor();
     }
 
-    QGraphicsRectItem::hoverLeaveEvent(event);
+    QGraphicsObject::hoverLeaveEvent(event);
 }
 
 
@@ -217,7 +246,7 @@ void TimelineItem::updateModelFromPosition()
     }
 
     // Calculate new start date based on current X position
-    double xPos = rect().x() + pos().x();
+    double xPos = rect_.x() + pos().x();
     QDate newStartDate = mapper_->xToDate(xPos);
 
     // Calculate duration to preserve event length
@@ -250,8 +279,8 @@ void TimelineItem::updateModelFromSize()
     }
 
     // Calculate new dates based on current rectangle
-    QDate newStartDate = mapper_->xToDate(rect().left() + pos().x());
-    QDate newEndDate = mapper_->xToDate(rect().right() + pos().x()).addDays(-1);
+    QDate newStartDate = mapper_->xToDate(rect_.left() + pos().x());
+    QDate newEndDate = mapper_->xToDate(rect_.right() + pos().x()).addDays(-1);
 
     // Ensure at least 1-day duration
     if (newEndDate < newStartDate)
@@ -271,16 +300,14 @@ void TimelineItem::updateModelFromSize()
 
 TimelineItem::ResizeHandle TimelineItem::getResizeHandle(const QPointF& pos) const
 {
-    QRectF bounds = rect();
-
     // Check left edge
-    if (qAbs(pos.x() - bounds.left()) <= RESIZE_HANDLE_WIDTH)
+    if (qAbs(pos.x() - rect_.left()) <= RESIZE_HANDLE_WIDTH)
     {
         return LeftEdge;
     }
 
     // Check right edge
-    if (qAbs(pos.x() - bounds.right()) <= RESIZE_HANDLE_WIDTH)
+    if (qAbs(pos.x() - rect_.right()) <= RESIZE_HANDLE_WIDTH)
     {
         return RightEdge;
     }

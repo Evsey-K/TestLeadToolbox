@@ -108,7 +108,7 @@ set(SRC
     src/modules/timeline/TimelineDateScale.cpp
     src/modules/timeline/TimelineDateScale.h
     src/modules/timeline/CurrentDateMarker.cpp
-    src/modules/timeline/CurrentDateMarker.h    
+    src/modules/timeline/CurrentDateMarker.h
     src/modules/timeline/VersionBoundaryMarker.cpp
     src/modules/timeline/VersionBoundaryMarker.h
 
@@ -122,6 +122,9 @@ set(SRC
 
     src/modules/timeline/TimelineScrollAnimator.h
     src/modules/timeline/TimelineScrollAnimator.cpp
+
+    src/modules/timeline/DateRangeHighlight.h
+    src/modules/timeline/DateRangeHighlight.cpp
 
     # Add new 'module' sources below:
     # src/modules/<module_name>/<file>.cpp

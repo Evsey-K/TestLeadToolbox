@@ -22,6 +22,8 @@ class ScrollToDateDialog;
  * - Date picker for target date
  * - Option to animate scroll
  * - Option to highlight date range
+ *
+ * Settings are persisted using QSettings and restored on next use.
  */
 class ScrollToDateDialog : public QDialog
 {
@@ -41,7 +43,7 @@ public:
                                 QWidget* parent = nullptr);
 
     /**
-     * @brief Destructor - cleans up UI
+     * @brief Destructor - cleans up UI and saves settings
      */
     ~ScrollToDateDialog();
 
@@ -76,6 +78,16 @@ private:
      * @brief Setup signal/slot connections
      */
     void setupConnections();
+
+    /**
+     * @brief Load saved user preferences from QSettings
+     */
+    void loadSettings();
+
+    /**
+     * @brief Save user preferences to QSettings
+     */
+    void saveSettings();
 
     Ui::ScrollToDateDialog* ui;     ///< UI class generated from .ui file
     QDate currentDate_;

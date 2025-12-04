@@ -2,6 +2,7 @@
 
 #include "ScrollToDateDialog.h"
 #include "ui_ScrollToDateDialog.h"
+#include <QSettings>
 
 ScrollToDateDialog::ScrollToDateDialog(const QDate& currentDate,
                                        const QDate& minDate,
@@ -21,12 +22,17 @@ ScrollToDateDialog::ScrollToDateDialog(const QDate& currentDate,
     ui->dateEdit->setMinimumDate(minDate_);
     ui->dateEdit->setMaximumDate(maxDate_);
 
+    // Load saved preferences from previous session
+    loadSettings();
+
     // Setup signal/slot connections
     setupConnections();
 }
 
 ScrollToDateDialog::~ScrollToDateDialog()
 {
+    // Save settings when dialog closes
+    saveSettings();
     delete ui;
 }
 
@@ -64,4 +70,33 @@ int ScrollToDateDialog::highlightRangeDays() const
 void ScrollToDateDialog::onHighlightToggled(bool checked)
 {
     ui->highlightRangeSpinner->setEnabled(checked);
+}
+
+void ScrollToDateDialog::loadSettings()
+{
+    QSettings settings("TestLeadToolbox", "Timeline");
+
+    // Load animation preference (default: true)
+    bool animate = settings.value("ScrollToDate/Animate", true).toBool();
+    ui->animateCheckbox->setChecked(animate);
+
+    // Load highlight preference (default: false)
+    bool highlight = settings.value("ScrollToDate/Highlight", false).toBool();
+    ui->highlightCheckbox->setChecked(highlight);
+
+    // Load highlight range (default: 7 days)
+    int rangeDays = settings.value("ScrollToDate/HighlightRange", 7).toInt();
+    ui->highlightRangeSpinner->setValue(rangeDays);
+
+    // This is necessary because the signal connection hasn't been set up yet
+    ui->highlightRangeSpinner->setEnabled(highlight);
+}
+
+void ScrollToDateDialog::saveSettings()
+{
+    QSettings settings("TestLeadToolbox", "Timeline");
+
+    settings.setValue("ScrollToDate/Animate", ui->animateCheckbox->isChecked());
+    settings.setValue("ScrollToDate/Highlight", ui->highlightCheckbox->isChecked());
+    settings.setValue("ScrollToDate/HighlightRange", ui->highlightRangeSpinner->value());
 }

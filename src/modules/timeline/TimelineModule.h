@@ -3,6 +3,7 @@
 
 #pragma once
 #include <QWidget>
+#include "DateRangeHighlight.h"
 
 
 class TimelineView;
@@ -103,6 +104,7 @@ private slots:
 
     void onEditEventRequested(const QString& eventId);
     void onDeleteEventRequested(const QString& eventId);
+    void onBatchDeleteRequested(const QStringList& eventIds);
 
 private:
     void setupUi();
@@ -115,6 +117,10 @@ private:
 
     bool confirmDeletion(const QString& eventId);       ///<
     bool deleteEvent(const QString& eventId);           ///<
+
+    bool confirmBatchDeletion(const QStringList& eventIds);             ///< @brief Show confirmation dialog for batch event deletion
+    bool deleteEventWithoutConfirmation(const QString& eventId);        ///< @brief Delete a single event without confirmation (for use after EditDialog)
+    bool deleteBatchEvents(const QStringList& eventIds);                ///< @brief Delete multiple events with single confirmation dialog
 
     TimelineModel* model_;
     TimelineCoordinateMapper* mapper_;

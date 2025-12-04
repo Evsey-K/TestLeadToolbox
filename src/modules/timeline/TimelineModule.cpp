@@ -179,6 +179,7 @@ void TimelineModule::setupConnections()
     connect(view_->timelineScene(), &TimelineScene::itemDragCompleted, sidePanel_, &TimelineSidePanel::displayEventDetails);        // Drag completion updates side panel
     connect(view_->timelineScene(), &TimelineScene::editEventRequested, this, &TimelineModule::onEditEventRequested);               //
     connect(view_->timelineScene(), &TimelineScene::deleteEventRequested, this, &TimelineModule::onDeleteEventRequested);           //
+    connect(view_->timelineScene(), &TimelineScene::batchDeleteRequested, this, &TimelineModule::onBatchDeleteRequested);           //
     connect(sidePanel_, &TimelineSidePanel::editEventRequested, this, &TimelineModule::onEditEventRequested);                       //
     connect(sidePanel_, &TimelineSidePanel::deleteEventRequested, this, &TimelineModule::onDeleteEventRequested);                   //
     connect(model_, &TimelineModel::versionDatesChanged, [this]()                                                                   // Update mapper when version dates change
@@ -495,10 +496,42 @@ void TimelineModule::onScrollToDate()
     {
         QDate targetDate = dialog.targetDate();
         bool animate = dialog.shouldAnimate();
+        bool highlight = dialog.shouldHighlight();
+        int rangeDays = dialog.highlightRangeDays();
 
+        // Scroll to target date
         scrollAnimator_->scrollToDate(targetDate, animate, 750);
 
-        statusLabel_->setText(QString("Scrolling to: %1").arg(targetDate.toString("yyyy-MM-dd")));
+        // Create highlight overlay if requested
+        if (highlight)
+        {
+            // Get current scene height
+            double sceneHeight = view_->scene()->sceneRect().height();
+
+            // Create highlight overlay
+            DateRangeHighlight* highlightOverlay = new DateRangeHighlight(
+                targetDate,
+                rangeDays,
+                mapper_,
+                sceneHeight
+                );
+
+            // Add to scene
+            view_->scene()->addItem(highlightOverlay);
+
+            // Start fade-out after 2 seconds
+            highlightOverlay->fadeOut(2000, 1000);
+
+            // Update status
+            statusLabel_->setText(QString("Scrolling to %1 (highlighting ±%2 days)")
+                                      .arg(targetDate.toString("yyyy-MM-dd"))
+                                      .arg(rangeDays));
+        }
+        else
+        {
+            statusLabel_->setText(QString("Scrolling to: %1")
+                                      .arg(targetDate.toString("yyyy-MM-dd")));
+        }
     }
 }
 
@@ -529,7 +562,7 @@ void TimelineModule::onEditEventRequested(const QString& eventId)
     }
     else if (result == EditEventDialog::DeleteRequested)
     {
-        deleteEvent(eventId);
+        deleteEventWithoutConfirmation(eventId);
     }
 }
 
@@ -597,6 +630,149 @@ bool TimelineModule::deleteEvent(const QString& eventId)
     {
         QMessageBox::critical(this, "Deletion Failed", "An error occurred while deleting the event.");
         statusLabel_->setText("Event deletion failed");
+
+        return false;
+    }
+}
+
+
+void TimelineModule::onBatchDeleteRequested(const QStringList& eventIds)
+{
+    deleteBatchEvents(eventIds);
+}
+
+
+bool TimelineModule::confirmBatchDeletion(const QStringList& eventIds)
+{
+    if (eventIds.isEmpty())
+    {
+        return false;
+    }
+
+    // Build list of events to delete
+    QStringList eventDetails;
+    for (const QString& eventId : eventIds)
+    {
+        const TimelineEvent* event = model_->getEvent(eventId);
+        if (event)
+        {
+            eventDetails.append(QString("• %1 (%2 to %3)")
+                                    .arg(event->title)
+                                    .arg(event->startDate.toString("yyyy-MM-dd"))
+                                    .arg(event->endDate.toString("yyyy-MM-dd")));
+        }
+    }
+
+    QString message;
+
+    if (eventIds.size() == 1)
+    {
+        message = QString("Are you sure you want to delete this event?\n\n%1\n\n"
+                          "This action cannot be undone.")
+                      .arg(eventDetails.join("\n"));
+    }
+    else
+    {
+        message = QString("Are you sure you want to delete these %1 events?\n\n%2\n\n"
+                          "This action cannot be undone.")
+                      .arg(eventIds.size())
+                      .arg(eventDetails.join("\n"));
+    }
+
+    auto result = QMessageBox::question(
+        this,
+        "Confirm Deletion",
+        message,
+        QMessageBox::Yes | QMessageBox::No,
+        QMessageBox::No
+        );
+
+    return (result == QMessageBox::Yes);
+}
+
+
+bool TimelineModule::deleteEventWithoutConfirmation(const QString& eventId)
+{
+    const TimelineEvent* event = model_->getEvent(eventId);
+
+    if (!event)
+    {
+        QMessageBox::warning(this, "Deletion Failed", "Event not found.");
+        statusLabel_->setText("Event deletion failed - event not found");
+
+        return false;
+    }
+
+    QString eventTitle = event->title;
+
+    bool success = model_->removeEvent(eventId);
+
+    if (success)
+    {
+        statusLabel_->setText(QString("Event '%1' deleted successfully").arg(eventTitle));
+
+        return true;
+    }
+    else
+    {
+        QMessageBox::critical(this, "Deletion Failed", "An error occurred while deleting the event.");
+        statusLabel_->setText("Event deletion failed");
+
+        return false;
+    }
+}
+
+
+bool TimelineModule::deleteBatchEvents(const QStringList& eventIds)
+{
+    if (eventIds.isEmpty())
+    {
+        return false;
+    }
+
+    // Show single confirmation dialog for all events
+    if (!confirmBatchDeletion(eventIds))
+    {
+        statusLabel_->setText("Deletion cancelled");
+
+        return false;
+    }
+
+    // Delete all events
+    int successCount = 0;
+    QStringList failedEvents;
+
+    for (const QString& eventId : eventIds)
+    {
+        const TimelineEvent* event = model_->getEvent(eventId);
+        QString eventTitle = event ? event->title : eventId;
+
+        bool success = model_->removeEvent(eventId);
+
+        if (success)
+        {
+            successCount++;
+        }
+        else
+        {
+            failedEvents.append(eventTitle);
+        }
+    }
+
+    // Report results
+    if (failedEvents.isEmpty())
+    {
+        statusLabel_->setText(QString("%1 event(s) deleted successfully").arg(successCount));
+
+        return true;
+    }
+    else
+    {
+        QString message = QString("Deleted %1 event(s).\n\nFailed to delete:\n%2")
+        .arg(successCount)
+            .arg(failedEvents.join("\n"));
+        QMessageBox::warning(this, "Partial Deletion", message);
+        statusLabel_->setText(QString("%1 deleted, %2 failed").arg(successCount).arg(failedEvents.size()));
 
         return false;
     }

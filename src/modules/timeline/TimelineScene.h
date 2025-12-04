@@ -41,102 +41,35 @@ public:
                            TimelineCoordinateMapper* mapper,
                            QObject *parent = nullptr);
 
-    /**
-     * @brief Get the coordinate mapper
-     */
-    TimelineCoordinateMapper* coordinateMapper() const
-    {
-        return mapper_;
-    }
-
-    /**
-     * @brief Rebuild all items from the model (useful after zoom or major changes)
-     */
-    void rebuildFromModel();
-
-    /**
-     * @brief Find the TimelineItem associated with an event ID
-     */
-    TimelineItem* findItemByEventId(const QString& eventId) const;
+    TimelineCoordinateMapper* coordinateMapper() const { return mapper_; }      ///< @brief Get the coordinate mapper
+    void rebuildFromModel();                                                    ///< @brief Rebuild all items from the model (useful after zoom or major changes)
+    TimelineItem* findItemByEventId(const QString& eventId) const;              ///< @brief Find the TimelineItem associated with an event ID
 
 signals:
-    /**
-     * @brief Emitted when a timeline item is clicked (Feature 1)
-     * @param eventId ID of the clicked event
-     */
-    void itemClicked(const QString& eventId);
-
-    /**
-     * @brief Emitted when a timeline item drag is completed (Feature 2)
-     * @param eventId ID of the dragged event
-     */
-    void itemDragCompleted(const QString& eventId);
-
-    void editEventRequested(const QString& eventId);
-
-    void deleteEventRequested(const QString& eventId);
+    void itemClicked(const QString& eventId);                   ///< @brief Emitted when a timeline item is clicked
+    void itemDragCompleted(const QString& eventId);             ///< @brief Emitted when a timeline item drag is completed
+    void editEventRequested(const QString& eventId);            ///<
+    void deleteEventRequested(const QString& eventId);          ///<
+    void batchDeleteRequested(const QStringList& eventIds);     ///< @brief Emitted when multiple events should be deleted
 
 public slots:
-    /**
-     * @brief Handle a new event being added to the model
-     */
-    void onEventAdded(const QString& eventId);
-
-    /**
-     * @brief Handle an event being removed from the model
-     */
-    void onEventRemoved(const QString& eventId);
-
-    /**
-     * @brief Handle an event being updated in the model
-     */
-    void onEventUpdated(const QString& eventId);
-
-    /**
-     * @brief Handle version dates changing (requires full rebuild)
-     */
-    void onVersionDatesChanged();
-
-    /**
-     * @brief Handle lanes being recalculated (Sprint 2)
-     */
-    void onLanesRecalculated();
+    void onEventAdded(const QString& eventId);              ///< @brief Handle a new event being added to the model
+    void onEventRemoved(const QString& eventId);            ///< @brief Handle an event being removed from the model
+    void onEventUpdated(const QString& eventId);            ///< @brief Handle an event being updated in the model
+    void onVersionDatesChanged();                           ///< @brief Handle version dates changing (requires full rebuild)
+    void onLanesRecalculated();                             ///< @brief Handle lanes being recalculated
 
 protected:
-    /**
-     * @brief Override to detect item clicks (Feature 1)
-     */
-    void mousePressEvent(QGraphicsSceneMouseEvent* event) override;
-
-    void keyPressEvent(QKeyEvent* event) override;
+    void mousePressEvent(QGraphicsSceneMouseEvent* event) override;         ///< @brief Override to detect item clicks
+    void keyPressEvent(QKeyEvent* event) override;                          ///<
 
 private:
-    /**
-     * @brief Create a single timeline item from event data
-     */
-    TimelineItem* createItemForEvent(const QString& eventId);
-
-    /**
-     * @brief Update an existing item's visual representation
-     */
-    void updateItemFromEvent(TimelineItem* item, const QString& eventId);
-
-    /**
-     * @brief Update scene height based on current lane count (Sprint 2)
-     */
-    void updateSceneHeight();
-
-    /**
-     * @brief Initialize date scale and current date marker (Phase 1 & 3)
-     */
-    void setupDateScale();
-
-    /**
-     * @brief Setup version boundary markers (Feature 3a)
-     */
-    void setupVersionBoundaryMarkers();
-
-    void connectItemSignals(TimelineItem* item);
+    TimelineItem* createItemForEvent(const QString& eventId);               ///< @brief Create a single timeline item from event data
+    void updateItemFromEvent(TimelineItem* item, const QString& eventId);   ///< @brief Update an existing item's visual representation
+    void updateSceneHeight();                                               ///< @brief Update scene height based on current lane count
+    void setupDateScale();                                                  ///< @brief Initialize date scale and current date marker
+    void setupVersionBoundaryMarkers();                                     ///< @brief Setup version boundary markers
+    void connectItemSignals(TimelineItem* item);                            ///<
 
     TimelineModel* model_;                              ///< Data model (not owned)
     TimelineCoordinateMapper* mapper_;                  ///< Coordinate mapper (not owned)

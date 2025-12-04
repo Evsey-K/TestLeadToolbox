@@ -335,7 +335,7 @@ void TimelineScene::updateSceneHeight()
 
 void TimelineScene::keyPressEvent(QKeyEvent* event)
 {
-    // Phase 5: Handle Delete key
+    // Handle Delete key with batch deletion support
     if (event->key() == Qt::Key_Delete || event->key() == Qt::Key_Backspace)
     {
         QList<QGraphicsItem*> selected = selectedItems();
@@ -344,6 +344,7 @@ void TimelineScene::keyPressEvent(QKeyEvent* event)
         {
             QStringList eventIds;
 
+            // Collect all selected event IDs
             for (QGraphicsItem* item : selected)
             {
                 TimelineItem* timelineItem = qgraphicsitem_cast<TimelineItem*>(item);
@@ -354,9 +355,19 @@ void TimelineScene::keyPressEvent(QKeyEvent* event)
                 }
             }
 
-            for (const QString& eventId : eventIds)
+            if (!eventIds.isEmpty())
             {
-                emit deleteEventRequested(eventId);
+                // Emit appropriate signal based on count
+                if (eventIds.size() == 1)
+                {
+                    // Single item - use regular delete signal
+                    emit deleteEventRequested(eventIds.first());
+                }
+                else
+                {
+                    // Multiple items - use batch delete signal
+                    emit batchDeleteRequested(eventIds);
+                }
             }
 
             event->accept();
