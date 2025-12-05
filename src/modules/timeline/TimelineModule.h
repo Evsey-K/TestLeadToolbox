@@ -15,11 +15,12 @@ class TimelineScrollAnimator;
 class QPushButton;
 class QToolBar;
 class QLabel;
+class QAction;
 
 
 /**
  * @class TimelineModule
- * @brief Main container for the timeline feature with Phase 4 enhancements
+ * @brief Main container for the timeline feature with Phase 5 Tier 2 enhancements
  *
  * Integrates:
  * - TimelineModel (data)
@@ -32,6 +33,9 @@ class QLabel;
  * - Export list view to CSV/PDF
  * - Drag resizing for multi-day events
  * - Smart scroll-to-date functionality
+ * - Toolbar delete button (context-sensitive)
+ * - Multi-selection support
+ * - Focus management after deletion
  */
 class TimelineModule : public QWidget {
     Q_OBJECT
@@ -63,7 +67,7 @@ private slots:
     void onAddEventClicked();
 
     /**
-     * @brief Handle Version Settings button click (NEW)
+     * @brief Handle Version Settings button click
      */
     void onVersionSettingsClicked();
 
@@ -102,9 +106,30 @@ private slots:
      */
     void onScrollToDate();
 
+    /**
+     * @brief Handle edit event request from scene or side panel
+     */
     void onEditEventRequested(const QString& eventId);
+
+    /**
+     * @brief Handle delete event request from scene or side panel
+     */
     void onDeleteEventRequested(const QString& eventId);
+
+    /**
+     * @brief Handle batch delete request from scene
+     */
     void onBatchDeleteRequested(const QStringList& eventIds);
+
+    /**
+     * @brief Handle toolbar delete button click (TIER 2)
+     */
+    void onDeleteActionTriggered();
+
+    /**
+     * @brief Update delete button enabled state based on selection (TIER 2)
+     */
+    void updateDeleteActionState();
 
 private:
     void setupUi();
@@ -115,21 +140,27 @@ private:
 
     QToolBar* createToolbar();                          ///< @brief Create toolbar with all actions
 
-    bool confirmDeletion(const QString& eventId);       ///<
-    bool deleteEvent(const QString& eventId);           ///<
+    bool confirmDeletion(const QString& eventId);       ///< @brief Show confirmation dialog for single event deletion
+    bool deleteEvent(const QString& eventId);           ///< @brief Delete a single event with confirmation
 
     bool confirmBatchDeletion(const QStringList& eventIds);             ///< @brief Show confirmation dialog for batch event deletion
     bool deleteEventWithoutConfirmation(const QString& eventId);        ///< @brief Delete a single event without confirmation (for use after EditDialog)
     bool deleteBatchEvents(const QStringList& eventIds);                ///< @brief Delete multiple events with single confirmation dialog
+
+    /**
+     * @brief Get all currently selected event IDs from both scene and side panel (TIER 2)
+     */
+    QStringList getAllSelectedEventIds() const;
 
     TimelineModel* model_;
     TimelineCoordinateMapper* mapper_;
     TimelineView* view_;
     TimelineSidePanel* sidePanel_;
     QPushButton* addEventButton_;
-    QPushButton* versionSettingsButton_;    
+    QPushButton* versionSettingsButton_;
     AutoSaveManager* autoSaveManager_;
     TimelineScrollAnimator* scrollAnimator_;
     QLabel* statusLabel_;
     QLabel* unsavedIndicator_;
+    QAction* deleteAction_;
 };

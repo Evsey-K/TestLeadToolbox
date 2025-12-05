@@ -26,6 +26,11 @@ TimelineSidePanel::TimelineSidePanel(TimelineModel* model, QWidget* parent)
     // Hide details panel initially
     ui->eventDetailsGroupBox->setVisible(false);
 
+    // TIER 2: Enable multi-selection on all list widgets
+    enableMultiSelection(ui->allEventsList);
+    enableMultiSelection(ui->lookaheadList);
+    enableMultiSelection(ui->todayList);
+
     connectSignals();
     refreshAllTabs();
     adjustWidthToFitTabs();
@@ -55,6 +60,11 @@ void TimelineSidePanel::connectSignals()
     connect(ui->allEventsList, &QListWidget::itemClicked, this, &TimelineSidePanel::onAllEventsItemClicked);
     connect(ui->lookaheadList, &QListWidget::itemClicked, this, &TimelineSidePanel::onLookaheadItemClicked);
     connect(ui->todayList, &QListWidget::itemClicked, this, &TimelineSidePanel::onTodayItemClicked);
+
+    // TIER 2: Connect selection change signals
+    connect(ui->allEventsList, &QListWidget::itemSelectionChanged, this, &TimelineSidePanel::onListSelectionChanged);
+    connect(ui->lookaheadList, &QListWidget::itemSelectionChanged, this, &TimelineSidePanel::onListSelectionChanged);
+    connect(ui->todayList, &QListWidget::itemSelectionChanged, this, &TimelineSidePanel::onListSelectionChanged);
 }
 
 
@@ -439,3 +449,122 @@ void TimelineSidePanel::showListItemContextMenu(QListWidget* listWidget, const Q
     }
 }
 
+
+// TIER 2 IMPLEMENTATION: Enable multi-selection on list widget
+void TimelineSidePanel::enableMultiSelection(QListWidget* listWidget)
+{
+    if (!listWidget)
+    {
+        return;
+    }
+
+    // Set selection mode to allow Ctrl+Click and Shift+Click
+    listWidget->setSelectionMode(QAbstractItemView::ExtendedSelection);
+}
+
+
+// TIER 2 IMPLEMENTATION: Get selected event IDs from specific list widget
+QStringList TimelineSidePanel::getSelectedEventIds(QListWidget* listWidget) const
+{
+    QStringList eventIds;
+
+    if (!listWidget)
+    {
+        return eventIds;
+    }
+
+    QList<QListWidgetItem*> selectedItems = listWidget->selectedItems();
+
+    for (QListWidgetItem* item : selectedItems)
+    {
+        if (item && item->flags() != Qt::NoItemFlags)
+        {
+            QString eventId = item->data(Qt::UserRole).toString();
+            if (!eventId.isEmpty())
+            {
+                eventIds.append(eventId);
+            }
+        }
+    }
+
+    return eventIds;
+}
+
+
+// TIER 2 IMPLEMENTATION: Get all selected event IDs from all tabs
+QStringList TimelineSidePanel::getSelectedEventIds() const
+{
+    QStringList eventIds;
+
+    // Get currently active tab
+    QWidget* currentWidget = ui->tabWidget->currentWidget();
+
+    // Get the list widget for the active tab
+    QListWidget* activeList = nullptr;
+
+    if (currentWidget == ui->todayTab)
+    {
+        activeList = ui->todayList;
+    }
+    else if (currentWidget == ui->lookaheadTab)
+    {
+        activeList = ui->lookaheadList;
+    }
+    else if (currentWidget == ui->allEventsTab)
+    {
+        activeList = ui->allEventsList;
+    }
+
+    // Only get selection from active tab
+    if (activeList)
+    {
+        eventIds = getSelectedEventIds(activeList);
+    }
+
+    return eventIds;
+}
+
+
+// TIER 2 IMPLEMENTATION: Handle selection changes in list widgets
+void TimelineSidePanel::onListSelectionChanged()
+{
+    // Emit signal to notify that selection has changed
+    emit selectionChanged();
+}
+
+
+// TIER 2 IMPLEMENTATION: Focus management after deletion
+void TimelineSidePanel::focusNextItem(QListWidget* listWidget, int deletedRow)
+{
+    if (!listWidget || listWidget->count() == 0)
+    {
+        return;
+    }
+
+    // Calculate next item to select
+    int nextRow = deletedRow;
+
+    // If deleted the last item, select previous
+    if (nextRow >= listWidget->count())
+    {
+        nextRow = listWidget->count() - 1;
+    }
+
+    // Select and focus the next item
+    if (nextRow >= 0 && nextRow < listWidget->count())
+    {
+        QListWidgetItem* nextItem = listWidget->item(nextRow);
+        if (nextItem)
+        {
+            listWidget->setCurrentItem(nextItem);
+            nextItem->setSelected(true);
+
+            // Display details for newly focused item
+            QString eventId = nextItem->data(Qt::UserRole).toString();
+            if (!eventId.isEmpty())
+            {
+                displayEventDetails(eventId);
+            }
+        }
+    }
+}

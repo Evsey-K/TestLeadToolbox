@@ -32,6 +32,7 @@ TimelineModule::TimelineModule(QWidget* parent)
     : QWidget(parent)
     , autoSaveManager_(nullptr)
     , scrollAnimator_(nullptr)
+    , deleteAction_(nullptr)
 {
     // Create model
     model_ = new TimelineModel(this);
@@ -139,6 +140,12 @@ QToolBar* TimelineModule::createToolbar()
     versionSettingsButton_ = new QPushButton("⚙️ Version Settings");
     toolbar->addWidget(versionSettingsButton_);
 
+    // TIER 2: Add delete button (context-sensitive, disabled when no selection)
+    deleteAction_ = toolbar->addAction("🗑️ Delete");
+    deleteAction_->setToolTip("Delete selected event(s)");
+    deleteAction_->setEnabled(false);  // Initially disabled
+    connect(deleteAction_, &QAction::triggered, this, &TimelineModule::onDeleteActionTriggered);
+
 
     toolbar->addSeparator();
 
@@ -183,26 +190,32 @@ void TimelineModule::setupConnections()
     connect(sidePanel_, &TimelineSidePanel::editEventRequested, this, &TimelineModule::onEditEventRequested);                       //
     connect(sidePanel_, &TimelineSidePanel::deleteEventRequested, this, &TimelineModule::onDeleteEventRequested);                   //
     connect(model_, &TimelineModel::versionDatesChanged, [this]()                                                                   // Update mapper when version dates change
-    {
-        mapper_->setVersionDates(model_->versionStartDate(), model_->versionEndDate());
-    });
+            {
+                mapper_->setVersionDates(model_->versionStartDate(), model_->versionEndDate());
+            });
+
+    // TIER 2: Connect selection change signals to update delete button state
+    connect(view_->timelineScene(), &QGraphicsScene::selectionChanged,
+            this, &TimelineModule::updateDeleteActionState);
+    connect(sidePanel_, &TimelineSidePanel::selectionChanged,
+            this, &TimelineModule::updateDeleteActionState);
 
     // Scroll animator completion
     connect(scrollAnimator_, &TimelineScrollAnimator::scrollCompleted, [this](const QDate& date)
-    {
-        statusLabel_->setText(QString("Scrolled to: %1").arg(date.toString("yyyy-MM-dd")));
-    });
+            {
+                statusLabel_->setText(QString("Scrolled to: %1").arg(date.toString("yyyy-MM-dd")));
+            });
 
     // Timeline item clicks also update status bar
     connect(view_->timelineScene(), &TimelineScene::itemClicked, this, [this](const QString& eventId)
-    {
-        const TimelineEvent* event = model_->getEvent(eventId);
+            {
+                const TimelineEvent* event = model_->getEvent(eventId);
 
-        if (event)
-        {
-            statusLabel_->setText(QString("Selected: %1").arg(event->title));
-        }
-    });
+                if (event)
+                {
+                    statusLabel_->setText(QString("Selected: %1").arg(event->title));
+                }
+            });
 }
 
 
@@ -778,6 +791,90 @@ bool TimelineModule::deleteBatchEvents(const QStringList& eventIds)
     }
 }
 
+
+// TIER 2 IMPLEMENTATION: Toolbar delete button handler
+void TimelineModule::onDeleteActionTriggered()
+{
+    // Get all selected event IDs from both scene and side panel
+    QStringList selectedEventIds = getAllSelectedEventIds();
+
+    if (selectedEventIds.isEmpty())
+    {
+        statusLabel_->setText("No events selected for deletion");
+        return;
+    }
+
+    // Delete all selected events
+    deleteBatchEvents(selectedEventIds);
+}
+
+
+// TIER 2 IMPLEMENTATION: Update delete button state based on selection
+void TimelineModule::updateDeleteActionState()
+{
+    if (!deleteAction_)
+    {
+        return;
+    }
+
+    // Get all selected event IDs
+    QStringList selectedEventIds = getAllSelectedEventIds();
+
+    // Enable delete button only if there's a selection
+    bool hasSelection = !selectedEventIds.isEmpty();
+    deleteAction_->setEnabled(hasSelection);
+
+    // Update tooltip based on selection count
+    if (hasSelection)
+    {
+        if (selectedEventIds.size() == 1)
+        {
+            deleteAction_->setToolTip("Delete selected event");
+        }
+        else
+        {
+            deleteAction_->setToolTip(QString("Delete %1 selected events").arg(selectedEventIds.size()));
+        }
+    }
+    else
+    {
+        deleteAction_->setToolTip("Delete selected event(s)");
+    }
+}
+
+
+// TIER 2 IMPLEMENTATION: Get all selected event IDs from scene and side panel
+QStringList TimelineModule::getAllSelectedEventIds() const
+{
+    QStringList eventIds;
+
+    // Get selection from timeline scene
+    TimelineScene* scene = qobject_cast<TimelineScene*>(view_->scene());
+    if (scene)
+    {
+        QList<QGraphicsItem*> selectedItems = scene->selectedItems();
+        for (QGraphicsItem* item : selectedItems)
+        {
+            TimelineItem* timelineItem = qgraphicsitem_cast<TimelineItem*>(item);
+            if (timelineItem && !timelineItem->eventId().isEmpty())
+            {
+                eventIds.append(timelineItem->eventId());
+            }
+        }
+    }
+
+    // Get selection from side panel (through its public method)
+    QStringList panelSelection = sidePanel_->getSelectedEventIds();
+    for (const QString& eventId : panelSelection)
+    {
+        if (!eventIds.contains(eventId))
+        {
+            eventIds.append(eventId);
+        }
+    }
+
+    return eventIds;
+}
 
 
 // -----------------------------------------------------------------------------------------------------------------
