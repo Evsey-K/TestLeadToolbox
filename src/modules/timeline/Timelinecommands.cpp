@@ -9,40 +9,40 @@
 // AddEventCommand Implementation
 // ============================================================================
 
-AddEventCommand::AddEventCommand(TimelineModel* model, const TimelineEvent& event, QUndoCommand* parent)
+AddEventCommand::AddEventCommand(TimelineModel* model,
+                                 const TimelineEvent& event,
+                                 QUndoCommand* parent)
     : QUndoCommand(parent)
     , model_(model)
     , event_(event)
-    , firstRedo_(true)
 {
     setText(QString("Add Event: %1").arg(event.title));
 }
 
 
-void AddEventCommand::undo()
+void AddEventCommand::redo()
 {
-    if (!eventId_.isEmpty())
-    {
-        model_->removeEvent(eventId_);
-    }
+    // Add event to model
+    eventId_ = model_->addEvent(event_);
+
+    // Update the event_ with the generated ID
+    event_.id = eventId_;
+
+    qDebug() << "AddEventCommand::redo() - Added event:" << eventId_;
 }
 
 
-void AddEventCommand::redo()
+void AddEventCommand::undo()
 {
-    if (firstRedo_)
+    // Remove event from model
+    bool success = model_->removeEvent(eventId_);
+
+    if (!success)
     {
-        // First time - actually add the event and capture the ID
-        eventId_ = model_->addEvent(event_);
-        firstRedo_ = false;
+        qWarning() << "AddEventCommand::undo() - Failed to remove event:" << eventId_;
     }
-    else
-    {
-        // Subsequent redo - re-add the same event with preserved ID
-        TimelineEvent eventWithId = event_;
-        eventWithId.id = eventId_;
-        model_->addEvent(eventWithId);
-    }
+
+    qDebug() << "AddEventCommand::undo() - Removed event:" << eventId_;
 }
 
 
@@ -58,14 +58,23 @@ DeleteEventCommand::DeleteEventCommand(TimelineModel* model,
     , model_(model)
     , eventId_(eventId)
     , softDelete_(softDelete)
-    , firstRedo_(true)
+    , firstRun_(true)
 {
-    // Capture event before deletion
-    const TimelineEvent* event = model_->getEvent(eventId);
+    // Get event for backup
+    const TimelineEvent* event = model_->getEvent(eventId_);
+
     if (event)
     {
-        deletedEvent_ = *event;
-        setText(QString("Delete Event: %1").arg(deletedEvent_.title));
+        eventBackup_ = *event;
+
+        if (softDelete_)
+        {
+            setText(QString("Archive Event: %1").arg(event->title));
+        }
+        else
+        {
+            setText(QString("Delete Event: %1").arg(event->title));
+        }
     }
     else
     {

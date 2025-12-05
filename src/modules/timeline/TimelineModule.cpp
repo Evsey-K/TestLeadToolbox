@@ -16,6 +16,10 @@
 #include "ScrollToDateDialog.h"
 #include "TimelineScrollAnimator.h"
 #include "EditEventDialog.h"
+#include "TimelineCommands.h"
+#include "TimelineSettings.h"
+#include "ConfirmationDialog.h"
+#include "ArchivedEventsDialog.h"
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QPushButton>
@@ -137,14 +141,15 @@ QToolBar* TimelineModule::createToolbar()
     toolbar->addSeparator();
 
 
-    // Event operations
-    addEventButton_ = new QPushButton("➕ Add Event");
-    toolbar->addWidget(addEventButton_);
-
+    // Add the 'Version Settings' button
     versionSettingsButton_ = new QPushButton("⚙️ Version Settings");
     toolbar->addWidget(versionSettingsButton_);
 
-    // Add delete button (context-sensitive, disabled when no selection)
+    // Add the 'Add' event button Event operations
+    addEventButton_ = new QPushButton("➕ Add Event");
+    toolbar->addWidget(addEventButton_);
+
+    // Add the 'delete' event button (context-sensitive, disabled when no selection)
     deleteAction_ = toolbar->addAction("🗑️ Delete");
     deleteAction_->setToolTip("Delete selected event(s)");
     deleteAction_->setEnabled(false);  // Initially disabled
@@ -886,15 +891,11 @@ void TimelineModule::onShowArchivedEvents()
 {
     ArchivedEventsDialog dialog(model_, undoStack_, this);
 
-    connect(&dialog, &ArchivedEventsDialog::eventsRestored, [this](const QStringList& eventIds) {
-        statusLabel_->setText(QString("Restored %1 event(s) from archive").arg(eventIds.size()));
-    });
-
-    connect(&dialog, &ArchivedEventsDialog::eventsPermanentlyDeleted, [this](const QStringList& eventIds) {
-        statusLabel_->setText(QString("Permanently deleted %1 event(s)").arg(eventIds.size()));
-    });
-
     dialog.exec();
+
+    // Refresh the timeline view after dialog closes (in case events were restored)
+    view_->timelineScene()->rebuildFromModel();
+    sidePanel_->refreshAllTabs();
 }
 
 

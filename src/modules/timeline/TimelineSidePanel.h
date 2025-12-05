@@ -33,6 +33,7 @@ class TimelineSidePanel;
  * - Color indicator matching timeline
  * - Multi-selection support (Ctrl+Click, Shift+Click) - TIER 2
  * - Focus management after deletion - TIER 2
+ * - Delete key support - PHASE 5 TIER 2
  *
  * All tabs automatically update when model changes.
  */
@@ -85,6 +86,11 @@ signals:
     void deleteEventRequested(const QString& eventId);
 
     /**
+     * @brief Emitted when user requests to delete multiple events (TIER 2)
+     */
+    void batchDeleteRequested(const QStringList& eventIds);
+
+    /**
      * @brief Emitted when selection changes in any list (TIER 2)
      */
     void selectionChanged();
@@ -95,6 +101,12 @@ public slots:
      * @param eventId Event ID to display
      */
     void displayEventDetails(const QString& eventId);
+
+protected:
+    /**
+     * @brief Handle key press events (Delete/Backspace for deletion)
+     */
+    void keyPressEvent(QKeyEvent* event) override;
 
 private slots:
     void onEventAdded(const QString& eventiD);

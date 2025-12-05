@@ -9,6 +9,7 @@
 #include <QPainter>
 #include <QDate>
 #include <QMenu>
+#include <QKeyEvent>
 #include <algorithm>
 
 
@@ -38,6 +39,12 @@ TimelineSidePanel::TimelineSidePanel(TimelineModel* model, QWidget* parent)
     setupListWidgetContextMenu(ui->allEventsList);
     setupListWidgetContextMenu(ui->lookaheadList);
     setupListWidgetContextMenu(ui->todayList);
+
+    // IMPORTANT: Set focus policy to receive key events
+    setFocusPolicy(Qt::StrongFocus);
+    ui->allEventsList->setFocusPolicy(Qt::StrongFocus);
+    ui->lookaheadList->setFocusPolicy(Qt::StrongFocus);
+    ui->todayList->setFocusPolicy(Qt::StrongFocus);
 }
 
 
@@ -45,6 +52,37 @@ TimelineSidePanel::~TimelineSidePanel()
 {
     // Clean up the UI pointer allocated in the constructor
     delete ui;
+}
+
+
+void TimelineSidePanel::keyPressEvent(QKeyEvent* event)
+{
+    // Handle Delete key with batch deletion support
+    if (event->key() == Qt::Key_Delete || event->key() == Qt::Key_Backspace)
+    {
+        QStringList selectedIds = getSelectedEventIds();
+
+        if (!selectedIds.isEmpty())
+        {
+            // Emit appropriate signal based on count
+            if (selectedIds.size() == 1)
+            {
+                // Single item - use regular delete signal
+                emit deleteEventRequested(selectedIds.first());
+            }
+            else
+            {
+                // Multiple items - use batch delete signal
+                emit batchDeleteRequested(selectedIds);
+            }
+
+            event->accept();
+            return;
+        }
+    }
+
+    // Pass unhandled events to base class
+    QWidget::keyPressEvent(event);
 }
 
 
