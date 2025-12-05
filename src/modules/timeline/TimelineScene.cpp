@@ -28,11 +28,11 @@ TimelineScene::TimelineScene(TimelineModel* model, TimelineCoordinateMapper* map
     connect(model_, &TimelineModel::eventRemoved, this, &TimelineScene::onEventRemoved);
     connect(model_, &TimelineModel::eventUpdated, this, &TimelineScene::onEventUpdated);
     connect(model_, &TimelineModel::versionDatesChanged, this, &TimelineScene::onVersionDatesChanged);
+    connect(model_, &TimelineModel::lanesRecalculated, this, &TimelineScene::onLanesRecalculated);          // Connect to lane recalculation signal
+    connect(model_, &TimelineModel::eventArchived, this, &TimelineScene::onEventRemoved);                   // Handle archiving (soft delete) - should remove from view like hard delete
+    connect(model_, &TimelineModel::eventRestored, this, &TimelineScene::onEventAdded);                     // Handle restoration - should add back to view
 
-    // Connect to lane recalculation signal
-    connect(model_, &TimelineModel::lanesRecalculated, this, &TimelineScene::onLanesRecalculated);
-
-    // Setup date scale and current date marker (Phase 1 & 3)
+    // Setup date scale and current date marker
     setupDateScale();
 
     // Setup version boundary markers (Feature 3a)

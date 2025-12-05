@@ -88,6 +88,9 @@ void TimelineModule::setupUi()
     // Splitter for timeline view and side panel
     auto splitter = new QSplitter(Qt::Horizontal);
 
+    // Prevent side panel from collapsing when dragging splitter
+    splitter->setChildrenCollapsible(false);
+
     // Create timeline view (which creates the scene internally)
     view_ = new TimelineView(model_, mapper_, this);
     splitter->addWidget(view_);

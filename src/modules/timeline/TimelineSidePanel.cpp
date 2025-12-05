@@ -2,6 +2,7 @@
 
 
 #include "TimelineSidePanel.h"
+#include "src/modules/timeline/ui_TimelineSidePanel.h"
 #include "ui_TimelineSidePanel.h"
 #include "TimelineModel.h"
 #include <QListWidget>
@@ -94,12 +95,16 @@ void TimelineSidePanel::connectSignals()
     connect(model_, &TimelineModel::eventUpdated, this, &TimelineSidePanel::onEventUpdated);
     connect(model_, &TimelineModel::lanesRecalculated, this, &TimelineSidePanel::onLanesRecalculated);
 
+    // Handle archiving and restoration
+    connect(model_, &TimelineModel::eventArchived, this, &TimelineSidePanel::onEventRemoved);
+    connect(model_, &TimelineModel::eventRestored, this, &TimelineSidePanel::onEventAdded);
+
     // Connect to list widget click signals
     connect(ui->allEventsList, &QListWidget::itemClicked, this, &TimelineSidePanel::onAllEventsItemClicked);
     connect(ui->lookaheadList, &QListWidget::itemClicked, this, &TimelineSidePanel::onLookaheadItemClicked);
     connect(ui->todayList, &QListWidget::itemClicked, this, &TimelineSidePanel::onTodayItemClicked);
 
-    // TIER 2: Connect selection change signals
+    // Connect selection change signals
     connect(ui->allEventsList, &QListWidget::itemSelectionChanged, this, &TimelineSidePanel::onListSelectionChanged);
     connect(ui->lookaheadList, &QListWidget::itemSelectionChanged, this, &TimelineSidePanel::onListSelectionChanged);
     connect(ui->todayList, &QListWidget::itemSelectionChanged, this, &TimelineSidePanel::onListSelectionChanged);
@@ -488,7 +493,7 @@ void TimelineSidePanel::showListItemContextMenu(QListWidget* listWidget, const Q
 }
 
 
-// TIER 2 IMPLEMENTATION: Enable multi-selection on list widget
+// Enable multi-selection on list widget
 void TimelineSidePanel::enableMultiSelection(QListWidget* listWidget)
 {
     if (!listWidget)
@@ -501,7 +506,7 @@ void TimelineSidePanel::enableMultiSelection(QListWidget* listWidget)
 }
 
 
-// TIER 2 IMPLEMENTATION: Get selected event IDs from specific list widget
+// Get selected event IDs from specific list widget
 QStringList TimelineSidePanel::getSelectedEventIds(QListWidget* listWidget) const
 {
     QStringList eventIds;
@@ -529,7 +534,7 @@ QStringList TimelineSidePanel::getSelectedEventIds(QListWidget* listWidget) cons
 }
 
 
-// TIER 2 IMPLEMENTATION: Get all selected event IDs from all tabs
+// Get all selected event IDs from all tabs
 QStringList TimelineSidePanel::getSelectedEventIds() const
 {
     QStringList eventIds;
@@ -563,7 +568,7 @@ QStringList TimelineSidePanel::getSelectedEventIds() const
 }
 
 
-// TIER 2 IMPLEMENTATION: Handle selection changes in list widgets
+// Handle selection changes in list widgets
 void TimelineSidePanel::onListSelectionChanged()
 {
     // Emit signal to notify that selection has changed
@@ -571,7 +576,7 @@ void TimelineSidePanel::onListSelectionChanged()
 }
 
 
-// TIER 2 IMPLEMENTATION: Focus management after deletion
+// Focus management after deletion
 void TimelineSidePanel::focusNextItem(QListWidget* listWidget, int deletedRow)
 {
     if (!listWidget || listWidget->count() == 0)
