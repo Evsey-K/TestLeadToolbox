@@ -68,6 +68,13 @@ bool TimelineExporter::exportToCSV(const TimelineModel* model, const QString& fi
         return false;
     }
 
+    const auto& events = model->getAllEvents();
+    return exportEventsToCSV(events, filePath);
+}
+
+
+bool TimelineExporter::exportEventsToCSV(const QVector<TimelineEvent>& events, const QString& filePath)
+{
     QFile file(filePath);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
     {
@@ -85,8 +92,6 @@ bool TimelineExporter::exportToCSV(const TimelineModel* model, const QString& fi
     out << getCSVHeader() << "\n";
 
     // Write all events
-    const auto& events = model->getAllEvents();
-
     for (const auto& event : events)
     {
         out << eventToCSVRow(event) << "\n";
@@ -111,6 +116,22 @@ bool TimelineExporter::exportToPDF(const TimelineModel* model,
         return false;
     }
 
+    const auto& events = model->getAllEvents();
+
+    QString reportTitle = QString("Timeline Report (%1 to %2)")
+                              .arg(model->versionStartDate().toString("yyyy-MM-dd"))
+                              .arg(model->versionEndDate().toString("yyyy-MM-dd"));
+
+    return exportEventsToPDF(events, view, filePath, includeScreenshot, reportTitle);
+}
+
+
+bool TimelineExporter::exportEventsToPDF(const QVector<TimelineEvent>& events,
+                                         TimelineView* view,
+                                         const QString& filePath,
+                                         bool includeScreenshot,
+                                         const QString& reportTitle)
+{
     // Create PDF printer
     QPrinter printer(QPrinter::HighResolution);
     printer.setOutputFormat(QPrinter::PdfFormat);
@@ -130,16 +151,13 @@ bool TimelineExporter::exportToPDF(const TimelineModel* model,
     QTextCharFormat titleFormat;
     titleFormat.setFontPointSize(18);
     titleFormat.setFontWeight(QFont::Bold);
-    cursor.insertText("Timeline Report\n\n", titleFormat);
+    cursor.insertText(reportTitle + "\n\n", titleFormat);
 
     // Metadata
     QTextCharFormat metaFormat;
     metaFormat.setFontPointSize(10);
     cursor.insertText(QString("Generated: %1\n").arg(QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm")), metaFormat);
-    cursor.insertText(QString("Version Period: %1 to %2\n")
-                          .arg(model->versionStartDate().toString("yyyy-MM-dd"))
-                          .arg(model->versionEndDate().toString("yyyy-MM-dd")), metaFormat);
-    cursor.insertText(QString("Total Events: %1\n\n").arg(model->eventCount()), metaFormat);
+    cursor.insertText(QString("Total Events: %1\n\n").arg(events.size()), metaFormat);
 
     // Optional: Include screenshot
     if (includeScreenshot && view)
@@ -173,7 +191,6 @@ bool TimelineExporter::exportToPDF(const TimelineModel* model,
     tableFormat.setCellPadding(4);
     tableFormat.setCellSpacing(0);
 
-    const auto& events = model->getAllEvents();
     QTextTable* table = cursor.insertTable(events.size() + 1, 5, tableFormat); // +1 for header
 
     // Table header

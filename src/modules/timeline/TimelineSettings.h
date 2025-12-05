@@ -3,10 +3,13 @@
 #pragma once
 #include <QSettings>
 #include <QString>
+#include <QDate>
 
 /**
  * @class TimelineSettings
  * @brief Manages user preferences and settings for the Timeline module
+ *
+ * Extended to support tab customization (Today/Lookahead tabs)
  */
 class TimelineSettings
 {
@@ -41,6 +44,16 @@ public:
     int scrollHighlightRange() const;
     void setScrollHighlightRange(int days);
 
+    // Today Tab Preferences
+    bool todayTabUseCustomDate() const;
+    void setTodayTabUseCustomDate(bool useCustom);
+    QDate todayTabCustomDate() const;
+    void setTodayTabCustomDate(const QDate& date);
+
+    // Lookahead Tab Preferences
+    int lookaheadTabDays() const;
+    void setLookaheadTabDays(int days);
+
     // Reset & Utility
     void resetToDefaults();
     QSettings* qSettings() { return &settings_; }
@@ -64,4 +77,6 @@ private:
     static constexpr bool DEFAULT_SCROLL_ANIMATION_ENABLED = true;
     static constexpr bool DEFAULT_SCROLL_HIGHLIGHT_ENABLED = false;
     static constexpr int DEFAULT_SCROLL_HIGHLIGHT_RANGE = 7;
+    static constexpr bool DEFAULT_TODAY_TAB_USE_CUSTOM_DATE = false;
+    static constexpr int DEFAULT_LOOKAHEAD_TAB_DAYS = 14;
 };

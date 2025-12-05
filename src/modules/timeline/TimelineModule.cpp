@@ -91,15 +91,15 @@ void TimelineModule::setupUi()
     // Prevent side panel from collapsing when dragging splitter
     splitter->setChildrenCollapsible(false);
 
-    // Create timeline view (which creates the scene internally)
+    // ⚠️ IMPORTANT: Create timeline view FIRST (before side panel needs it)
     view_ = new TimelineView(model_, mapper_, this);
     splitter->addWidget(view_);
 
     // Create scroll animator
     scrollAnimator_ = new TimelineScrollAnimator(view_, mapper_, this);
 
-    // Create side panel
-    sidePanel_ = new TimelineSidePanel(model_, this);
+    // ✅ NOW create side panel WITH view_ parameter
+    sidePanel_ = new TimelineSidePanel(model_, view_, this);
     sidePanel_->setMinimumWidth(300);
     sidePanel_->setMaximumWidth(500);
     splitter->addWidget(sidePanel_);

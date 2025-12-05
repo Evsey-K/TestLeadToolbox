@@ -69,7 +69,8 @@ set(SRC
     src/app/MainWindow.cpp
     src/app/MainWindow.h
 
-    # --------- TIMELINE MODULE ---------
+    # -------------------- TIMELINE MODULE -----------------------
+    # ------------------------------------------------------------
 
     # Timeline Module - Core
     src/modules/timeline/TimelineModule.cpp
@@ -142,7 +143,16 @@ set(SRC
     src/modules/timeline/ArchivedEventsDialog.cpp
     src/modules/timeline/ArchivedEventsDialog.ui
 
-    # --------- <NEXT> MODULE ---------
+    src/modules/timeline/SetTodayDateDialog.h
+    src/modules/timeline/SetTodayDateDialog.cpp
+    src/modules/timeline/SetTodayDateDialog.ui
+
+    src/modules/timeline/SetLookaheadRangeDialog.h
+    src/modules/timeline/SetLookaheadRangeDialog.cpp
+    src/modules/timeline/SetLookaheadRangeDialog.ui
+
+    # ---------------------- <NEXT> MODULE -----------------------
+    # ------------------------------------------------------------
 
 
 )

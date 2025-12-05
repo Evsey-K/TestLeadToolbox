@@ -1,15 +1,13 @@
 // TimelineExporter.h
 
-
 #pragma once
 #include <QString>
 #include <QPixmap>
+#include <QVector>
 #include "TimelineModel.h"
-
 
 class TimelineView;
 class QGraphicsScene;
-
 
 /**
  * @class TimelineExporter
@@ -19,6 +17,7 @@ class QGraphicsScene;
  * - Screenshot export (PNG, JPG)
  * - CSV export (event list)
  * - PDF export (formatted event list with timeline image)
+ * - Filtered exports (only specific events)
  */
 class TimelineExporter
 {
@@ -43,6 +42,14 @@ public:
     static bool exportToCSV(const TimelineModel* model, const QString& filePath);
 
     /**
+     * @brief Export specific events to CSV file (filtered export)
+     * @param events Vector of events to export
+     * @param filePath Output CSV file path
+     * @return true if export succeeded
+     */
+    static bool exportEventsToCSV(const QVector<TimelineEvent>& events, const QString& filePath);
+
+    /**
      * @brief Export timeline to PDF document
      * @param model Timeline model containing events
      * @param view Timeline view for screenshot
@@ -54,6 +61,21 @@ public:
                             TimelineView* view,
                             const QString& filePath,
                             bool includeScreenshot = true);
+
+    /**
+     * @brief Export specific events to PDF document (filtered export)
+     * @param events Vector of events to export
+     * @param view Timeline view for screenshot (optional)
+     * @param filePath Output PDF file path
+     * @param includeScreenshot If true, embeds timeline screenshot in PDF
+     * @param reportTitle Custom title for the PDF report
+     * @return true if export succeeded
+     */
+    static bool exportEventsToPDF(const QVector<TimelineEvent>& events,
+                                  TimelineView* view,
+                                  const QString& filePath,
+                                  bool includeScreenshot,
+                                  const QString& reportTitle);
 
     /**
      * @brief Render scene to pixmap

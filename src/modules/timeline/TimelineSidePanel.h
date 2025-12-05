@@ -1,39 +1,34 @@
 // TimelineSidePanel.h
 
-
 #pragma once
 #include <QWidget>
 #include "TimelineModel.h"
 
-
-// Forward declaration
+// Forward declarations
 class QTabWidget;
 class QListWidget;
 class QListWidgetItem;
 class TimelineModel;
+class TimelineView;
 
-
-//
 namespace Ui {
 class TimelineSidePanel;
 }
-
 
 /**
  * @class TimelineSidePanel
  * @brief Side panel displaying all timeline events in a list
  *
- * - Tab 1: All Events
- * - Tab 2: Lookahead (next 2 weeks)
- * - Tab 3: Today's Events
+ * Enhanced with tab context menus for:
+ * - Today Tab: Set to current date, set to specific date, export
+ * - Lookahead Tab: Set lookahead range, export
+ * - All Events Tab: Export
  *
  * Shows all events sorted by date with:
- * - Event title
- * - Date range
- * - Color indicator matching timeline
- * - Multi-selection support (Ctrl+Click, Shift+Click) - TIER 2
- * - Focus management after deletion - TIER 2
- * - Delete key support - PHASE 5 TIER 2
+ * - Event title, date range, color indicator
+ * - Multi-selection support (Ctrl+Click, Shift+Click)
+ * - Focus management after deletion
+ * - Delete key support
  *
  * All tabs automatically update when model changes.
  */
@@ -45,9 +40,10 @@ public:
     /**
      * @brief Construct the side panel
      * @param model Timeline model to display
+     * @param view Timeline view (needed for exports)
      * @param parent Parent widget
      */
-    explicit TimelineSidePanel(TimelineModel* model, QWidget* parent = nullptr);
+    explicit TimelineSidePanel(TimelineModel* model, TimelineView* view = nullptr, QWidget* parent = nullptr);
 
     /**
      * @brief Destructor - cleans up UI
@@ -65,9 +61,14 @@ public:
     void adjustWidthToFitTabs();
 
     /**
-     * @brief Get list of selected event IDs from all tabs (TIER 2)
+     * @brief Get list of selected event IDs from all tabs
      */
     QStringList getSelectedEventIds() const;
+
+    /**
+     * @brief Set the timeline view reference (for exports)
+     */
+    void setTimelineView(TimelineView* view) { view_ = view; }
 
 signals:
     /**
@@ -86,12 +87,12 @@ signals:
     void deleteEventRequested(const QString& eventId);
 
     /**
-     * @brief Emitted when user requests to delete multiple events (TIER 2)
+     * @brief Emitted when user requests to delete multiple events
      */
     void batchDeleteRequested(const QStringList& eventIds);
 
     /**
-     * @brief Emitted when selection changes in any list (TIER 2)
+     * @brief Emitted when selection changes in any list
      */
     void selectionChanged();
 
@@ -109,9 +110,9 @@ protected:
     void keyPressEvent(QKeyEvent* event) override;
 
 private slots:
-    void onEventAdded(const QString& eventiD);
-    void onEventRemoved(const QString& eventiD);
-    void onEventUpdated(const QString& eventiD);
+    void onEventAdded(const QString& eventId);
+    void onEventRemoved(const QString& eventId);
+    void onEventUpdated(const QString& eventId);
     void onLanesRecalculated();
 
     void onAllEventsItemClicked(QListWidgetItem* item);
@@ -119,11 +120,25 @@ private slots:
     void onTodayItemClicked(QListWidgetItem* item);
 
     void onListContextMenuRequested(const QPoint& pos);
-
-    /**
-     * @brief Handle selection change in any list widget (TIER 2)
-     */
     void onListSelectionChanged();
+
+    // Tab context menu handlers
+    void onTabBarContextMenuRequested(const QPoint& pos);
+    void showTodayTabContextMenu(const QPoint& globalPos);
+    void showLookaheadTabContextMenu(const QPoint& globalPos);
+    void showAllEventsTabContextMenu(const QPoint& globalPos);
+
+    // Today tab actions
+    void onSetToCurrentDate();
+    void onSetToSpecificDate();
+    void onExportTodayTab(const QString& format);
+
+    // Lookahead tab actions
+    void onSetLookaheadRange();
+    void onExportLookaheadTab(const QString& format);
+
+    // All events tab actions
+    void onExportAllEventsTab(const QString& format);
 
 private:
     void connectSignals();
@@ -146,23 +161,23 @@ private:
     // Context Menu methods
     void setupListWidgetContextMenu(QListWidget* listWidget);
     void showListItemContextMenu(QListWidget* listWidget, const QPoint& pos);
+    void setupTabBarContextMenu();
 
-    /**
-     * @brief Enable multi-selection on a list widget (TIER 2)
-     */
+    // Multi-selection support
     void enableMultiSelection(QListWidget* listWidget);
-
-    /**
-     * @brief Get selected event IDs from a specific list widget (TIER 2)
-     */
     QStringList getSelectedEventIds(QListWidget* listWidget) const;
-
-    /**
-     * @brief Focus management: select next/previous item after deletion (TIER 2)
-     */
     void focusNextItem(QListWidget* listWidget, int deletedRow);
 
-    Ui::TimelineSidePanel* ui;      ///< UI pointer
+    // Export helper methods
+    QVector<TimelineEvent> getEventsFromTab(int tabIndex) const;
+    bool exportEvents(const QVector<TimelineEvent>& events, const QString& format, const QString& tabName);
 
-    TimelineModel* model_;
+    // Tab label update methods
+    void updateTodayTabLabel();
+    void updateLookaheadTabLabel();
+    void updateAllEventsTabLabel();
+
+    Ui::TimelineSidePanel* ui;      ///< UI pointer
+    TimelineModel* model_;          ///< Timeline model (not owned)
+    TimelineView* view_;            ///< Timeline view for exports (not owned)
 };

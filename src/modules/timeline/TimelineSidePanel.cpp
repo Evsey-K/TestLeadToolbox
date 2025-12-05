@@ -2,22 +2,30 @@
 
 
 #include "TimelineSidePanel.h"
-#include "src/modules/timeline/ui_TimelineSidePanel.h"
 #include "ui_TimelineSidePanel.h"
 #include "TimelineModel.h"
+#include "TimelineView.h"
+#include "TimelineSettings.h"
+#include "TimelineExporter.h"
+#include "SetTodayDateDialog.h"
+#include "SetLookaheadRangeDialog.h"
 #include <QListWidget>
 #include <QPixmap>
 #include <QPainter>
 #include <QDate>
 #include <QMenu>
 #include <QKeyEvent>
+#include <QFileDialog>
+#include <QMessageBox>
+#include <QTabBar>
 #include <algorithm>
 
 
-TimelineSidePanel::TimelineSidePanel(TimelineModel* model, QWidget* parent)
+TimelineSidePanel::TimelineSidePanel(TimelineModel* model, TimelineView* view, QWidget* parent)
     : QWidget(parent)
     , ui(new Ui::TimelineSidePanel)
     , model_(model)
+    , view_(view)
 {
     ui->setupUi(this);
 
@@ -28,7 +36,7 @@ TimelineSidePanel::TimelineSidePanel(TimelineModel* model, QWidget* parent)
     // Hide details panel initially
     ui->eventDetailsGroupBox->setVisible(false);
 
-    // TIER 2: Enable multi-selection on all list widgets
+    // Enable multi-selection on all list widgets
     enableMultiSelection(ui->allEventsList);
     enableMultiSelection(ui->lookaheadList);
     enableMultiSelection(ui->todayList);
@@ -41,7 +49,10 @@ TimelineSidePanel::TimelineSidePanel(TimelineModel* model, QWidget* parent)
     setupListWidgetContextMenu(ui->lookaheadList);
     setupListWidgetContextMenu(ui->todayList);
 
-    // IMPORTANT: Set focus policy to receive key events
+    // Setup tab bar context menu
+    setupTabBarContextMenu();
+
+    // Set focus policy to receive key events
     setFocusPolicy(Qt::StrongFocus);
     ui->allEventsList->setFocusPolicy(Qt::StrongFocus);
     ui->lookaheadList->setFocusPolicy(Qt::StrongFocus);
@@ -51,7 +62,6 @@ TimelineSidePanel::TimelineSidePanel(TimelineModel* model, QWidget* parent)
 
 TimelineSidePanel::~TimelineSidePanel()
 {
-    // Clean up the UI pointer allocated in the constructor
     delete ui;
 }
 
@@ -65,15 +75,12 @@ void TimelineSidePanel::keyPressEvent(QKeyEvent* event)
 
         if (!selectedIds.isEmpty())
         {
-            // Emit appropriate signal based on count
             if (selectedIds.size() == 1)
             {
-                // Single item - use regular delete signal
                 emit deleteEventRequested(selectedIds.first());
             }
             else
             {
-                // Multiple items - use batch delete signal
                 emit batchDeleteRequested(selectedIds);
             }
 
@@ -82,7 +89,6 @@ void TimelineSidePanel::keyPressEvent(QKeyEvent* event)
         }
     }
 
-    // Pass unhandled events to base class
     QWidget::keyPressEvent(event);
 }
 
@@ -94,8 +100,6 @@ void TimelineSidePanel::connectSignals()
     connect(model_, &TimelineModel::eventRemoved, this, &TimelineSidePanel::onEventRemoved);
     connect(model_, &TimelineModel::eventUpdated, this, &TimelineSidePanel::onEventUpdated);
     connect(model_, &TimelineModel::lanesRecalculated, this, &TimelineSidePanel::onLanesRecalculated);
-
-    // Handle archiving and restoration
     connect(model_, &TimelineModel::eventArchived, this, &TimelineSidePanel::onEventRemoved);
     connect(model_, &TimelineModel::eventRestored, this, &TimelineSidePanel::onEventAdded);
 
@@ -111,11 +115,555 @@ void TimelineSidePanel::connectSignals()
 }
 
 
+void TimelineSidePanel::setupTabBarContextMenu()
+{
+    // Enable context menu on tab bar
+    QTabBar* tabBar = ui->tabWidget->tabBar();
+    tabBar->setContextMenuPolicy(Qt::CustomContextMenu);
+
+    connect(tabBar, &QTabBar::customContextMenuRequested,
+            this, &TimelineSidePanel::onTabBarContextMenuRequested);
+}
+
+
+void TimelineSidePanel::onTabBarContextMenuRequested(const QPoint& pos)
+{
+    QTabBar* tabBar = ui->tabWidget->tabBar();
+
+    // Find which tab was clicked
+    int clickedTabIndex = -1;
+    for (int i = 0; i < tabBar->count(); ++i)
+    {
+        if (tabBar->tabRect(i).contains(pos))
+        {
+            clickedTabIndex = i;
+            break;
+        }
+    }
+
+    if (clickedTabIndex == -1)
+    {
+        return; // Click was not on a tab
+    }
+
+    // Map to global position for menu display
+    QPoint globalPos = tabBar->mapToGlobal(pos);
+
+    // Show appropriate context menu based on which tab was clicked
+    // Tab order: Today (0), Lookahead (1), All Events (2)
+    switch (clickedTabIndex)
+    {
+    case 0: // Today tab
+        showTodayTabContextMenu(globalPos);
+        break;
+    case 1: // Lookahead tab
+        showLookaheadTabContextMenu(globalPos);
+        break;
+    case 2: // All Events tab
+        showAllEventsTabContextMenu(globalPos);
+        break;
+    default:
+        break;
+    }
+}
+
+
+void TimelineSidePanel::showTodayTabContextMenu(const QPoint& globalPos)
+{
+    QMenu menu(this);
+
+    // Date selection actions
+    QAction* setCurrentAction = menu.addAction("📅 Set to Current Date");
+    setCurrentAction->setToolTip("Reset to today's actual date");
+
+    QAction* setSpecificAction = menu.addAction("📆 Set to Specific Date...");
+    setSpecificAction->setToolTip("Choose a custom date to display");
+
+    menu.addSeparator();
+
+    // Export submenu
+    QMenu* exportMenu = menu.addMenu("📤 Export");
+    QAction* exportPdfAction = exportMenu->addAction("Export to PDF");
+    QAction* exportCsvAction = exportMenu->addAction("Export to CSV");
+    QAction* exportPngAction = exportMenu->addAction("Export Screenshot (PNG)");
+
+    // Execute menu and handle selection
+    QAction* selected = menu.exec(globalPos);
+
+    if (selected == setCurrentAction)
+    {
+        onSetToCurrentDate();
+    }
+    else if (selected == setSpecificAction)
+    {
+        onSetToSpecificDate();
+    }
+    else if (selected == exportPdfAction)
+    {
+        onExportTodayTab("PDF");
+    }
+    else if (selected == exportCsvAction)
+    {
+        onExportTodayTab("CSV");
+    }
+    else if (selected == exportPngAction)
+    {
+        onExportTodayTab("PNG");
+    }
+}
+
+
+void TimelineSidePanel::showLookaheadTabContextMenu(const QPoint& globalPos)
+{
+    QMenu menu(this);
+
+    // Range selection action
+    int currentDays = TimelineSettings::instance().lookaheadTabDays();
+    QAction* setRangeAction = menu.addAction(QString("📆 Set Lookahead Range (currently %1 days)").arg(currentDays));
+    setRangeAction->setToolTip("Configure how many days ahead to display");
+
+    menu.addSeparator();
+
+    // Export submenu
+    QMenu* exportMenu = menu.addMenu("📤 Export");
+    QAction* exportPdfAction = exportMenu->addAction("Export to PDF");
+    QAction* exportCsvAction = exportMenu->addAction("Export to CSV");
+    QAction* exportPngAction = exportMenu->addAction("Export Screenshot (PNG)");
+
+    // Execute menu and handle selection
+    QAction* selected = menu.exec(globalPos);
+
+    if (selected == setRangeAction)
+    {
+        onSetLookaheadRange();
+    }
+    else if (selected == exportPdfAction)
+    {
+        onExportLookaheadTab("PDF");
+    }
+    else if (selected == exportCsvAction)
+    {
+        onExportLookaheadTab("CSV");
+    }
+    else if (selected == exportPngAction)
+    {
+        onExportLookaheadTab("PNG");
+    }
+}
+
+
+void TimelineSidePanel::showAllEventsTabContextMenu(const QPoint& globalPos)
+{
+    QMenu menu(this);
+
+    // Only export options for All Events tab
+    QMenu* exportMenu = menu.addMenu("📤 Export");
+    QAction* exportPdfAction = exportMenu->addAction("Export to PDF");
+    QAction* exportCsvAction = exportMenu->addAction("Export to CSV");
+    QAction* exportPngAction = exportMenu->addAction("Export Screenshot (PNG)");
+
+    // Execute menu and handle selection
+    QAction* selected = menu.exec(globalPos);
+
+    if (selected == exportPdfAction)
+    {
+        onExportAllEventsTab("PDF");
+    }
+    else if (selected == exportCsvAction)
+    {
+        onExportAllEventsTab("CSV");
+    }
+    else if (selected == exportPngAction)
+    {
+        onExportAllEventsTab("PNG");
+    }
+}
+
+
+void TimelineSidePanel::onSetToCurrentDate()
+{
+    // Reset to using current date
+    TimelineSettings::instance().setTodayTabUseCustomDate(false);
+
+    // Refresh the Today tab to reflect current date
+    refreshTodayTab();
+    updateTodayTabLabel();
+
+    QMessageBox::information(this, "Today Tab Reset",
+                             QString("Today tab reset to current date: %1")
+                                 .arg(QDate::currentDate().toString("yyyy-MM-dd")));
+}
+
+
+void TimelineSidePanel::onSetToSpecificDate()
+{
+    // Get current custom date if set, otherwise use today
+    QDate currentDate = TimelineSettings::instance().todayTabUseCustomDate()
+                            ? TimelineSettings::instance().todayTabCustomDate()
+                            : QDate::currentDate();
+
+    // Show date selection dialog
+    SetTodayDateDialog dialog(
+        currentDate,
+        model_->versionStartDate(),
+        model_->versionEndDate(),
+        this
+        );
+
+    if (dialog.exec() == QDialog::Accepted)
+    {
+        QDate selectedDate = dialog.selectedDate();
+
+        // Save custom date settings
+        TimelineSettings::instance().setTodayTabUseCustomDate(true);
+        TimelineSettings::instance().setTodayTabCustomDate(selectedDate);
+
+        // Refresh the Today tab to show events for selected date
+        refreshTodayTab();
+        updateTodayTabLabel();
+
+        QMessageBox::information(this, "Today Tab Updated",
+                                 QString("Today tab now showing events for: %1")
+                                     .arg(selectedDate.toString("yyyy-MM-dd")));
+    }
+}
+
+
+void TimelineSidePanel::onExportTodayTab(const QString& format)
+{
+    QVector<TimelineEvent> events = getEventsFromTab(0); // Today tab is index 0
+
+    if (events.isEmpty())
+    {
+        QMessageBox::information(this, "No Events",
+                                 "There are no events in the Today tab to export.");
+        return;
+    }
+
+    QString tabName = TimelineSettings::instance().todayTabUseCustomDate()
+                          ? QString("UserSetDate_%1").arg(TimelineSettings::instance().todayTabCustomDate().toString("yyyy-MM-dd"))
+                          : QString("Today_%1").arg(QDate::currentDate().toString("yyyy-MM-dd"));
+
+    exportEvents(events, format, tabName);
+}
+
+
+void TimelineSidePanel::onSetLookaheadRange()
+{
+    int currentDays = TimelineSettings::instance().lookaheadTabDays();
+
+    // Show range selection dialog
+    SetLookaheadRangeDialog dialog(currentDays, this);
+
+    if (dialog.exec() == QDialog::Accepted)
+    {
+        int newDays = dialog.selectedDays();
+
+        // Save new range
+        TimelineSettings::instance().setLookaheadTabDays(newDays);
+
+        // Refresh the Lookahead tab
+        refreshLookaheadTab();
+        updateLookaheadTabLabel();
+
+        QDate today = QDate::currentDate();
+        QDate endDate = today.addDays(newDays);
+
+        QMessageBox::information(this, "Lookahead Range Updated",
+                                 QString("Lookahead tab now showing %1 days (%2 to %3)")
+                                     .arg(newDays)
+                                     .arg(today.toString("MMM dd"))
+                                     .arg(endDate.toString("MMM dd, yyyy")));
+    }
+}
+
+
+void TimelineSidePanel::onExportLookaheadTab(const QString& format)
+{
+    QVector<TimelineEvent> events = getEventsFromTab(1); // Lookahead tab is index 1
+
+    if (events.isEmpty())
+    {
+        QMessageBox::information(this, "No Events",
+                                 "There are no events in the Lookahead tab to export.");
+        return;
+    }
+
+    int days = TimelineSettings::instance().lookaheadTabDays();
+    QString tabName = QString("Lookahead_%1days").arg(days);
+
+    exportEvents(events, format, tabName);
+}
+
+
+void TimelineSidePanel::onExportAllEventsTab(const QString& format)
+{
+    QVector<TimelineEvent> events = getEventsFromTab(2); // All Events tab is index 2
+
+    if (events.isEmpty())
+    {
+        QMessageBox::information(this, "No Events",
+                                 "There are no events to export.");
+        return;
+    }
+
+    QString tabName = "AllEvents";
+
+    exportEvents(events, format, tabName);
+}
+
+
+QVector<TimelineEvent> TimelineSidePanel::getEventsFromTab(int tabIndex) const
+{
+    switch (tabIndex)
+    {
+    case 0: // Today tab
+    {
+        QDate targetDate = TimelineSettings::instance().todayTabUseCustomDate()
+        ? TimelineSettings::instance().todayTabCustomDate()
+        : QDate::currentDate();
+
+        QVector<TimelineEvent> allEvents = model_->getAllEvents();
+        QVector<TimelineEvent> filteredEvents;
+
+        for (const auto& event : allEvents)
+        {
+            if (event.occursOnDate(targetDate))
+            {
+                filteredEvents.append(event);
+            }
+        }
+
+        return filteredEvents;
+    }
+
+    case 1: // Lookahead tab
+    {
+        int days = TimelineSettings::instance().lookaheadTabDays();
+        return model_->getEventsLookahead(days);
+    }
+
+    case 2: // All Events tab
+    {
+        return model_->getAllEvents();
+    }
+
+    default:
+        return QVector<TimelineEvent>();
+    }
+}
+
+
+bool TimelineSidePanel::exportEvents(const QVector<TimelineEvent>& events,
+                                     const QString& format,
+                                     const QString& tabName)
+{
+    QString filter;
+    QString defaultName;
+
+    if (format == "PDF")
+    {
+        filter = "PDF Files (*.pdf)";
+        defaultName = QString("timeline_%1.pdf").arg(tabName);
+    }
+    else if (format == "CSV")
+    {
+        filter = "CSV Files (*.csv)";
+        defaultName = QString("timeline_%1.csv").arg(tabName);
+    }
+    else if (format == "PNG")
+    {
+        filter = "PNG Images (*.png)";
+        defaultName = QString("timeline_%1.png").arg(tabName);
+    }
+    else
+    {
+        qWarning() << "Unknown export format:" << format;
+        return false;
+    }
+
+    // Show file save dialog
+    QString filePath = QFileDialog::getSaveFileName(
+        this,
+        QString("Export %1 to %2").arg(tabName, format),
+        defaultName,
+        filter
+        );
+
+    if (filePath.isEmpty())
+    {
+        return false; // User cancelled
+    }
+
+    bool success = false;
+
+    if (format == "PDF")
+    {
+        QString reportTitle = QString("Timeline Export: %1 (%2 events)")
+        .arg(tabName)
+            .arg(events.size());
+
+        success = TimelineExporter::exportEventsToPDF(events, view_, filePath, true, reportTitle);
+    }
+    else if (format == "CSV")
+    {
+        success = TimelineExporter::exportEventsToCSV(events, filePath);
+    }
+    else if (format == "PNG")
+    {
+        if (!view_)
+        {
+            QMessageBox::warning(this, "Export Failed",
+                                 "Screenshot export requires a timeline view reference.");
+            return false;
+        }
+
+        success = TimelineExporter::exportScreenshot(view_, filePath, true);
+    }
+
+    if (success)
+    {
+        QMessageBox::information(this, "Export Successful",
+                                 QString("Exported %1 events to:\n%2")
+                                     .arg(events.size())
+                                     .arg(filePath));
+    }
+    else
+    {
+        QMessageBox::critical(this, "Export Failed",
+                              QString("Failed to export to %1").arg(format));
+    }
+
+    return success;
+}
+
+
+void TimelineSidePanel::updateTodayTabLabel()
+{
+    QDate targetDate;
+    QString labelPrefix;
+
+    if (TimelineSettings::instance().todayTabUseCustomDate())
+    {
+        targetDate = TimelineSettings::instance().todayTabCustomDate();
+        labelPrefix = "User Set";
+    }
+    else
+    {
+        targetDate = QDate::currentDate();
+        labelPrefix = "Today";
+    }
+
+    // Count events on target date
+    QVector<TimelineEvent> allEvents = model_->getAllEvents();
+    int eventCount = 0;
+
+    for (const auto& event : allEvents)
+    {
+        if (event.occursOnDate(targetDate))
+        {
+            eventCount++;
+        }
+    }
+
+    QString label = QString("%1 (%2) - %3")
+                        .arg(labelPrefix)
+                        .arg(eventCount)
+                        .arg(targetDate.toString("MMM dd"));
+
+    ui->tabWidget->setTabText(0, label);
+}
+
+
+void TimelineSidePanel::updateLookaheadTabLabel()
+{
+    int days = TimelineSettings::instance().lookaheadTabDays();
+    QVector<TimelineEvent> events = model_->getEventsLookahead(days);
+
+    QString label = QString("Lookahead (%1) - %2 days")
+                        .arg(events.size())
+                        .arg(days);
+
+    ui->tabWidget->setTabText(1, label);
+}
+
+
+void TimelineSidePanel::updateAllEventsTabLabel()
+{
+    QVector<TimelineEvent> events = model_->getAllEvents();
+
+    QString label = QString("All Events (%1)").arg(events.size());
+
+    ui->tabWidget->setTabText(2, label);
+}
+
+
 void TimelineSidePanel::refreshAllTabs()
 {
     refreshAllEventsTab();
     refreshLookaheadTab();
     refreshTodayTab();
+}
+
+void TimelineSidePanel::refreshTodayTab()
+{
+    // Get target date from settings
+    QDate targetDate = TimelineSettings::instance().todayTabUseCustomDate()
+                           ? TimelineSettings::instance().todayTabCustomDate()
+                           : QDate::currentDate();
+
+    // Get events for target date
+    QVector<TimelineEvent> allEvents = model_->getAllEvents();
+    QVector<TimelineEvent> events;
+
+    for (const auto& event : allEvents)
+    {
+        if (event.occursOnDate(targetDate))
+        {
+            events.append(event);
+        }
+    }
+
+    // Sort by priority (higher priority first), then by start time
+    std::sort(events.begin(), events.end(),
+              [](const TimelineEvent& a, const TimelineEvent& b)
+              {
+                  if (a.priority != b.priority)
+                  {
+                      return a.priority > b.priority;
+                  }
+                  return a.startDate < b.startDate;
+              });
+
+    populateListWidget(ui->todayList, events);
+
+    // Update tab label
+    updateTodayTabLabel();
+
+    adjustWidthToFitTabs();
+}
+
+void TimelineSidePanel::refreshLookaheadTab()
+{
+    // Get lookahead range from settings
+    int days = TimelineSettings::instance().lookaheadTabDays();
+
+    // Get events in lookahead window
+    QVector<TimelineEvent> events = model_->getEventsLookahead(days);
+
+    // Sort by start date
+    std::sort(events.begin(), events.end(),
+              [](const TimelineEvent& a, const TimelineEvent& b)
+              {
+                  return a.startDate < b.startDate;
+              });
+
+    populateListWidget(ui->lookaheadList, events);
+
+    // Update tab label
+    updateLookaheadTabLabel();
+
+    adjustWidthToFitTabs();
 }
 
 void TimelineSidePanel::refreshAllEventsTab()
@@ -131,57 +679,8 @@ void TimelineSidePanel::refreshAllEventsTab()
 
     populateListWidget(ui->allEventsList, events);
 
-    // Update tab label with count
-    ui->tabWidget->setTabText(2, QString("All Events (%1)").arg(events.size()));
-
-    adjustWidthToFitTabs();
-}
-
-void TimelineSidePanel::refreshLookaheadTab()
-{
-    // Show events in next 2 weeks
-    QVector<TimelineEvent> events = model_->getEventsLookahead(14);
-
-    // Sort by start date
-    std::sort(events.begin(), events.end(),
-              [](const TimelineEvent& a, const TimelineEvent& b)
-              {
-                  return a.startDate < b.startDate;
-              });
-
-    populateListWidget(ui->lookaheadList, events);
-
-    // Update tab label with count
-    ui->tabWidget->setTabText(1, QString("Lookahead (%1)").arg(events.size()));
-
-    adjustWidthToFitTabs();
-}
-
-
-void TimelineSidePanel::refreshTodayTab()
-{
-    // Show today's events
-    QVector<TimelineEvent> events = model_->getEventsForToday();
-
-    // Sort by priority (higher priority first), then by start time
-    std::sort(events.begin(), events.end(),
-              [](const TimelineEvent& a, const TimelineEvent& b)
-              {
-                  if (a.priority != b.priority)
-                  {
-                      return a.priority > b.priority; // Higher priority first
-                  }
-                  return a.startDate < b.startDate;
-              });
-
-    populateListWidget(ui->todayList, events);
-
-    // Update tab label with count and today's date
-    QString todayLabel = QString("Today (%1) - %2")
-                             .arg(events.size())
-                             .arg(QDate::currentDate().toString("MMM dd"));
-
-    ui->tabWidget->setTabText(0, todayLabel);
+    // Update tab label
+    updateAllEventsTabLabel();
 
     adjustWidthToFitTabs();
 }
@@ -194,11 +693,9 @@ void TimelineSidePanel::populateListWidget(QListWidget* listWidget, const QVecto
     if (events.isEmpty())
     {
         auto emptyItem = new QListWidgetItem("No events");
-        emptyItem->setFlags(Qt::NoItemFlags); // Make it non-selectable
+        emptyItem->setFlags(Qt::NoItemFlags);
         emptyItem->setForeground(Qt::gray);
-
         listWidget->addItem(emptyItem);
-
         return;
     }
 
@@ -216,12 +713,10 @@ QListWidgetItem* TimelineSidePanel::createListItem(const TimelineEvent& event)
     item->setText(formatEventText(event));
     item->setData(Qt::UserRole, event.id);
 
-    // Create color indicator icon
     QPixmap colorPixmap(16, 16);
     colorPixmap.fill(event.color);
     item->setIcon(QIcon(colorPixmap));
 
-    // Add lane information to tooltip
     QString tooltip = QString("%1\n%2\nPriority: %3\nLane: %4")
                           .arg(event.title)
                           .arg(formatEventDateRange(event))
@@ -234,7 +729,6 @@ QListWidgetItem* TimelineSidePanel::createListItem(const TimelineEvent& event)
     }
 
     item->setToolTip(tooltip);
-
     return item;
 }
 
@@ -242,8 +736,6 @@ QListWidgetItem* TimelineSidePanel::createListItem(const TimelineEvent& event)
 QString TimelineSidePanel::formatEventText(const TimelineEvent& event) const
 {
     QString dateRange = formatEventDateRange(event);
-
-    // Include priority indicator for high-priority events
     QString priorityIndicator = (event.priority <= 2) ? "🔴 " : "";
 
     return QString("%1%2\n%3")
@@ -270,26 +762,19 @@ QString TimelineSidePanel::formatEventDateRange(const TimelineEvent& event) cons
 
 void TimelineSidePanel::adjustWidthToFitTabs()
 {
-    // Get the tab bar to measure actual tab widths
     QTabBar* tabBar = ui->tabWidget->tabBar();
     QFontMetrics fm(tabBar->font());
 
     int totalWidth = 0;
 
-    // Measure each tab's actual width
     for (int i = 0; i < ui->tabWidget->count(); ++i)
     {
         QString tabText = ui->tabWidget->tabText(i);
         int textWidth = fm.horizontalAdvance(tabText);
-
-        // Add padding per tab (Qt adds ~20-30px per tab for margins/spacing)
         totalWidth += textWidth + 30;
     }
 
-    // Add small margin for tab bar frame and borders (~20px)
     totalWidth += 20;
-
-    // Set minimum width to fit all tabs snugly
     setMinimumWidth(totalWidth);
 }
 
@@ -311,10 +796,8 @@ void TimelineSidePanel::displayEventDetails(const QString& eventId)
 
 void TimelineSidePanel::updateEventDetails(const TimelineEvent& event)
 {
-    // Update all detail labels
     ui->titleValueLabel->setText(event.title);
 
-    // Convert type enum to string
     QString typeText;
     switch (event.type)
     {
@@ -327,7 +810,6 @@ void TimelineSidePanel::updateEventDetails(const TimelineEvent& event)
     }
     ui->typeValueLabel->setText(typeText);
 
-    // Format dates
     QString dateRange;
     if (event.startDate == event.endDate)
     {
@@ -345,7 +827,6 @@ void TimelineSidePanel::updateEventDetails(const TimelineEvent& event)
     ui->laneValueLabel->setText(QString::number(event.lane));
     ui->descriptionTextEdit->setPlainText(event.description);
 
-    // Make the group box visible
     ui->eventDetailsGroupBox->setVisible(true);
 }
 
@@ -359,7 +840,6 @@ void TimelineSidePanel::clearEventDetails()
     ui->laneValueLabel->clear();
     ui->descriptionTextEdit->clear();
 
-    // Optionally hide the group box when no selection
     ui->eventDetailsGroupBox->setVisible(false);
 }
 
@@ -384,7 +864,6 @@ void TimelineSidePanel::onEventUpdated(const QString& /*eventId*/)
 
 void TimelineSidePanel::onLanesRecalculated()
 {
-    // SPRINT 2: Refresh all tabs when lanes change (updates lane info in tooltips)
     refreshAllTabs();
 }
 
@@ -493,7 +972,6 @@ void TimelineSidePanel::showListItemContextMenu(QListWidget* listWidget, const Q
 }
 
 
-// Enable multi-selection on list widget
 void TimelineSidePanel::enableMultiSelection(QListWidget* listWidget)
 {
     if (!listWidget)
@@ -501,12 +979,10 @@ void TimelineSidePanel::enableMultiSelection(QListWidget* listWidget)
         return;
     }
 
-    // Set selection mode to allow Ctrl+Click and Shift+Click
     listWidget->setSelectionMode(QAbstractItemView::ExtendedSelection);
 }
 
 
-// Get selected event IDs from specific list widget
 QStringList TimelineSidePanel::getSelectedEventIds(QListWidget* listWidget) const
 {
     QStringList eventIds;
@@ -534,15 +1010,12 @@ QStringList TimelineSidePanel::getSelectedEventIds(QListWidget* listWidget) cons
 }
 
 
-// Get all selected event IDs from all tabs
 QStringList TimelineSidePanel::getSelectedEventIds() const
 {
     QStringList eventIds;
 
-    // Get currently active tab
     QWidget* currentWidget = ui->tabWidget->currentWidget();
 
-    // Get the list widget for the active tab
     QListWidget* activeList = nullptr;
 
     if (currentWidget == ui->todayTab)
@@ -558,7 +1031,6 @@ QStringList TimelineSidePanel::getSelectedEventIds() const
         activeList = ui->allEventsList;
     }
 
-    // Only get selection from active tab
     if (activeList)
     {
         eventIds = getSelectedEventIds(activeList);
@@ -568,15 +1040,12 @@ QStringList TimelineSidePanel::getSelectedEventIds() const
 }
 
 
-// Handle selection changes in list widgets
 void TimelineSidePanel::onListSelectionChanged()
 {
-    // Emit signal to notify that selection has changed
     emit selectionChanged();
 }
 
 
-// Focus management after deletion
 void TimelineSidePanel::focusNextItem(QListWidget* listWidget, int deletedRow)
 {
     if (!listWidget || listWidget->count() == 0)
@@ -584,16 +1053,13 @@ void TimelineSidePanel::focusNextItem(QListWidget* listWidget, int deletedRow)
         return;
     }
 
-    // Calculate next item to select
     int nextRow = deletedRow;
 
-    // If deleted the last item, select previous
     if (nextRow >= listWidget->count())
     {
         nextRow = listWidget->count() - 1;
     }
 
-    // Select and focus the next item
     if (nextRow >= 0 && nextRow < listWidget->count())
     {
         QListWidgetItem* nextItem = listWidget->item(nextRow);
@@ -602,7 +1068,6 @@ void TimelineSidePanel::focusNextItem(QListWidget* listWidget, int deletedRow)
             listWidget->setCurrentItem(nextItem);
             nextItem->setSelected(true);
 
-            // Display details for newly focused item
             QString eventId = nextItem->data(Qt::UserRole).toString();
             if (!eventId.isEmpty())
             {
