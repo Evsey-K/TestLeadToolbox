@@ -915,30 +915,18 @@ void TimelineModule::onToggleSidePanelClicked()
 {
     bool isVisible = sidePanel_->isVisible();
 
-    if (isVisible)
-    {
-        // Animate collapse
-        QPropertyAnimation* animation = new QPropertyAnimation(sidePanel_, "maximumWidth");
-        animation->setDuration(200);
-        animation->setStartValue(sidePanel_->width());
-        animation->setEndValue(0);
-        animation->setEasingCurve(QEasingCurve::InOutQuad);
+    // Toggle visibility
+    sidePanel_->setVisible(!isVisible);
 
-        connect(animation, &QPropertyAnimation::finished, [this]() {
-            sidePanel_->setVisible(false);
-            sidePanel_->setMaximumWidth(500); // Reset for next show
-        });
-
-        animation->start(QAbstractAnimation::DeleteWhenStopped);
-    }
-    else
-    {
-        // Show immediately
-        sidePanel_->setVisible(true);
-    }
-
+    // Save state to settings
     TimelineSettings::instance().setSidePanelVisible(!isVisible);
+
+    // Update button text and icon
     updateToggleButtonState();
+
+    // Update status
+    QString status = sidePanel_->isVisible() ? "Side panel shown" : "Side panel hidden";
+    statusLabel_->setText(status);
 }
 
 
