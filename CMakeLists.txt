@@ -137,7 +137,10 @@ set(SRC
     src/modules/timeline/TimelineSettings.cpp
 
     # Timeline Module - Enhanced Dialogs
-    src/modules/timeline/ConfirmationDialog.h
+    src/modules/timeline/ConfirmationDialog.h    
+    src/modules/timeline/ArchivedEventsDialog.h
+    src/modules/timeline/ArchivedEventsDialog.cpp
+    src/modules/timeline/ArchivedEventsDialog.ui
 
     # --------- <NEXT> MODULE ---------
 
@@ -151,8 +154,7 @@ set(SRC
 # above. ${PROJECT_NAME} automatically expands to "TestLeadToolbox".
 # ----------------------------------------------------------------------------
 
-add_executable(${PROJECT_NAME} ${SRC}
-    src/modules/timeline/ArchivedEventsDialog.h src/modules/timeline/ArchivedEventsDialog.cpp src/modules/timeline/ArchivedEventsDialog.ui)
+add_executable(${PROJECT_NAME} ${SRC})
 
 # ----------------------------------------------------------------------------
 # Include Directory Setup
