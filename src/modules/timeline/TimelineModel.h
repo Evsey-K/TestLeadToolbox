@@ -34,6 +34,7 @@ struct TimelineEvent
     QColor color;               ///< Visual color based on type
     int priority = 0;           ///< Prioty level (0-5, lower = more important)
     int lane = 0;               ///< Vertical lane for collision avoidance
+    bool archived = false;      ///<
 
     TimelineEvent() = default;
 
@@ -170,6 +171,13 @@ public:
      */
     static QColor colorForType(TimelineEventType type);
 
+    bool archiveEvent(const QString& eventId);
+    bool restoreEvent(const QString& eventId);
+    bool permanentlyDeleteArchivedEvent(const QString& eventId);
+    const TimelineEvent* getArchivedEvent(const QString& eventId) const;
+    QVector<TimelineEvent> getAllArchivedEvents() const;
+    int archivedEventCount() const { return archivedEvents_.size(); }
+
 signals:
     /**
      * @brief Emitted when a new event is added
@@ -201,6 +209,9 @@ signals:
      */
     void versionDatesChanged(const QDate& start, const QDate& end);
 
+    void eventArchived(const QString& eventId);
+    void eventRestored(const QString& eventId);
+
 private:
     /**
      * @brief Generates a unique event ID using UUID
@@ -212,11 +223,12 @@ private:
      */
     void assignLanesToEvents();
 
-    QVector<TimelineEvent> events_;     ///< All timeline events
-    QDate versionStart_;                ///< Start date of the software version
-    QDate versionEnd_;                  ///< End date of the software version
-    int nextEventIdCounter_ = 0;        ///< Counter for generating unique IDs
-    int maxLane_ = 0;                   ///< Maximum lane number currently used
+    QVector<TimelineEvent> events_;             ///< All timeline events
+    QVector<TimelineEvent> archivedEvents_;     ///<
+    QDate versionStart_;                        ///< Start date of the software version
+    QDate versionEnd_;                          ///< End date of the software version
+    int nextEventIdCounter_ = 0;                ///< Counter for generating unique IDs
+    int maxLane_ = 0;                           ///< Maximum lane number currently used
 };
 
 

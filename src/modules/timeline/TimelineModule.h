@@ -3,6 +3,7 @@
 
 #pragma once
 #include <QWidget>
+#include <qundostack.h>
 #include "DateRangeHighlight.h"
 
 
@@ -59,6 +60,8 @@ public:
     {
         return model_;
     }
+
+    QUndoStack* undoStack() const { return undoStack_; }
 
 private slots:
     /**
@@ -126,6 +129,8 @@ private slots:
      */
     void onDeleteActionTriggered();
 
+    void onShowArchivedEvents();
+
     /**
      * @brief Update delete button enabled state based on selection (TIER 2)
      */
@@ -136,6 +141,7 @@ private:
     void setupConnections();
     void setupAutoSave();
     void loadTimelineData();
+    void setupUndoStack();
     void createSampleData(); // Temporary: add some sample events
 
     QToolBar* createToolbar();                          ///< @brief Create toolbar with all actions
@@ -163,4 +169,5 @@ private:
     QLabel* statusLabel_;
     QLabel* unsavedIndicator_;
     QAction* deleteAction_;
+    QUndoStack* undoStack_;
 };

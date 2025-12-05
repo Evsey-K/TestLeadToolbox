@@ -33,6 +33,7 @@ TimelineModule::TimelineModule(QWidget* parent)
     , autoSaveManager_(nullptr)
     , scrollAnimator_(nullptr)
     , deleteAction_(nullptr)
+    , undoStack_(nullptr)
 {
     // Create model
     model_ = new TimelineModel(this);
@@ -56,6 +57,9 @@ TimelineModule::TimelineModule(QWidget* parent)
 
     // Try to load existing timeline data
     loadTimelineData();
+
+    //
+    setupUndoStack();
 }
 
 
@@ -140,11 +144,15 @@ QToolBar* TimelineModule::createToolbar()
     versionSettingsButton_ = new QPushButton("⚙️ Version Settings");
     toolbar->addWidget(versionSettingsButton_);
 
-    // TIER 2: Add delete button (context-sensitive, disabled when no selection)
+    // Add delete button (context-sensitive, disabled when no selection)
     deleteAction_ = toolbar->addAction("🗑️ Delete");
     deleteAction_->setToolTip("Delete selected event(s)");
     deleteAction_->setEnabled(false);  // Initially disabled
     connect(deleteAction_, &QAction::triggered, this, &TimelineModule::onDeleteActionTriggered);
+
+    auto archiveAction = toolbar->addAction("📦 Archive");
+    archiveAction->setToolTip("View archived events");
+    connect(archiveAction, &QAction::triggered, this, &TimelineModule::onShowArchivedEvents);
 
 
     toolbar->addSeparator();
@@ -273,7 +281,7 @@ void TimelineModule::onAddEventClicked()
     if (dialog.exec() == QDialog::Accepted)
     {
         TimelineEvent newEvent = dialog.getEvent();
-        QString eventId = model_->addEvent(newEvent);
+        undoStack_->push(new AddEventCommand(model_, newEvent));
 
         statusLabel_->setText(QString("Event '%1' added").arg(newEvent.title));
     }
@@ -561,21 +569,13 @@ void TimelineModule::onEditEventRequested(const QString& eventId)
     if (result == QDialog::Accepted)
     {
         TimelineEvent updatedEvent = dialog.getEvent();
-        bool success = model_->updateEvent(eventId, updatedEvent);
-
-        if (success)
-        {
-            statusLabel_->setText(QString("Event '%1' updated").arg(updatedEvent.title));
-        }
-        else
-        {
-            QMessageBox::warning(this, "Update Failed", "Failed to update event.");
-            statusLabel_->setText("Event update failed");
-        }
+        // NEW: Use command instead of direct model call
+        undoStack_->push(new UpdateEventCommand(model_, eventId, updatedEvent));
+        statusLabel_->setText(QString("Event '%1' updated").arg(updatedEvent.title));
     }
     else if (result == EditEventDialog::DeleteRequested)
     {
-        deleteEventWithoutConfirmation(eventId);
+        deleteEvent(eventId);
     }
 }
 
@@ -618,34 +618,30 @@ bool TimelineModule::deleteEvent(const QString& eventId)
     {
         QMessageBox::warning(this, "Deletion Failed", "Event not found.");
         statusLabel_->setText("Event deletion failed - event not found");
-
         return false;
     }
 
     QString eventTitle = event->title;
+    QDate startDate = event->startDate;
+    QDate endDate = event->endDate;
 
-    if (!confirmDeletion(eventId))
+    // NEW: Check soft delete preference
+    bool useSoftDelete = TimelineSettings::instance().useSoftDelete();
+
+    // NEW: Show confirmation with "don't ask again"
+    if (!ConfirmationDialog::confirmDeletion(this, eventTitle, startDate, endDate, useSoftDelete))
     {
         statusLabel_->setText("Deletion cancelled");
-
         return false;
     }
 
-    bool success = model_->removeEvent(eventId);
+    // NEW: Use command for undo support
+    undoStack_->push(new DeleteEventCommand(model_, eventId, useSoftDelete));
 
-    if (success)
-    {
-        statusLabel_->setText(QString("Event '%1' deleted successfully").arg(eventTitle));
+    QString action = useSoftDelete ? "archived" : "deleted";
+    statusLabel_->setText(QString("Event '%1' %2 successfully").arg(eventTitle, action));
 
-        return true;
-    }
-    else
-    {
-        QMessageBox::critical(this, "Deletion Failed", "An error occurred while deleting the event.");
-        statusLabel_->setText("Event deletion failed");
-
-        return false;
-    }
+    return true;
 }
 
 
@@ -743,52 +739,33 @@ bool TimelineModule::deleteBatchEvents(const QStringList& eventIds)
         return false;
     }
 
-    // Show single confirmation dialog for all events
-    if (!confirmBatchDeletion(eventIds))
-    {
-        statusLabel_->setText("Deletion cancelled");
-
-        return false;
-    }
-
-    // Delete all events
-    int successCount = 0;
-    QStringList failedEvents;
-
+    QStringList eventTitles;
     for (const QString& eventId : eventIds)
     {
         const TimelineEvent* event = model_->getEvent(eventId);
-        QString eventTitle = event ? event->title : eventId;
-
-        bool success = model_->removeEvent(eventId);
-
-        if (success)
+        if (event)
         {
-            successCount++;
-        }
-        else
-        {
-            failedEvents.append(eventTitle);
+            eventTitles.append(event->title);
         }
     }
 
-    // Report results
-    if (failedEvents.isEmpty())
-    {
-        statusLabel_->setText(QString("%1 event(s) deleted successfully").arg(successCount));
+    // NEW: Check soft delete preference
+    bool useSoftDelete = TimelineSettings::instance().useSoftDelete();
 
-        return true;
-    }
-    else
+    // NEW: Show confirmation with "don't ask again"
+    if (!ConfirmationDialog::confirmBatchDeletion(this, eventTitles, useSoftDelete))
     {
-        QString message = QString("Deleted %1 event(s).\n\nFailed to delete:\n%2")
-        .arg(successCount)
-            .arg(failedEvents.join("\n"));
-        QMessageBox::warning(this, "Partial Deletion", message);
-        statusLabel_->setText(QString("%1 deleted, %2 failed").arg(successCount).arg(failedEvents.size()));
-
+        statusLabel_->setText("Deletion cancelled");
         return false;
     }
+
+    // NEW: Use batch command for undo support
+    undoStack_->push(new BatchDeleteCommand(model_, eventIds, useSoftDelete));
+
+    QString action = useSoftDelete ? "archived" : "deleted";
+    statusLabel_->setText(QString("%1 event(s) %2 successfully").arg(eventIds.size()).arg(action));
+
+    return true;
 }
 
 
@@ -874,6 +851,50 @@ QStringList TimelineModule::getAllSelectedEventIds() const
     }
 
     return eventIds;
+}
+
+
+void TimelineModule::setupUndoStack()
+{
+    undoStack_ = new QUndoStack(this);
+    undoStack_->setUndoLimit(50);
+
+    connect(undoStack_, &QUndoStack::indexChanged, [this]() {
+        QString status;
+        if (undoStack_->canUndo())
+        {
+            status = QString("Can undo: %1").arg(undoStack_->undoText());
+        }
+        else if (undoStack_->canRedo())
+        {
+            status = QString("Can redo: %1").arg(undoStack_->redoText());
+        }
+        else
+        {
+            status = "Ready";
+        }
+
+        if (statusLabel_)
+        {
+            statusLabel_->setText(status);
+        }
+    });
+}
+
+
+void TimelineModule::onShowArchivedEvents()
+{
+    ArchivedEventsDialog dialog(model_, undoStack_, this);
+
+    connect(&dialog, &ArchivedEventsDialog::eventsRestored, [this](const QStringList& eventIds) {
+        statusLabel_->setText(QString("Restored %1 event(s) from archive").arg(eventIds.size()));
+    });
+
+    connect(&dialog, &ArchivedEventsDialog::eventsPermanentlyDeleted, [this](const QStringList& eventIds) {
+        statusLabel_->setText(QString("Permanently deleted %1 event(s)").arg(eventIds.size()));
+    });
+
+    dialog.exec();
 }
 
 

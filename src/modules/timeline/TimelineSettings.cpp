@@ -1,0 +1,176 @@
+// TimelineSettings.cpp
+
+
+#include "TimelineSettings.h"
+
+
+TimelineSettings& TimelineSettings::instance()
+{
+    static TimelineSettings instance;
+    return instance;
+}
+
+
+TimelineSettings::TimelineSettings()
+    : settings_("TestLeadToolbox", "Timeline")
+{
+    // Constructor initializes QSettings with organization and application name
+}
+
+
+// ============================================================================
+// Deletion Preferences
+// ============================================================================
+
+bool TimelineSettings::showDeleteConfirmation() const
+{
+    return settings_.value("Deletion/ShowConfirmation", DEFAULT_SHOW_DELETE_CONFIRMATION).toBool();
+}
+
+
+void TimelineSettings::setShowDeleteConfirmation(bool show)
+{
+    settings_.setValue("Deletion/ShowConfirmation", show);
+}
+
+
+bool TimelineSettings::useSoftDelete() const
+{
+    return settings_.value("Deletion/UseSoftDelete", DEFAULT_USE_SOFT_DELETE).toBool();
+}
+
+
+void TimelineSettings::setUseSoftDelete(bool useSoftDelete)
+{
+    settings_.setValue("Deletion/UseSoftDelete", useSoftDelete);
+}
+
+
+// ============================================================================
+// Auto-save Preferences
+// ============================================================================
+
+int TimelineSettings::autoSaveInterval() const
+{
+    return settings_.value("AutoSave/Interval", DEFAULT_AUTOSAVE_INTERVAL).toInt();
+}
+
+
+void TimelineSettings::setAutoSaveInterval(int intervalMs)
+{
+    settings_.setValue("AutoSave/Interval", intervalMs);
+}
+
+
+bool TimelineSettings::autoSaveEnabled() const
+{
+    return settings_.value("AutoSave/Enabled", DEFAULT_AUTOSAVE_ENABLED).toBool();
+}
+
+
+void TimelineSettings::setAutoSaveEnabled(bool enabled)
+{
+    settings_.setValue("AutoSave/Enabled", enabled);
+}
+
+
+// ============================================================================
+// View Preferences
+// ============================================================================
+
+double TimelineSettings::defaultPixelsPerDay() const
+{
+    return settings_.value("View/PixelsPerDay", DEFAULT_PIXELS_PER_DAY).toDouble();
+}
+
+
+void TimelineSettings::setDefaultPixelsPerDay(double pixelsPerDay)
+{
+    settings_.setValue("View/PixelsPerDay", pixelsPerDay);
+}
+
+
+int TimelineSettings::sidePanelWidth() const
+{
+    return settings_.value("View/SidePanelWidth", DEFAULT_SIDE_PANEL_WIDTH).toInt();
+}
+
+
+void TimelineSettings::setSidePanelWidth(int width)
+{
+    settings_.setValue("View/SidePanelWidth", width);
+}
+
+
+bool TimelineSettings::sidePanelVisible() const
+{
+    return settings_.value("View/SidePanelVisible", DEFAULT_SIDE_PANEL_VISIBLE).toBool();
+}
+
+
+void TimelineSettings::setSidePanelVisible(bool visible)
+{
+    settings_.setValue("View/SidePanelVisible", visible);
+}
+
+
+// ============================================================================
+// Scroll-to-Date Preferences
+// ============================================================================
+
+bool TimelineSettings::scrollAnimationEnabled() const
+{
+    return settings_.value("ScrollToDate/Animate", DEFAULT_SCROLL_ANIMATION_ENABLED).toBool();
+}
+
+
+void TimelineSettings::setScrollAnimationEnabled(bool enabled)
+{
+    settings_.setValue("ScrollToDate/Animate", enabled);
+}
+
+
+bool TimelineSettings::scrollHighlightEnabled() const
+{
+    return settings_.value("ScrollToDate/Highlight", DEFAULT_SCROLL_HIGHLIGHT_ENABLED).toBool();
+}
+
+
+void TimelineSettings::setScrollHighlightEnabled(bool enabled)
+{
+    settings_.setValue("ScrollToDate/Highlight", enabled);
+}
+
+
+int TimelineSettings::scrollHighlightRange() const
+{
+    return settings_.value("ScrollToDate/HighlightRange", DEFAULT_SCROLL_HIGHLIGHT_RANGE).toInt();
+}
+
+
+void TimelineSettings::setScrollHighlightRange(int days)
+{
+    settings_.setValue("ScrollToDate/HighlightRange", days);
+}
+
+
+// ============================================================================
+// Reset & Utility
+// ============================================================================
+
+void TimelineSettings::resetToDefaults()
+{
+    settings_.clear();
+
+    // Explicitly set all defaults (optional, as they'll be used anyway)
+    setShowDeleteConfirmation(DEFAULT_SHOW_DELETE_CONFIRMATION);
+    setUseSoftDelete(DEFAULT_USE_SOFT_DELETE);
+    setAutoSaveInterval(DEFAULT_AUTOSAVE_INTERVAL);
+    setAutoSaveEnabled(DEFAULT_AUTOSAVE_ENABLED);
+    setDefaultPixelsPerDay(DEFAULT_PIXELS_PER_DAY);
+    setSidePanelWidth(DEFAULT_SIDE_PANEL_WIDTH);
+    setSidePanelVisible(DEFAULT_SIDE_PANEL_VISIBLE);
+    setScrollAnimationEnabled(DEFAULT_SCROLL_ANIMATION_ENABLED);
+    setScrollHighlightEnabled(DEFAULT_SCROLL_HIGHLIGHT_ENABLED);
+    setScrollHighlightRange(DEFAULT_SCROLL_HIGHLIGHT_RANGE);
+}

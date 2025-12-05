@@ -200,6 +200,7 @@ QVector<TimelineEvent> TimelineModel::getEventsLookahead(int days) const
 void TimelineModel::clear()
 {
     events_.clear();
+    archivedEvents_.clear();
     maxLane_ = 0;
     emit eventsCleared();
 }
@@ -277,7 +278,104 @@ void TimelineModel::assignLanesToEvents()
 }
 
 
+bool TimelineModel::archiveEvent(const QString& eventId)
+{
+    // Find event in active list
+    for (int i = 0; i < events_.size(); ++i)
+    {
+        if (events_[i].id == eventId)
+        {
+            // Mark as archived
+            events_[i].archived = true;
 
+            // Move to archived list
+            archivedEvents_.append(events_[i]);
+            events_.removeAt(i);
+
+            // Recalculate lanes after removal
+            assignLanesToEvents();
+
+            emit eventArchived(eventId);
+            qDebug() << "Event archived:" << eventId;
+
+            return true;
+        }
+    }
+
+    qWarning() << "Cannot archive event - not found:" << eventId;
+
+    return false;
+}
+
+
+bool TimelineModel::restoreEvent(const QString& eventId)
+{
+    // Find event in archived list
+    for (int i = 0; i < archivedEvents_.size(); ++i)
+    {
+        if (archivedEvents_[i].id == eventId)
+        {
+            // Unmark archived flag
+            archivedEvents_[i].archived = false;
+
+            // Move back to active list
+            events_.append(archivedEvents_[i]);
+            archivedEvents_.removeAt(i);
+
+            // Recalculate lanes after adding
+            assignLanesToEvents();
+
+            emit eventRestored(eventId);
+            qDebug() << "Event restored:" << eventId;
+
+            return true;
+        }
+    }
+
+    qWarning() << "Cannot restore event - not found in archive:" << eventId;
+    return false;
+}
+
+
+bool TimelineModel::permanentlyDeleteArchivedEvent(const QString& eventId)
+{
+    // Find event in archived list
+    for (int i = 0; i < archivedEvents_.size(); ++i)
+    {
+        if (archivedEvents_[i].id == eventId)
+        {
+            archivedEvents_.removeAt(i);
+
+            emit eventRemoved(eventId);
+            qDebug() << "Archived event permanently deleted:" << eventId;
+
+            return true;
+        }
+    }
+
+    qWarning() << "Cannot permanently delete event - not found in archive:" << eventId;
+    return false;
+}
+
+
+const TimelineEvent* TimelineModel::getArchivedEvent(const QString& eventId) const
+{
+    for (int i = 0; i < archivedEvents_.size(); ++i)
+    {
+        if (archivedEvents_[i].id == eventId)
+        {
+            return &archivedEvents_[i];
+        }
+    }
+
+    return nullptr;
+}
+
+
+QVector<TimelineEvent> TimelineModel::getAllArchivedEvents() const
+{
+    return archivedEvents_;
+}
 
 
 

@@ -121,7 +121,7 @@ QJsonObject TimelineSerializer::serializeModel(const TimelineModel* model)
     root["versionStartDate"] = model->versionStartDate().toString(Qt::ISODate);
     root["versionEndDate"] = model->versionEndDate().toString(Qt::ISODate);
 
-    // Serialize all events
+    // Serialize active events
     QJsonArray eventsArray;
     const auto& events = model->getAllEvents();
 
@@ -131,6 +131,17 @@ QJsonObject TimelineSerializer::serializeModel(const TimelineModel* model)
     }
 
     root["events"] = eventsArray;
+
+    // Serialize archived events
+    QJsonArray archivedArray;
+    const auto& archivedEvents = model->getAllArchivedEvents();
+
+    for (const auto& event : archivedEvents)
+    {
+        archivedArray.append(serializeEvent(event));
+    }
+
+    root["archivedEvents"] = archivedArray;
 
     return root;
 }
@@ -143,11 +154,9 @@ bool TimelineSerializer::deserializeModel(TimelineModel* model, const QJsonObjec
 
     // Version check
     QString version = json["version"].toString();
-
     if (version != "1.0")
     {
         qWarning() << "Unsupported timeline file version:" << version;
-        // Continue anyway - (for now)
     }
 
     // Load version dates
@@ -160,13 +169,12 @@ bool TimelineSerializer::deserializeModel(TimelineModel* model, const QJsonObjec
     if (!startDate.isValid() || !endDate.isValid())
     {
         qWarning() << "Invalid version dates in JSON";
-
         return false;
     }
 
     model->setVersionDates(startDate, endDate);
 
-    // Load events
+    // Load active events
     QJsonArray eventsArray = json["events"].toArray();
 
     for (const QJsonValue& eventValue : eventsArray)
@@ -182,6 +190,32 @@ bool TimelineSerializer::deserializeModel(TimelineModel* model, const QJsonObjec
         if (!event.id.isEmpty())
         {
             model->addEvent(event);
+        }
+    }
+
+    // NEW: Load archived events
+    QJsonArray archivedArray = json["archivedEvents"].toArray();
+
+    for (const QJsonValue& eventValue : archivedArray)
+    {
+        if (!eventValue.isObject())
+        {
+            qWarning() << "Skipping invalid archived event entry";
+            continue;
+        }
+
+        TimelineEvent event = deserializeEvent(eventValue.toObject());
+
+        if (!event.id.isEmpty())
+        {
+            // Add as active event first
+            QString addedId = model->addEvent(event);
+
+            // Then archive it
+            if (!addedId.isEmpty())
+            {
+                model->archiveEvent(addedId);
+            }
         }
     }
 
@@ -245,6 +279,7 @@ QJsonObject TimelineSerializer::serializeEvent(const TimelineEvent& event)
     obj["endDate"] = event.endDate.toString(Qt::ISODate);
     obj["priority"] = event.priority;
     obj["lane"] = event.lane;
+    obj["archived"] = event.archived;
 
     // Store color as hex string
     obj["color"] = event.color.name();
@@ -270,6 +305,7 @@ TimelineEvent TimelineSerializer::deserializeEvent(const QJsonObject& json)
 
     event.priority = json["priority"].toInt();
     event.lane = json["lane"].toInt();
+    event.archived = json["archived"].toBool();
 
     // Parse color
     QString colorStr = json["color"].toString();
@@ -281,6 +317,7 @@ TimelineEvent TimelineSerializer::deserializeEvent(const QJsonObject& json)
 
     return event;
 }
+
 
 QString TimelineSerializer::eventTypeToString(TimelineEventType type)
 {
@@ -300,6 +337,7 @@ QString TimelineSerializer::eventTypeToString(TimelineEventType type)
     default: return "Unknown";
     }
 }
+
 
 TimelineEventType TimelineSerializer::stringToEventType(const QString& typeStr)
 {

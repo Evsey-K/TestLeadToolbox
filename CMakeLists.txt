@@ -69,7 +69,9 @@ set(SRC
     src/app/MainWindow.cpp
     src/app/MainWindow.h
 
-    # Timeline Module
+    # --------- TIMELINE MODULE ---------
+
+    # Timeline Module - Core
     src/modules/timeline/TimelineModule.cpp
     src/modules/timeline/TimelineModule.h
     src/modules/timeline/TimelineModel.cpp
@@ -83,26 +85,26 @@ set(SRC
     src/modules/timeline/TimelineItem.cpp
     src/modules/timeline/TimelineItem.h
 
+    # Timeline Module - Dialogs
     src/modules/timeline/AddEventDialog.cpp
     src/modules/timeline/AddEventDialog.h
     src/modules/timeline/AddEventDialog.ui
-
-    src/modules/timeline/TimelineSidePanel.cpp
-    src/modules/timeline/TimelineSidePanel.h
-    src/modules/timeline/TimelineSidePanel.ui
-
+    src/modules/timeline/EditEventDialog.h
+    src/modules/timeline/EditEventDialog.cpp
+    src/modules/timeline/EditEventDialog.ui
     src/modules/timeline/VersionSettingsDialog.cpp
     src/modules/timeline/VersionSettingsDialog.h
     src/modules/timeline/VersionSettingsDialog.ui
-
     src/modules/timeline/ScrollToDateDialog.h
     src/modules/timeline/ScrollToDateDialog.cpp
     src/modules/timeline/ScrollToDateDialog.ui
 
-    src/modules/timeline/EditEventDialog.h
-    src/modules/timeline/EditEventDialog.cpp
-    src/modules/timeline/EditEventDialog.ui
+    # Timeline Module - UI Components
+    src/modules/timeline/TimelineSidePanel.cpp
+    src/modules/timeline/TimelineSidePanel.h
+    src/modules/timeline/TimelineSidePanel.ui
 
+    # Timeline Module - Utilities
     src/modules/timeline/LaneAssigner.h
     src/modules/timeline/LaneAssigner.cpp
     src/modules/timeline/TimelineDateScale.cpp
@@ -112,22 +114,34 @@ set(SRC
     src/modules/timeline/VersionBoundaryMarker.cpp
     src/modules/timeline/VersionBoundaryMarker.h
 
+    # Timeline Module - Persistence
     src/modules/timeline/TimelineSerializer.h
     src/modules/timeline/TimelineSerializer.cpp
     src/modules/timeline/AutoSaveManager.h
     src/modules/timeline/AutoSaveManager.cpp
-
     src/modules/timeline/TimelineExporter.h
     src/modules/timeline/TimelineExporter.cpp
 
+    # Timeline Module - Animation & Effects
     src/modules/timeline/TimelineScrollAnimator.h
     src/modules/timeline/TimelineScrollAnimator.cpp
-
     src/modules/timeline/DateRangeHighlight.h
     src/modules/timeline/DateRangeHighlight.cpp
 
-    # Add new 'module' sources below:
-    # src/modules/<module_name>/<file>.cpp
+    # Timeline Module - Undo/Redo
+    src/modules/timeline/TimelineCommands.h
+    src/modules/timeline/TimelineCommands.cpp
+
+    # Timeline Module - Settings
+    src/modules/timeline/TimelineSettings.h
+    src/modules/timeline/TimelineSettings.cpp
+
+    # Timeline Module - Enhanced Dialogs
+    src/modules/timeline/ConfirmationDialog.h
+
+    # --------- <NEXT> MODULE ---------
+
+
 )
 
 # ----------------------------------------------------------------------------
@@ -137,7 +151,8 @@ set(SRC
 # above. ${PROJECT_NAME} automatically expands to "TestLeadToolbox".
 # ----------------------------------------------------------------------------
 
-add_executable(${PROJECT_NAME} ${SRC})
+add_executable(${PROJECT_NAME} ${SRC}
+    src/modules/timeline/ArchivedEventsDialog.h src/modules/timeline/ArchivedEventsDialog.cpp src/modules/timeline/ArchivedEventsDialog.ui)
 
 # ----------------------------------------------------------------------------
 # Include Directory Setup
