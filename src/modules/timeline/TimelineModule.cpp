@@ -56,9 +56,6 @@ TimelineModule::TimelineModule(QWidget* parent)
     setupConnections();
     setupAutoSave();
 
-    // Temporary - Add some sample data for testing
-    createSampleData();
-
     // Try to load existing timeline data
     loadTimelineData();
 
@@ -120,6 +117,9 @@ void TimelineModule::setupUi()
     statusLayout->addWidget(unsavedIndicator_);
 
     mainLayout->addLayout(statusLayout);
+
+    // Restore side panel visibility from settings
+    restoreSidePanelState();
 }
 
 
@@ -185,6 +185,17 @@ QToolBar* TimelineModule::createToolbar()
     auto scrollToDateAction = toolbar->addAction("📅 Go to Date");
     scrollToDateAction->setToolTip("Scroll to specific date");
     connect(scrollToDateAction, &QAction::triggered, this, &TimelineModule::onScrollToDate);
+
+    // Add spacer to push toggle button to the right
+    QWidget* spacer = new QWidget();
+    spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    toolbar->addWidget(spacer);
+
+    // Add side panel toggle button at the right end
+    toggleSidePanelAction_ = toolbar->addAction("◀ Hide Panel");
+    toggleSidePanelAction_->setToolTip("Show/Hide event list panel");
+    toggleSidePanelAction_->setShortcut(QKeySequence("Ctrl+P"));
+    connect(toggleSidePanelAction_, &QAction::triggered, this, &TimelineModule::onToggleSidePanelClicked);
 
     return toolbar;
 }
@@ -899,46 +910,67 @@ void TimelineModule::onShowArchivedEvents()
 }
 
 
-// -----------------------------------------------------------------------------------------------------------------
-
-void TimelineModule::createSampleData()
+// Toggle side panel visibility
+void TimelineModule::onToggleSidePanelClicked()
 {
-    // Add a few sample events for demonstration
-    QDate start = model_->versionStartDate();
+    bool isVisible = sidePanel_->isVisible();
 
-    TimelineEvent event1;
-    event1.type = TimelineEventType_Meeting;
-    event1.title = "Sprint Planning";
-    event1.startDate = start.addDays(5);
-    event1.endDate = start.addDays(5);
-    event1.description = "Plan sprint activities";
-    event1.priority = 4;
-    model_->addEvent(event1);
+    if (isVisible)
+    {
+        // Animate collapse
+        QPropertyAnimation* animation = new QPropertyAnimation(sidePanel_, "maximumWidth");
+        animation->setDuration(200);
+        animation->setStartValue(sidePanel_->width());
+        animation->setEndValue(0);
+        animation->setEasingCurve(QEasingCurve::InOutQuad);
 
-    TimelineEvent event2;
-    event2.type = TimelineEventType_TestEvent;
-    event2.title = "Integration Testing";
-    event2.startDate = start.addDays(20);
-    event2.endDate = start.addDays(25);
-    event2.description = "Run full integration test suite";
-    event2.priority = 5;
-    model_->addEvent(event2);
+        connect(animation, &QPropertyAnimation::finished, [this]() {
+            sidePanel_->setVisible(false);
+            sidePanel_->setMaximumWidth(500); // Reset for next show
+        });
 
-    TimelineEvent event3;
-    event3.type = TimelineEventType_DueDate;
-    event3.title = "Release Candidate";
-    event3.startDate = start.addDays(60);
-    event3.endDate = start.addDays(60);
-    event3.description = "RC build deadline";
-    event3.priority = 5;
-    model_->addEvent(event3);
+        animation->start(QAbstractAnimation::DeleteWhenStopped);
+    }
+    else
+    {
+        // Show immediately
+        sidePanel_->setVisible(true);
+    }
 
-    TimelineEvent event4;
-    event4.type = TimelineEventType_Action;
-    event4.title = "Code Freeze";
-    event4.startDate = start.addDays(55);
-    event4.endDate = start.addDays(59);
-    event4.description = "No new features after this";
-    event4.priority = 4;
-    model_->addEvent(event4);
+    TimelineSettings::instance().setSidePanelVisible(!isVisible);
+    updateToggleButtonState();
+}
+
+
+// Update toggle button based on panel visibility
+void TimelineModule::updateToggleButtonState()
+{
+    if (!toggleSidePanelAction_)
+    {
+        return;
+    }
+
+    bool isVisible = sidePanel_->isVisible();
+
+    if (isVisible)
+    {
+        toggleSidePanelAction_->setText("◀ Hide Panel");
+        toggleSidePanelAction_->setToolTip("Hide event list panel");
+    }
+    else
+    {
+        toggleSidePanelAction_->setText("▶ Show Panel");
+        toggleSidePanelAction_->setToolTip("Show event list panel");
+    }
+}
+
+
+// Restore side panel state from settings
+void TimelineModule::restoreSidePanelState()
+{
+    bool visible = TimelineSettings::instance().sidePanelVisible();
+    sidePanel_->setVisible(visible);
+    updateToggleButtonState();
+
+    qDebug() << "Side panel restored to:" << (visible ? "visible" : "hidden");
 }

@@ -136,15 +136,22 @@ private slots:
      */
     void updateDeleteActionState();
 
+    /**
+     * @brief Handle side panel toggle button click (PHASE 6)
+     */
+    void onToggleSidePanelClicked();
+
 private:
     void setupUi();
     void setupConnections();
     void setupAutoSave();
     void loadTimelineData();
     void setupUndoStack();
-    void createSampleData(); // Temporary: add some sample events
 
     QToolBar* createToolbar();                          ///< @brief Create toolbar with all actions
+
+    void updateToggleButtonState();                     ///< @brief Update toggle button state based on panel visibility
+    void restoreSidePanelState();                       ///< @brief Load and apply side panel visibility from settings
 
     bool confirmDeletion(const QString& eventId);       ///< @brief Show confirmation dialog for single event deletion
     bool deleteEvent(const QString& eventId);           ///< @brief Delete a single event with confirmation
@@ -153,10 +160,7 @@ private:
     bool deleteEventWithoutConfirmation(const QString& eventId);        ///< @brief Delete a single event without confirmation (for use after EditDialog)
     bool deleteBatchEvents(const QStringList& eventIds);                ///< @brief Delete multiple events with single confirmation dialog
 
-    /**
-     * @brief Get all currently selected event IDs from both scene and side panel (TIER 2)
-     */
-    QStringList getAllSelectedEventIds() const;
+    QStringList getAllSelectedEventIds() const;         ///< @brief Get all currently selected event IDs from both scene and side panel
 
     TimelineModel* model_;
     TimelineCoordinateMapper* mapper_;
@@ -170,4 +174,5 @@ private:
     QLabel* unsavedIndicator_;
     QAction* deleteAction_;
     QUndoStack* undoStack_;
+    QAction* toggleSidePanelAction_;
 };
