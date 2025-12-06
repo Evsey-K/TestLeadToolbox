@@ -1,8 +1,11 @@
 // TimelineSidePanel.h
 
+
 #pragma once
-#include <QWidget>
 #include "TimelineModel.h"
+#include "TimelineSettings.h"
+#include <QWidget>
+
 
 // Forward declarations
 class QTabWidget;
@@ -50,75 +53,37 @@ public:
      */
     ~TimelineSidePanel();
 
-    /**
-     * @brief Refresh all tabs from the model
-     */
-    void refreshAllTabs();
-
-    /**
-     * @brief Adjust side panel width to get all tabs in view
-     */
-    void adjustWidthToFitTabs();
-
-    /**
-     * @brief Get list of selected event IDs from all tabs
-     */
-    QStringList getSelectedEventIds() const;
-
-    /**
-     * @brief Set the timeline view reference (for exports)
-     */
-    void setTimelineView(TimelineView* view) { view_ = view; }
+    void refreshAllTabs();                                              ///< @brief Refresh all tabs from the model
+    void adjustWidthToFitTabs();                                        ///< @brief Adjust side panel width to get all tabs in view
+    QStringList getSelectedEventIds() const;                            ///< @brief Get list of selected event IDs from all tabs
+    void setTimelineView(TimelineView* view) { view_ = view; }          ///< @brief Set the timeline view reference (for exports)
 
 signals:
-    /**
-     * @brief Emitted when user clicks on an event in the list
-     */
-    void eventSelected(const QString& eventId);
-
-    /**
-     * @brief Emitted when user requests to edit an event
-     */
-    void editEventRequested(const QString& eventId);
-
-    /**
-     * @brief Emitted when user requests to delete an event
-     */
-    void deleteEventRequested(const QString& eventId);
-
-    /**
-     * @brief Emitted when user requests to delete multiple events
-     */
-    void batchDeleteRequested(const QStringList& eventIds);
-
-    /**
-     * @brief Emitted when selection changes in any list
-     */
-    void selectionChanged();
+    void eventSelected(const QString& eventId);                         ///< @brief Emitted when user clicks on an event in the list
+    void editEventRequested(const QString& eventId);                    ///< @brief Emitted when user requests to edit an event
+    void deleteEventRequested(const QString& eventId);                  ///< @brief Emitted when user requests to delete an event
+    void batchDeleteRequested(const QStringList& eventIds);             ///< @brief Emitted when user requests to delete multiple events
+    void selectionChanged();                                            ///< @brief Emitted when selection changes in any list
 
 public slots:
-    /**
-     * @brief Display event details in the details group box
-     * @param eventId Event ID to display
-     */
-    void displayEventDetails(const QString& eventId);
+    void displayEventDetails(const QString& eventId);                   ///< @brief Display event details in the details group box
 
 protected:
-    /**
-     * @brief Handle key press events (Delete/Backspace for deletion)
-     */
-    void keyPressEvent(QKeyEvent* event) override;
+    void keyPressEvent(QKeyEvent* event) override;                      ///< @brief Handle key press events (Delete/Backspace for deletion)
 
 private slots:
+    //
     void onEventAdded(const QString& eventId);
     void onEventRemoved(const QString& eventId);
     void onEventUpdated(const QString& eventId);
     void onLanesRecalculated();
 
+    //
     void onAllEventsItemClicked(QListWidgetItem* item);
     void onLookaheadItemClicked(QListWidgetItem* item);
     void onTodayItemClicked(QListWidgetItem* item);
 
+    //
     void onListContextMenuRequested(const QPoint& pos);
     void onListSelectionChanged();
 
@@ -139,6 +104,15 @@ private slots:
 
     // All events tab actions
     void onExportAllEventsTab(const QString& format);
+
+    // Common tab context menu actions
+    void onRefreshTab();
+    void onSortByDate();
+    void onSortByPriority();
+    void onSortByType();
+    void onFilterByType();
+    void onSelectAllEvents();
+    void onCopyEventDetails();
 
 private:
     void connectSignals();
@@ -162,6 +136,11 @@ private:
     void setupListWidgetContextMenu(QListWidget* listWidget);
     void showListItemContextMenu(QListWidget* listWidget, const QPoint& pos);
     void setupTabBarContextMenu();
+    void sortEvents(QVector<TimelineEvent>& events) const;                                      ///< @brief Sort events according to current sort mode
+    QVector<TimelineEvent> filterEvents(const QVector<TimelineEvent>& events) const;            ///< @brief Filter events according to active filter types
+    QVector<TimelineEvent> applySortAndFilter(const QVector<TimelineEvent>& events) const;      ///< @brief Apply both sorting and filtering to events
+    QString sortModeToString(TimelineSettings::SortMode mode) const;                            ///< @brief Get string representation of sort mode
+    QString eventTypeToString(TimelineEventType type) const;                                    ///< @brief Get string representation of event type
 
     // Multi-selection support
     void enableMultiSelection(QListWidget* listWidget);
@@ -177,7 +156,10 @@ private:
     void updateLookaheadTabLabel();
     void updateAllEventsTabLabel();
 
-    Ui::TimelineSidePanel* ui;      ///< UI pointer
-    TimelineModel* model_;          ///< Timeline model (not owned)
-    TimelineView* view_;            ///< Timeline view for exports (not owned)
+    Ui::TimelineSidePanel* ui;                      ///< UI pointer
+    TimelineModel* model_;                          ///< Timeline model (not owned)
+    TimelineView* view_;                            ///< Timeline view for exports (not owned)
+    TimelineSettings::SortMode currentSortMode_;
+    QSet<TimelineEventType> activeFilterTypes_;
+
 };

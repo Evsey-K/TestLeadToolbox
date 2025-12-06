@@ -1,6 +1,7 @@
 // TimelineSettings.h
 
 #pragma once
+#include "TimelineModel.h"
 #include <QSettings>
 #include <QString>
 #include <QDate>
@@ -57,6 +58,19 @@ public:
     // Reset & Utility
     void resetToDefaults();
     QSettings* qSettings() { return &settings_; }
+
+    // Side Panel Sort/Filter Preferences
+    enum class SortMode { ByDate, ByPriority, ByType };
+    enum class FilterMode { All, Meeting, Action, TestEvent, DueDate, Reminder };
+
+    SortMode sidePanelSortMode() const;
+    void setSidePanelSortMode(SortMode mode);
+
+    QSet<TimelineEventType> sidePanelFilterTypes() const;
+    void setSidePanelFilterTypes(const QSet<TimelineEventType>& types);
+
+    // In the private section, add default values:
+    static constexpr int DEFAULT_SORT_MODE = 0; // ByDate
 
 private:
     TimelineSettings();

@@ -19,6 +19,14 @@
 #include <QMessageBox>
 #include <QTabBar>
 #include <algorithm>
+#include <QClipboard>
+#include <QGuiApplication>
+#include <QCheckBox>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QPushButton>
+#include <QDialog>
 
 
 TimelineSidePanel::TimelineSidePanel(TimelineModel* model, TimelineView* view, QWidget* parent)
@@ -28,6 +36,10 @@ TimelineSidePanel::TimelineSidePanel(TimelineModel* model, TimelineView* view, Q
     , view_(view)
 {
     ui->setupUi(this);
+
+    // Load saved sort/filter preferences
+    currentSortMode_ = TimelineSettings::instance().sidePanelSortMode();
+    activeFilterTypes_ = TimelineSettings::instance().sidePanelFilterTypes();
 
     // Set initial splitter sizes (70% for tabs, 30% for details)
     ui->splitter->setStretchFactor(0, 7);
@@ -217,14 +229,74 @@ void TimelineSidePanel::showLookaheadTabContextMenu(const QPoint& globalPos)
 {
     QMenu menu(this);
 
-    // Range selection action
+    // Common actions (at top)
+    QAction* refreshAction = menu.addAction("🔄 Refresh Tab");
+    refreshAction->setShortcut(QKeySequence::Refresh);
+
+    // Sort submenu
+    QMenu* sortMenu = menu.addMenu("📊 Sort By");
+    QAction* sortDateAction = sortMenu->addAction("📅 Date");
+    QAction* sortPriorityAction = sortMenu->addAction("⭐ Priority");
+    QAction* sortTypeAction = sortMenu->addAction("🏷️ Type");
+
+    sortDateAction->setCheckable(true);
+    sortPriorityAction->setCheckable(true);
+    sortTypeAction->setCheckable(true);
+
+    switch (currentSortMode_)
+    {
+    case TimelineSettings::SortMode::ByDate:
+        sortDateAction->setChecked(true);
+        break;
+    case TimelineSettings::SortMode::ByPriority:
+        sortPriorityAction->setChecked(true);
+        break;
+    case TimelineSettings::SortMode::ByType:
+        sortTypeAction->setChecked(true);
+        break;
+    }
+
+    // Filter submenu
+    QMenu* filterMenu = menu.addMenu("🔍 Filter By Type");
+    QAction* filterMeetingAction = filterMenu->addAction("Meeting");
+    QAction* filterActionAction = filterMenu->addAction("Action");
+    QAction* filterTestAction = filterMenu->addAction("Test Event");
+    QAction* filterDueDateAction = filterMenu->addAction("Due Date");
+    QAction* filterReminderAction = filterMenu->addAction("Reminder");
+    QAction* filterAllAction = filterMenu->addAction("All Types");
+
+    filterMeetingAction->setCheckable(true);
+    filterActionAction->setCheckable(true);
+    filterTestAction->setCheckable(true);
+    filterDueDateAction->setCheckable(true);
+    filterReminderAction->setCheckable(true);
+
+    filterMeetingAction->setChecked(activeFilterTypes_.contains(TimelineEventType_Meeting));
+    filterActionAction->setChecked(activeFilterTypes_.contains(TimelineEventType_Action));
+    filterTestAction->setChecked(activeFilterTypes_.contains(TimelineEventType_TestEvent));
+    filterDueDateAction->setChecked(activeFilterTypes_.contains(TimelineEventType_DueDate));
+    filterReminderAction->setChecked(activeFilterTypes_.contains(TimelineEventType_Reminder));
+
+    menu.addSeparator();
+
+    // Selection and clipboard actions
+    QAction* selectAllAction = menu.addAction("✅ Select All Events");
+    selectAllAction->setShortcut(QKeySequence::SelectAll);
+
+    QAction* copyAction = menu.addAction("📋 Copy Event Details");
+    copyAction->setShortcut(QKeySequence::Copy);
+    copyAction->setEnabled(!getSelectedEventIds(ui->lookaheadList).isEmpty());
+
+    menu.addSeparator();
+
+    // Range selection action (existing)
     int currentDays = TimelineSettings::instance().lookaheadTabDays();
     QAction* setRangeAction = menu.addAction(QString("📆 Set Lookahead Range (currently %1 days)").arg(currentDays));
     setRangeAction->setToolTip("Configure how many days ahead to display");
 
     menu.addSeparator();
 
-    // Export submenu
+    // Export submenu (existing)
     QMenu* exportMenu = menu.addMenu("📤 Export");
     QAction* exportPdfAction = exportMenu->addAction("Export to PDF");
     QAction* exportCsvAction = exportMenu->addAction("Export to CSV");
@@ -233,7 +305,55 @@ void TimelineSidePanel::showLookaheadTabContextMenu(const QPoint& globalPos)
     // Execute menu and handle selection
     QAction* selected = menu.exec(globalPos);
 
-    if (selected == setRangeAction)
+    if (selected == refreshAction)
+    {
+        onRefreshTab();
+    }
+    else if (selected == sortDateAction)
+    {
+        onSortByDate();
+    }
+    else if (selected == sortPriorityAction)
+    {
+        onSortByPriority();
+    }
+    else if (selected == sortTypeAction)
+    {
+        onSortByType();
+    }
+    else if (selected == filterMeetingAction)
+    {
+        toggleFilter(TimelineEventType_Meeting);
+    }
+    else if (selected == filterActionAction)
+    {
+        toggleFilter(TimelineEventType_Action);
+    }
+    else if (selected == filterTestAction)
+    {
+        toggleFilter(TimelineEventType_TestEvent);
+    }
+    else if (selected == filterDueDateAction)
+    {
+        toggleFilter(TimelineEventType_DueDate);
+    }
+    else if (selected == filterReminderAction)
+    {
+        toggleFilter(TimelineEventType_Reminder);
+    }
+    else if (selected == filterAllAction)
+    {
+        onFilterByType();
+    }
+    else if (selected == selectAllAction)
+    {
+        onSelectAllEvents();
+    }
+    else if (selected == copyAction)
+    {
+        onCopyEventDetails();
+    }
+    else if (selected == setRangeAction)
     {
         onSetLookaheadRange();
     }
@@ -256,7 +376,67 @@ void TimelineSidePanel::showAllEventsTabContextMenu(const QPoint& globalPos)
 {
     QMenu menu(this);
 
-    // Only export options for All Events tab
+    // Common actions (at top)
+    QAction* refreshAction = menu.addAction("🔄 Refresh Tab");
+    refreshAction->setShortcut(QKeySequence::Refresh);
+
+    // Sort submenu
+    QMenu* sortMenu = menu.addMenu("📊 Sort By");
+    QAction* sortDateAction = sortMenu->addAction("📅 Date");
+    QAction* sortPriorityAction = sortMenu->addAction("⭐ Priority");
+    QAction* sortTypeAction = sortMenu->addAction("🏷️ Type");
+
+    sortDateAction->setCheckable(true);
+    sortPriorityAction->setCheckable(true);
+    sortTypeAction->setCheckable(true);
+
+    switch (currentSortMode_)
+    {
+    case TimelineSettings::SortMode::ByDate:
+        sortDateAction->setChecked(true);
+        break;
+    case TimelineSettings::SortMode::ByPriority:
+        sortPriorityAction->setChecked(true);
+        break;
+    case TimelineSettings::SortMode::ByType:
+        sortTypeAction->setChecked(true);
+        break;
+    }
+
+    // Filter submenu
+    QMenu* filterMenu = menu.addMenu("🔍 Filter By Type");
+    QAction* filterMeetingAction = filterMenu->addAction("Meeting");
+    QAction* filterActionAction = filterMenu->addAction("Action");
+    QAction* filterTestAction = filterMenu->addAction("Test Event");
+    QAction* filterDueDateAction = filterMenu->addAction("Due Date");
+    QAction* filterReminderAction = filterMenu->addAction("Reminder");
+    QAction* filterAllAction = filterMenu->addAction("All Types");
+
+    filterMeetingAction->setCheckable(true);
+    filterActionAction->setCheckable(true);
+    filterTestAction->setCheckable(true);
+    filterDueDateAction->setCheckable(true);
+    filterReminderAction->setCheckable(true);
+
+    filterMeetingAction->setChecked(activeFilterTypes_.contains(TimelineEventType_Meeting));
+    filterActionAction->setChecked(activeFilterTypes_.contains(TimelineEventType_Action));
+    filterTestAction->setChecked(activeFilterTypes_.contains(TimelineEventType_TestEvent));
+    filterDueDateAction->setChecked(activeFilterTypes_.contains(TimelineEventType_DueDate));
+    filterReminderAction->setChecked(activeFilterTypes_.contains(TimelineEventType_Reminder));
+
+    menu.addSeparator();
+
+    // Selection and clipboard actions
+    QAction* selectAllAction = menu.addAction("✅ Select All Events");
+    selectAllAction->setShortcut(QKeySequence::SelectAll);
+
+    QAction* copyAction = menu.addAction("📋 Copy Event Details");
+    copyAction->setShortcut(QKeySequence::Copy);
+    copyAction->setEnabled(!getSelectedEventIds(ui->allEventsList).isEmpty());
+
+    menu.addSeparator();
+
+    // Export submenu (existing)
     QMenu* exportMenu = menu.addMenu("📤 Export");
     QAction* exportPdfAction = exportMenu->addAction("Export to PDF");
     QAction* exportCsvAction = exportMenu->addAction("Export to CSV");
@@ -265,7 +445,55 @@ void TimelineSidePanel::showAllEventsTabContextMenu(const QPoint& globalPos)
     // Execute menu and handle selection
     QAction* selected = menu.exec(globalPos);
 
-    if (selected == exportPdfAction)
+    if (selected == refreshAction)
+    {
+        onRefreshTab();
+    }
+    else if (selected == sortDateAction)
+    {
+        onSortByDate();
+    }
+    else if (selected == sortPriorityAction)
+    {
+        onSortByPriority();
+    }
+    else if (selected == sortTypeAction)
+    {
+        onSortByType();
+    }
+    else if (selected == filterMeetingAction)
+    {
+        toggleFilter(TimelineEventType_Meeting);
+    }
+    else if (selected == filterActionAction)
+    {
+        toggleFilter(TimelineEventType_Action);
+    }
+    else if (selected == filterTestAction)
+    {
+        toggleFilter(TimelineEventType_TestEvent);
+    }
+    else if (selected == filterDueDateAction)
+    {
+        toggleFilter(TimelineEventType_DueDate);
+    }
+    else if (selected == filterReminderAction)
+    {
+        toggleFilter(TimelineEventType_Reminder);
+    }
+    else if (selected == filterAllAction)
+    {
+        onFilterByType();
+    }
+    else if (selected == selectAllAction)
+    {
+        onSelectAllEvents();
+    }
+    else if (selected == copyAction)
+    {
+        onCopyEventDetails();
+    }
+    else if (selected == exportPdfAction)
     {
         onExportAllEventsTab("PDF");
     }
@@ -605,14 +833,13 @@ void TimelineSidePanel::refreshAllTabs()
     refreshTodayTab();
 }
 
+
 void TimelineSidePanel::refreshTodayTab()
 {
-    // Get target date from settings
     QDate targetDate = TimelineSettings::instance().todayTabUseCustomDate()
-                           ? TimelineSettings::instance().todayTabCustomDate()
-                           : QDate::currentDate();
+    ? TimelineSettings::instance().todayTabCustomDate()
+    : QDate::currentDate();
 
-    // Get events for target date
     QVector<TimelineEvent> allEvents = model_->getAllEvents();
     QVector<TimelineEvent> events;
 
@@ -624,64 +851,38 @@ void TimelineSidePanel::refreshTodayTab()
         }
     }
 
-    // Sort by priority (higher priority first), then by start time
-    std::sort(events.begin(), events.end(),
-              [](const TimelineEvent& a, const TimelineEvent& b)
-              {
-                  if (a.priority != b.priority)
-                  {
-                      return a.priority > b.priority;
-                  }
-                  return a.startDate < b.startDate;
-              });
+    // Apply sort and filter
+    events = applySortAndFilter(events);
 
     populateListWidget(ui->todayList, events);
-
-    // Update tab label
     updateTodayTabLabel();
-
     adjustWidthToFitTabs();
 }
+
 
 void TimelineSidePanel::refreshLookaheadTab()
 {
-    // Get lookahead range from settings
     int days = TimelineSettings::instance().lookaheadTabDays();
-
-    // Get events in lookahead window
     QVector<TimelineEvent> events = model_->getEventsLookahead(days);
 
-    // Sort by start date
-    std::sort(events.begin(), events.end(),
-              [](const TimelineEvent& a, const TimelineEvent& b)
-              {
-                  return a.startDate < b.startDate;
-              });
+    // Apply sort and filter
+    events = applySortAndFilter(events);
 
     populateListWidget(ui->lookaheadList, events);
-
-    // Update tab label
     updateLookaheadTabLabel();
-
     adjustWidthToFitTabs();
 }
+
 
 void TimelineSidePanel::refreshAllEventsTab()
 {
     QVector<TimelineEvent> events = model_->getAllEvents();
 
-    // Sort by start date
-    std::sort(events.begin(), events.end(),
-              [](const TimelineEvent& a, const TimelineEvent& b)
-              {
-                  return a.startDate < b.startDate;
-              });
+    // Apply sort and filter
+    events = applySortAndFilter(events);
 
     populateListWidget(ui->allEventsList, events);
-
-    // Update tab label
     updateAllEventsTabLabel();
-
     adjustWidthToFitTabs();
 }
 
@@ -1074,5 +1275,312 @@ void TimelineSidePanel::focusNextItem(QListWidget* listWidget, int deletedRow)
                 displayEventDetails(eventId);
             }
         }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+void TimelineSidePanel::toggleFilter(TimelineEventType type)
+{
+    if (activeFilterTypes_.contains(type))
+    {
+        activeFilterTypes_.remove(type);
+    }
+    else
+    {
+        activeFilterTypes_.insert(type);
+    }
+
+    // Save to settings
+    TimelineSettings::instance().setSidePanelFilterTypes(activeFilterTypes_);
+
+    // Refresh current tab
+    onRefreshTab();
+}
+
+
+void TimelineSidePanel::onRefreshTab()
+{
+    // Refresh currently active tab
+    QWidget* currentWidget = ui->tabWidget->currentWidget();
+
+    if (currentWidget == ui->todayTab)
+    {
+        refreshTodayTab();
+    }
+    else if (currentWidget == ui->lookaheadTab)
+    {
+        refreshLookaheadTab();
+    }
+    else if (currentWidget == ui->allEventsTab)
+    {
+        refreshAllEventsTab();
+    }
+}
+
+void TimelineSidePanel::onSortByDate()
+{
+    currentSortMode_ = TimelineSettings::SortMode::ByDate;
+    TimelineSettings::instance().setSidePanelSortMode(currentSortMode_);
+    refreshAllTabs();
+}
+
+void TimelineSidePanel::onSortByPriority()
+{
+    currentSortMode_ = TimelineSettings::SortMode::ByPriority;
+    TimelineSettings::instance().setSidePanelSortMode(currentSortMode_);
+    refreshAllTabs();
+}
+
+void TimelineSidePanel::onSortByType()
+{
+    currentSortMode_ = TimelineSettings::SortMode::ByType;
+    TimelineSettings::instance().setSidePanelSortMode(currentSortMode_);
+    refreshAllTabs();
+}
+
+void TimelineSidePanel::onFilterByType()
+{
+    // Show dialog to select multiple types at once
+    QDialog dialog(this);
+    dialog.setWindowTitle("Filter Events by Type");
+    dialog.setMinimumWidth(300);
+
+    auto layout = new QVBoxLayout(&dialog);
+
+    layout->addWidget(new QLabel("Select event types to display:"));
+
+    QCheckBox* meetingCheck = new QCheckBox("Meeting");
+    QCheckBox* actionCheck = new QCheckBox("Action");
+    QCheckBox* testCheck = new QCheckBox("Test Event");
+    QCheckBox* dueDateCheck = new QCheckBox("Due Date");
+    QCheckBox* reminderCheck = new QCheckBox("Reminder");
+
+    meetingCheck->setChecked(activeFilterTypes_.contains(TimelineEventType_Meeting));
+    actionCheck->setChecked(activeFilterTypes_.contains(TimelineEventType_Action));
+    testCheck->setChecked(activeFilterTypes_.contains(TimelineEventType_TestEvent));
+    dueDateCheck->setChecked(activeFilterTypes_.contains(TimelineEventType_DueDate));
+    reminderCheck->setChecked(activeFilterTypes_.contains(TimelineEventType_Reminder));
+
+    layout->addWidget(meetingCheck);
+    layout->addWidget(actionCheck);
+    layout->addWidget(testCheck);
+    layout->addWidget(dueDateCheck);
+    layout->addWidget(reminderCheck);
+
+    layout->addStretch();
+
+    auto buttonLayout = new QHBoxLayout();
+    auto selectAllButton = new QPushButton("Select All");
+    auto clearAllButton = new QPushButton("Clear All");
+    auto okButton = new QPushButton("OK");
+    auto cancelButton = new QPushButton("Cancel");
+
+    buttonLayout->addWidget(selectAllButton);
+    buttonLayout->addWidget(clearAllButton);
+    buttonLayout->addStretch();
+    buttonLayout->addWidget(okButton);
+    buttonLayout->addWidget(cancelButton);
+
+    layout->addLayout(buttonLayout);
+
+    connect(selectAllButton, &QPushButton::clicked, [&]() {
+        meetingCheck->setChecked(true);
+        actionCheck->setChecked(true);
+        testCheck->setChecked(true);
+        dueDateCheck->setChecked(true);
+        reminderCheck->setChecked(true);
+    });
+
+    connect(clearAllButton, &QPushButton::clicked, [&]() {
+        meetingCheck->setChecked(false);
+        actionCheck->setChecked(false);
+        testCheck->setChecked(false);
+        dueDateCheck->setChecked(false);
+        reminderCheck->setChecked(false);
+    });
+
+    connect(okButton, &QPushButton::clicked, &dialog, &QDialog::accept);
+    connect(cancelButton, &QPushButton::clicked, &dialog, &QDialog::reject);
+
+    if (dialog.exec() == QDialog::Accepted)
+    {
+        activeFilterTypes_.clear();
+
+        if (meetingCheck->isChecked()) activeFilterTypes_.insert(TimelineEventType_Meeting);
+        if (actionCheck->isChecked()) activeFilterTypes_.insert(TimelineEventType_Action);
+        if (testCheck->isChecked()) activeFilterTypes_.insert(TimelineEventType_TestEvent);
+        if (dueDateCheck->isChecked()) activeFilterTypes_.insert(TimelineEventType_DueDate);
+        if (reminderCheck->isChecked()) activeFilterTypes_.insert(TimelineEventType_Reminder);
+
+        // Save to settings
+        TimelineSettings::instance().setSidePanelFilterTypes(activeFilterTypes_);
+
+        // Refresh all tabs
+        refreshAllTabs();
+    }
+}
+
+void TimelineSidePanel::onSelectAllEvents()
+{
+    QWidget* currentWidget = ui->tabWidget->currentWidget();
+
+    QListWidget* activeList = nullptr;
+
+    if (currentWidget == ui->todayTab)
+    {
+        activeList = ui->todayList;
+    }
+    else if (currentWidget == ui->lookaheadTab)
+    {
+        activeList = ui->lookaheadList;
+    }
+    else if (currentWidget == ui->allEventsTab)
+    {
+        activeList = ui->allEventsList;
+    }
+
+    if (activeList)
+    {
+        activeList->selectAll();
+    }
+}
+
+
+void TimelineSidePanel::onCopyEventDetails()
+{
+    QStringList selectedIds = getSelectedEventIds();
+
+    if (selectedIds.isEmpty())
+    {
+        return;
+    }
+
+    QStringList eventDetails;
+
+    for (const QString& eventId : selectedIds)
+    {
+        const TimelineEvent* event = model_->getEvent(eventId);
+        if (event)
+        {
+            QString details = QString(
+                                  "Title: %1\n"
+                                  "Type: %2\n"
+                                  "Dates: %3 to %4\n"
+                                  "Priority: %5\n"
+                                  "Description: %6\n"
+                                  ).arg(event->title)
+                                  .arg(eventTypeToString(event->type))
+                                  .arg(event->startDate.toString("yyyy-MM-dd"))
+                                  .arg(event->endDate.toString("yyyy-MM-dd"))
+                                  .arg(event->priority)
+                                  .arg(event->description.isEmpty() ? "(none)" : event->description);
+
+            eventDetails.append(details);
+        }
+    }
+
+    if (!eventDetails.isEmpty())
+    {
+        QString clipboardText = eventDetails.join("\n---\n\n");
+        QClipboard* clipboard = QGuiApplication::clipboard();
+        clipboard->setText(clipboardText);
+
+        // Note: Feedback shown in status bar (not implemented here, but could be added via signal)
+        qDebug() << QString("Copied %1 event(s) to clipboard").arg(selectedIds.size());
+    }
+}
+
+
+void TimelineSidePanel::sortEvents(QVector<TimelineEvent>& events) const
+{
+    switch (currentSortMode_)
+    {
+    case TimelineSettings::SortMode::ByDate:
+        std::sort(events.begin(), events.end(),
+                  [](const TimelineEvent& a, const TimelineEvent& b) {
+                      return a.startDate < b.startDate;
+                  });
+        break;
+
+    case TimelineSettings::SortMode::ByPriority:
+        std::sort(events.begin(), events.end(),
+                  [](const TimelineEvent& a, const TimelineEvent& b) {
+                      if (a.priority != b.priority)
+                      {
+                          return a.priority < b.priority; // Lower number = higher priority
+                      }
+                      return a.startDate < b.startDate; // Tie-breaker
+                  });
+        break;
+
+    case TimelineSettings::SortMode::ByType:
+        std::sort(events.begin(), events.end(),
+                  [](const TimelineEvent& a, const TimelineEvent& b) {
+                      if (a.type != b.type)
+                      {
+                          return a.type < b.type;
+                      }
+                      return a.startDate < b.startDate; // Tie-breaker
+                  });
+        break;
+    }
+}
+
+QVector<TimelineEvent> TimelineSidePanel::filterEvents(const QVector<TimelineEvent>& events) const
+{
+    QVector<TimelineEvent> filtered;
+
+    for (const auto& event : events)
+    {
+        if (activeFilterTypes_.contains(event.type))
+        {
+            filtered.append(event);
+        }
+    }
+
+    return filtered;
+}
+
+QVector<TimelineEvent> TimelineSidePanel::applySortAndFilter(const QVector<TimelineEvent>& events) const
+{
+    // First filter
+    QVector<TimelineEvent> result = filterEvents(events);
+
+    // Then sort
+    sortEvents(result);
+
+    return result;
+}
+
+QString TimelineSidePanel::sortModeToString(TimelineSettings::SortMode mode) const
+{
+    switch (mode)
+    {
+    case TimelineSettings::SortMode::ByDate: return "Date";
+    case TimelineSettings::SortMode::ByPriority: return "Priority";
+    case TimelineSettings::SortMode::ByType: return "Type";
+    default: return "Unknown";
+    }
+}
+
+QString TimelineSidePanel::eventTypeToString(TimelineEventType type) const
+{
+    switch (type)
+    {
+    case TimelineEventType_Meeting: return "Meeting";
+    case TimelineEventType_Action: return "Action";
+    case TimelineEventType_TestEvent: return "Test Event";
+    case TimelineEventType_DueDate: return "Due Date";
+    case TimelineEventType_Reminder: return "Reminder";
+    default: return "Unknown";
     }
 }

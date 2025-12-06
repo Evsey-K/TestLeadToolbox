@@ -1,13 +1,16 @@
 // TimelineSettings.cpp
 
+
 #include "TimelineSettings.h"
 #include <QDate>
+
 
 TimelineSettings& TimelineSettings::instance()
 {
     static TimelineSettings instance;
     return instance;
 }
+
 
 TimelineSettings::TimelineSettings()
     : settings_("TestLeadToolbox", "Timeline")
@@ -24,15 +27,18 @@ bool TimelineSettings::showDeleteConfirmation() const
     return settings_.value("Deletion/ShowConfirmation", DEFAULT_SHOW_DELETE_CONFIRMATION).toBool();
 }
 
+
 void TimelineSettings::setShowDeleteConfirmation(bool show)
 {
     settings_.setValue("Deletion/ShowConfirmation", show);
 }
 
+
 bool TimelineSettings::useSoftDelete() const
 {
     return settings_.value("Deletion/UseSoftDelete", DEFAULT_USE_SOFT_DELETE).toBool();
 }
+
 
 void TimelineSettings::setUseSoftDelete(bool useSoftDelete)
 {
@@ -48,15 +54,18 @@ int TimelineSettings::autoSaveInterval() const
     return settings_.value("AutoSave/Interval", DEFAULT_AUTOSAVE_INTERVAL).toInt();
 }
 
+
 void TimelineSettings::setAutoSaveInterval(int intervalMs)
 {
     settings_.setValue("AutoSave/Interval", intervalMs);
 }
 
+
 bool TimelineSettings::autoSaveEnabled() const
 {
     return settings_.value("AutoSave/Enabled", DEFAULT_AUTOSAVE_ENABLED).toBool();
 }
+
 
 void TimelineSettings::setAutoSaveEnabled(bool enabled)
 {
@@ -72,25 +81,30 @@ double TimelineSettings::defaultPixelsPerDay() const
     return settings_.value("View/PixelsPerDay", DEFAULT_PIXELS_PER_DAY).toDouble();
 }
 
+
 void TimelineSettings::setDefaultPixelsPerDay(double pixelsPerDay)
 {
     settings_.setValue("View/PixelsPerDay", pixelsPerDay);
 }
+
 
 int TimelineSettings::sidePanelWidth() const
 {
     return settings_.value("View/SidePanelWidth", DEFAULT_SIDE_PANEL_WIDTH).toInt();
 }
 
+
 void TimelineSettings::setSidePanelWidth(int width)
 {
     settings_.setValue("View/SidePanelWidth", width);
 }
 
+
 bool TimelineSettings::sidePanelVisible() const
 {
     return settings_.value("View/SidePanelVisible", DEFAULT_SIDE_PANEL_VISIBLE).toBool();
 }
+
 
 void TimelineSettings::setSidePanelVisible(bool visible)
 {
@@ -106,25 +120,30 @@ bool TimelineSettings::scrollAnimationEnabled() const
     return settings_.value("ScrollToDate/Animate", DEFAULT_SCROLL_ANIMATION_ENABLED).toBool();
 }
 
+
 void TimelineSettings::setScrollAnimationEnabled(bool enabled)
 {
     settings_.setValue("ScrollToDate/Animate", enabled);
 }
+
 
 bool TimelineSettings::scrollHighlightEnabled() const
 {
     return settings_.value("ScrollToDate/Highlight", DEFAULT_SCROLL_HIGHLIGHT_ENABLED).toBool();
 }
 
+
 void TimelineSettings::setScrollHighlightEnabled(bool enabled)
 {
     settings_.setValue("ScrollToDate/Highlight", enabled);
 }
 
+
 int TimelineSettings::scrollHighlightRange() const
 {
     return settings_.value("ScrollToDate/HighlightRange", DEFAULT_SCROLL_HIGHLIGHT_RANGE).toInt();
 }
+
 
 void TimelineSettings::setScrollHighlightRange(int days)
 {
@@ -140,10 +159,12 @@ bool TimelineSettings::todayTabUseCustomDate() const
     return settings_.value("TodayTab/UseCustomDate", DEFAULT_TODAY_TAB_USE_CUSTOM_DATE).toBool();
 }
 
+
 void TimelineSettings::setTodayTabUseCustomDate(bool useCustom)
 {
     settings_.setValue("TodayTab/UseCustomDate", useCustom);
 }
+
 
 QDate TimelineSettings::todayTabCustomDate() const
 {
@@ -159,6 +180,7 @@ QDate TimelineSettings::todayTabCustomDate() const
     return date.isValid() ? date : QDate::currentDate();
 }
 
+
 void TimelineSettings::setTodayTabCustomDate(const QDate& date)
 {
     if (date.isValid())
@@ -166,6 +188,7 @@ void TimelineSettings::setTodayTabCustomDate(const QDate& date)
         settings_.setValue("TodayTab/CustomDate", date.toString(Qt::ISODate));
     }
 }
+
 
 // ============================================================================
 // Lookahead Tab Preferences
@@ -176,6 +199,7 @@ int TimelineSettings::lookaheadTabDays() const
     return settings_.value("LookaheadTab/Days", DEFAULT_LOOKAHEAD_TAB_DAYS).toInt();
 }
 
+
 void TimelineSettings::setLookaheadTabDays(int days)
 {
     if (days >= 1 && days <= 365)  // Reasonable range
@@ -183,6 +207,7 @@ void TimelineSettings::setLookaheadTabDays(int days)
         settings_.setValue("LookaheadTab/Days", days);
     }
 }
+
 
 // ============================================================================
 // Reset & Utility
@@ -205,4 +230,65 @@ void TimelineSettings::resetToDefaults()
     setScrollHighlightRange(DEFAULT_SCROLL_HIGHLIGHT_RANGE);
     setTodayTabUseCustomDate(DEFAULT_TODAY_TAB_USE_CUSTOM_DATE);
     setLookaheadTabDays(DEFAULT_LOOKAHEAD_TAB_DAYS);
+}
+
+
+// ============================================================================
+// Side Panel Sort/Filter Preferences
+// ============================================================================
+
+TimelineSettings::SortMode TimelineSettings::sidePanelSortMode() const
+{
+    int mode = settings_.value("SidePanel/SortMode", DEFAULT_SORT_MODE).toInt();
+    return static_cast<SortMode>(mode);
+}
+
+
+void TimelineSettings::setSidePanelSortMode(SortMode mode)
+{
+    settings_.setValue("SidePanel/SortMode", static_cast<int>(mode));
+}
+
+
+QSet<TimelineEventType> TimelineSettings::sidePanelFilterTypes() const
+{
+    QSet<TimelineEventType> types;
+
+    // Load saved filter types
+    QStringList savedTypes = settings_.value("SidePanel/FilterTypes").toStringList();
+
+    if (savedTypes.isEmpty())
+    {
+        // Default: show all types
+        types.insert(TimelineEventType_Meeting);
+        types.insert(TimelineEventType_Action);
+        types.insert(TimelineEventType_TestEvent);
+        types.insert(TimelineEventType_DueDate);
+        types.insert(TimelineEventType_Reminder);
+    }
+    else
+    {
+        for (const QString& typeStr : savedTypes)
+        {
+            bool ok;
+            int typeInt = typeStr.toInt(&ok);
+            if (ok)
+            {
+                types.insert(static_cast<TimelineEventType>(typeInt));
+            }
+        }
+    }
+
+    return types;
+}
+
+
+void TimelineSettings::setSidePanelFilterTypes(const QSet<TimelineEventType>& types)
+{
+    QStringList typeStrings;
+    for (TimelineEventType type : types)
+    {
+        typeStrings.append(QString::number(static_cast<int>(type)));
+    }
+    settings_.setValue("SidePanel/FilterTypes", typeStrings);
 }

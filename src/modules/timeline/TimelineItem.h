@@ -70,6 +70,7 @@ public:
 signals:
     void editRequested(const QString& eventId);
     void deleteRequested(const QString& eventId);
+    void clicked(const QString& eventId);
 
 protected:
     QVariant itemChange(GraphicsItemChange change, const QVariant& value) override;     ///< @brief Override to handle drag completion and update model

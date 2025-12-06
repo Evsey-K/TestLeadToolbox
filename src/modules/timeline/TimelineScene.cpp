@@ -135,23 +135,7 @@ TimelineItem* TimelineScene::findItemByEventId(const QString& eventId) const
 
 void TimelineScene::mousePressEvent(QGraphicsSceneMouseEvent* event)
 {
-    // Detect item clicks and emit signal
-    QGraphicsItem* clickedItem = itemAt(event->scenePos(), QTransform());
-
-    if (clickedItem)
-    {
-        TimelineItem* timelineItem = dynamic_cast<TimelineItem*>(clickedItem);
-        if (timelineItem)
-        {
-            QString eventId = timelineItem->eventId();
-            if (!eventId.isEmpty())
-            {
-                emit itemClicked(eventId);
-            }
-        }
-    }
-
-    // Call base implementation to handle default behavior (selection, dragging, etc.)
+    // Just call base implementation - items will emit their own clicked signals
     QGraphicsScene::mousePressEvent(event);
 }
 
@@ -384,4 +368,5 @@ void TimelineScene::connectItemSignals(TimelineItem* item)
 {
     connect(item, &TimelineItem::editRequested, this, &TimelineScene::editEventRequested);
     connect(item, &TimelineItem::deleteRequested, this, &TimelineScene::deleteEventRequested);
+    connect(item, &TimelineItem::clicked, this, &TimelineScene::itemClicked);
 }

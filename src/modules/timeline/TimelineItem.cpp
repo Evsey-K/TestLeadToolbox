@@ -100,6 +100,12 @@ void TimelineItem::mousePressEvent(QGraphicsSceneMouseEvent* event)
         return;
     }
 
+    // Emit clicked signal FIRST (before any drag/resize logic)
+    if (!eventId_.isEmpty())
+    {
+        emit clicked(eventId_);
+    }
+
     dragStartPos_ = pos();
     resizeStartRect_ = rect_;
 
