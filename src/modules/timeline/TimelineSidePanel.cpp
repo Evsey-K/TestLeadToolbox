@@ -184,7 +184,70 @@ void TimelineSidePanel::showTodayTabContextMenu(const QPoint& globalPos)
 {
     QMenu menu(this);
 
-    // Date selection actions
+    // Common actions (at top)
+    QAction* refreshAction = menu.addAction("🔄 Refresh Tab");
+    refreshAction->setShortcut(QKeySequence::Refresh);
+
+    // Sort submenu
+    QMenu* sortMenu = menu.addMenu("📊 Sort By");
+    QAction* sortDateAction = sortMenu->addAction("📅 Date");
+    QAction* sortPriorityAction = sortMenu->addAction("⭐ Priority");
+    QAction* sortTypeAction = sortMenu->addAction("🏷️ Type");
+
+    // Mark current sort mode
+    sortDateAction->setCheckable(true);
+    sortPriorityAction->setCheckable(true);
+    sortTypeAction->setCheckable(true);
+
+    switch (currentSortMode_)
+    {
+    case TimelineSettings::SortMode::ByDate:
+        sortDateAction->setChecked(true);
+        break;
+    case TimelineSettings::SortMode::ByPriority:
+        sortPriorityAction->setChecked(true);
+        break;
+    case TimelineSettings::SortMode::ByType:
+        sortTypeAction->setChecked(true);
+        break;
+    }
+
+    // Filter submenu
+    QMenu* filterMenu = menu.addMenu("🔍 Filter By Type");
+    QAction* filterMeetingAction = filterMenu->addAction("Meeting");
+    QAction* filterActionAction = filterMenu->addAction("Action");
+    QAction* filterTestAction = filterMenu->addAction("Test Event");
+    QAction* filterDueDateAction = filterMenu->addAction("Due Date");
+    QAction* filterReminderAction = filterMenu->addAction("Reminder");
+    filterMenu->addSeparator();
+    QAction* filterAllAction = filterMenu->addAction("All Types...");
+
+    // Mark active filters
+    filterMeetingAction->setCheckable(true);
+    filterActionAction->setCheckable(true);
+    filterTestAction->setCheckable(true);
+    filterDueDateAction->setCheckable(true);
+    filterReminderAction->setCheckable(true);
+
+    filterMeetingAction->setChecked(activeFilterTypes_.contains(TimelineEventType_Meeting));
+    filterActionAction->setChecked(activeFilterTypes_.contains(TimelineEventType_Action));
+    filterTestAction->setChecked(activeFilterTypes_.contains(TimelineEventType_TestEvent));
+    filterDueDateAction->setChecked(activeFilterTypes_.contains(TimelineEventType_DueDate));
+    filterReminderAction->setChecked(activeFilterTypes_.contains(TimelineEventType_Reminder));
+
+    menu.addSeparator();
+
+    // Selection and clipboard actions
+    QAction* selectAllAction = menu.addAction("✅ Select All Events");
+    selectAllAction->setShortcut(QKeySequence::SelectAll);
+
+    QAction* copyAction = menu.addAction("📋 Copy Event Details");
+    copyAction->setShortcut(QKeySequence::Copy);
+    copyAction->setEnabled(!getSelectedEventIds(ui->todayList).isEmpty());
+
+    menu.addSeparator();
+
+    // Date selection actions (existing)
     QAction* setCurrentAction = menu.addAction("📅 Set to Current Date");
     setCurrentAction->setToolTip("Reset to today's actual date");
 
@@ -193,7 +256,7 @@ void TimelineSidePanel::showTodayTabContextMenu(const QPoint& globalPos)
 
     menu.addSeparator();
 
-    // Export submenu
+    // Export submenu (existing)
     QMenu* exportMenu = menu.addMenu("📤 Export");
     QAction* exportPdfAction = exportMenu->addAction("Export to PDF");
     QAction* exportCsvAction = exportMenu->addAction("Export to CSV");
@@ -202,7 +265,55 @@ void TimelineSidePanel::showTodayTabContextMenu(const QPoint& globalPos)
     // Execute menu and handle selection
     QAction* selected = menu.exec(globalPos);
 
-    if (selected == setCurrentAction)
+    if (selected == refreshAction)
+    {
+        onRefreshTab();
+    }
+    else if (selected == sortDateAction)
+    {
+        onSortByDate();
+    }
+    else if (selected == sortPriorityAction)
+    {
+        onSortByPriority();
+    }
+    else if (selected == sortTypeAction)
+    {
+        onSortByType();
+    }
+    else if (selected == filterMeetingAction)
+    {
+        toggleFilter(TimelineEventType_Meeting);
+    }
+    else if (selected == filterActionAction)
+    {
+        toggleFilter(TimelineEventType_Action);
+    }
+    else if (selected == filterTestAction)
+    {
+        toggleFilter(TimelineEventType_TestEvent);
+    }
+    else if (selected == filterDueDateAction)
+    {
+        toggleFilter(TimelineEventType_DueDate);
+    }
+    else if (selected == filterReminderAction)
+    {
+        toggleFilter(TimelineEventType_Reminder);
+    }
+    else if (selected == filterAllAction)
+    {
+        onFilterByType(); // Shows dialog for batch selection
+    }
+    else if (selected == selectAllAction)
+    {
+        onSelectAllEvents();
+    }
+    else if (selected == copyAction)
+    {
+        onCopyEventDetails();
+    }
+    else if (selected == setCurrentAction)
     {
         onSetToCurrentDate();
     }
