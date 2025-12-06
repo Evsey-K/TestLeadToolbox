@@ -404,8 +404,8 @@ QString ArchivedEventsDialog::eventTypeToString(TimelineEventType type) const
     case TimelineEventType_Meeting: return "Meeting";
     case TimelineEventType_Action: return "Action";
     case TimelineEventType_TestEvent: return "Test Event";
-    case TimelineEventType_DueDate: return "Due Date";
     case TimelineEventType_Reminder: return "Reminder";
+    case TimelineEventType_JiraTicket: return "Jira Ticket";
     default: return "Unknown";
     }
 }
