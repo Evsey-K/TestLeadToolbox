@@ -292,6 +292,30 @@ signals:
      */
     void lanesRecalculated();
 
+    /**
+     * @brief Emitted when version dates change
+     * @param start New version start date
+     * @param end New version end date
+     */
+    void versionDatesChanged(const QDate& start, const QDate& end);
+
+    /**
+     * @brief Emitted when all events are cleared from the model
+     */
+    void eventsCleared();
+
+    /**
+     * @brief Emitted when an event is archived (soft delete)
+     * @param eventId ID of the archived event
+     */
+    void eventArchived(const QString& eventId);
+
+    /**
+     * @brief Emitted when an archived event is restored
+     * @param eventId ID of the restored event
+     */
+    void eventRestored(const QString& eventId);
+
 private:
     /**
      * @brief Assigns lanes to all events to prevent visual overlap
@@ -301,11 +325,11 @@ private:
     /**
      * @brief Generates a unique event ID
      */
-    QString generateEventId();
+    QString generateEventId() const;
 
-    QDate versionStart_;        ///< Version start date boundary
-    QDate versionEnd_;          ///< Version end date boundary
-    QVector<TimelineEvent> events_;         ///< Active events
-    QVector<TimelineEvent> archivedEvents_; ///< Archived events
-    int maxLane_ = 0;           ///< Maximum lane number in use
+    QDate versionStart_;                        ///< Version start date boundary
+    QDate versionEnd_;                          ///< Version end date boundary
+    QVector<TimelineEvent> events_;             ///< Active events
+    QVector<TimelineEvent> archivedEvents_;     ///< Archived events
+    int maxLane_ = 0;                           ///< Maximum lane number in use
 };

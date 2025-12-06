@@ -578,24 +578,46 @@ void TimelineModule::onScrollToDate()
 
 void TimelineModule::onEditEventRequested(const QString& eventId)
 {
+    const TimelineEvent* event = model_->getEvent(eventId);
+    if (!event)
+    {
+        qWarning() << "Cannot edit event: event not found" << eventId;
+        return;
+    }
+
     EditEventDialog dialog(eventId, model_,
                            model_->versionStartDate(),
                            model_->versionEndDate(),
                            this);
 
+    // ========== ADD SIGNAL CONNECTION FOR DELETE ==========
+    bool deleteRequested = false;
+    connect(&dialog, &EditEventDialog::deleteRequested, [&deleteRequested]() {
+        deleteRequested = true;
+    });
+
     int result = dialog.exec();
+
+    // ========== REPLACE THE OLD ENUM CHECK WITH THIS ==========
+    if (deleteRequested)
+    {
+        // User clicked Delete button in the dialog
+        onDeleteEventClicked(eventId);
+        return;
+    }
 
     if (result == QDialog::Accepted)
     {
+        // User clicked Save - update the event
         TimelineEvent updatedEvent = dialog.getEvent();
-        // NEW: Use command instead of direct model call
-        undoStack_->push(new UpdateEventCommand(model_, eventId, updatedEvent));
-        statusLabel_->setText(QString("Event '%1' updated").arg(updatedEvent.title));
+
+        if (!model_->updateEvent(eventId, updatedEvent))
+        {
+            QMessageBox::warning(this, "Update Failed",
+                                 "Failed to update event. Please try again.");
+        }
     }
-    else if (result == EditEventDialog::DeleteRequested)
-    {
-        deleteEvent(eventId);
-    }
+    // If result == QDialog::Rejected, user clicked Cancel - do nothing
 }
 
 

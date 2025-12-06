@@ -519,21 +519,21 @@ void TimelineSidePanel::showAllEventsTabContextMenu(const QPoint& globalPos)
     QAction* filterMeetingAction = filterMenu->addAction("Meeting");
     QAction* filterActionAction = filterMenu->addAction("Action");
     QAction* filterTestAction = filterMenu->addAction("Test Event");
-    QAction* filterDueDateAction = filterMenu->addAction("Due Date");
     QAction* filterReminderAction = filterMenu->addAction("Reminder");
+    QAction* filterJiraAction = filterMenu->addAction("Jira Ticket");
     QAction* filterAllAction = filterMenu->addAction("All Types");
 
     filterMeetingAction->setCheckable(true);
     filterActionAction->setCheckable(true);
     filterTestAction->setCheckable(true);
-    filterDueDateAction->setCheckable(true);
     filterReminderAction->setCheckable(true);
+    filterJiraAction->setCheckable(true);
 
     filterMeetingAction->setChecked(activeFilterTypes_.contains(TimelineEventType_Meeting));
     filterActionAction->setChecked(activeFilterTypes_.contains(TimelineEventType_Action));
     filterTestAction->setChecked(activeFilterTypes_.contains(TimelineEventType_TestEvent));
     filterReminderAction->setChecked(activeFilterTypes_.contains(TimelineEventType_Reminder));
-    filterDueDateAction->setChecked(activeFilterTypes_.contains(TimelineEventType_JiraTicket));
+    filterJiraAction->setChecked(activeFilterTypes_.contains(TimelineEventType_JiraTicket));
 
     menu.addSeparator();
 
