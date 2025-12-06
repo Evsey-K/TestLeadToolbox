@@ -125,6 +125,13 @@ private:
     // Event Details methods
     void clearEventDetails();
     void updateEventDetails(const TimelineEvent& event);
+    void clearTypeSpecificFields();                                 ///< @brief Clear type-specific field displays
+    void displayMeetingDetails(const TimelineEvent& event);         ///< @brief Display Meeting-specific details
+    void displayActionDetails(const TimelineEvent& event);          ///< @brief Display Action-specific details
+    void displayTestEventDetails(const TimelineEvent& event);       ///< @brief Display Test Event-specific details
+    void displayReminderDetails(const TimelineEvent& event);        ///< @brief Display Reminder-specific details
+    void displayJiraTicketDetails(const TimelineEvent& event);      ///< @brief Display Jira Ticket-specific details
+    void displayGenericDetails(const TimelineEvent& event);         ///< @brief Display generic details for unknown types
 
     // Helper methods
     void populateListWidget(QListWidget* listWidget, const QVector<TimelineEvent>& events);

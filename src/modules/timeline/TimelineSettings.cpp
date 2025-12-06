@@ -263,8 +263,8 @@ QSet<TimelineEventType> TimelineSettings::sidePanelFilterTypes() const
         types.insert(TimelineEventType_Meeting);
         types.insert(TimelineEventType_Action);
         types.insert(TimelineEventType_TestEvent);
-        types.insert(TimelineEventType_DueDate);
         types.insert(TimelineEventType_Reminder);
+        types.insert(TimelineEventType_JiraTicket);
     }
     else
     {

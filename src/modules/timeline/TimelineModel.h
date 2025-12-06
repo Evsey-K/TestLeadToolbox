@@ -1,40 +1,91 @@
 // TimelineModel.h
 
-
 #pragma once
 #include <QObject>
 #include <QVector>
 #include <QDate>
+#include <QTime>
+#include <QDateTime>
 #include <QString>
 #include <QColor>
 #include <QMap>
-
 
 // Forward declarations
 using TimelineEventType = int;
 constexpr TimelineEventType TimelineEventType_Meeting = 0;
 constexpr TimelineEventType TimelineEventType_Action = 1;
 constexpr TimelineEventType TimelineEventType_TestEvent = 2;
-constexpr TimelineEventType TimelineEventType_DueDate = 3;
+// TimelineEventType_DueDate = 3;  // REMOVED in favor of unified Action type
 constexpr TimelineEventType TimelineEventType_Reminder = 4;
-
+constexpr TimelineEventType TimelineEventType_JiraTicket = 5;  // NEW
 
 /**
  * @struct TimelineEvent
- * @brief Represents a single timeline event with collision avoidance support
+ * @brief Extended timeline event structure with type-specific fields
+ *
+ * This structure supports multiple event types with dynamic field usage:
+ * - Common fields: Used by all event types
+ * - Type-specific fields: Only populated for relevant event types
+ *
+ * Field Usage by Type:
+ *
+ * Meeting:
+ *   - title, startDate, endDate, startTime, endTime, location,
+ *     participants, priority, description
+ *
+ * Action:
+ *   - title, startDate, startTime, dueDateTime, status, priority, description
+ *
+ * Test Event:
+ *   - title, startDate, endDate, testCategory, preparationChecklist,
+ *     priority, description
+ *
+ * Reminder:
+ *   - title, reminderDateTime, recurringRule, description
+ *
+ * Jira Ticket:
+ *   - title, jiraKey, jiraSummary, jiraType, jiraStatus, startDate,
+ *     endDate (as due date), priority, description
  */
 struct TimelineEvent
 {
-    QString id;                 ///< Unuqie identifier for the event
+    // ========== COMMON FIELDS (All Event Types) ==========
+    QString id;                 ///< Unique identifier for the event
     TimelineEventType type;     ///< Type of timeline event
-    QDate startDate;            ///< Start date of the event
-    QDate endDate;              ///< End date of the event (same as start for single-day events)
     QString title;              ///< Display title of the event
     QString description;        ///< Detailed description of the event
     QColor color;               ///< Visual color based on type
-    int priority = 0;           ///< Prioty level (0-5, lower = more important)
+    int priority = 0;           ///< Priority level (0-5, lower = more important)
     int lane = 0;               ///< Vertical lane for collision avoidance
-    bool archived = false;      ///<
+    bool archived = false;      ///< Soft-delete flag
+
+    // ========== DATE/TIME FIELDS ==========
+    QDate startDate;            ///< Start date (used by most types)
+    QDate endDate;              ///< End date (used by multi-day events)
+    QTime startTime;            ///< Start time (Meeting, Action)
+    QTime endTime;              ///< End time (Meeting)
+    QDateTime reminderDateTime; ///< Reminder datetime (Reminder)
+    QDateTime dueDateTime;      ///< Due datetime (Action)
+
+    // ========== MEETING-SPECIFIC FIELDS ==========
+    QString location;           ///< Physical location or virtual link
+    QString participants;       ///< Comma-separated participant list
+
+    // ========== ACTION-SPECIFIC FIELDS ==========
+    QString status;             ///< Status: Not Started, In Progress, Blocked, Completed
+
+    // ========== REMINDER-SPECIFIC FIELDS ==========
+    QString recurringRule;      ///< Recurrence rule: Daily, Weekly, Monthly
+
+    // ========== TEST EVENT-SPECIFIC FIELDS ==========
+    QString testCategory;       ///< Category: Dry Run, Preliminary, Formal
+    QMap<QString, bool> preparationChecklist;  ///< Checklist items with completion status
+
+    // ========== JIRA TICKET-SPECIFIC FIELDS ==========
+    QString jiraKey;            ///< Jira ticket key (e.g., ABC-123)
+    QString jiraSummary;        ///< Brief summary from Jira
+    QString jiraType;           ///< Type: Story, Bug, Task, Sub-task, Epic
+    QString jiraStatus;         ///< Status: To Do, In Progress, Done
 
     TimelineEvent() = default;
 
@@ -57,12 +108,36 @@ struct TimelineEvent
     /**
      * @brief Returns duration in days (inclusive)
      */
-    int cudrationDats() const
+    int durationDays() const
     {
         return startDate.daysTo(endDate) + 1;
     }
-};
 
+    /**
+     * @brief Get the primary display date range string
+     */
+    QString displayDateRange() const
+    {
+        if (type == TimelineEventType_Reminder)
+        {
+            return reminderDateTime.toString("yyyy-MM-dd HH:mm");
+        }
+        else if (type == TimelineEventType_Action && dueDateTime.isValid())
+        {
+            QString start = startDate.isValid() ? startDate.toString("yyyy-MM-dd") : "Not Set";
+            return QString("%1 → Due: %2").arg(start).arg(dueDateTime.toString("yyyy-MM-dd HH:mm"));
+        }
+        else if (startDate == endDate)
+        {
+            return startDate.toString("yyyy-MM-dd");
+        }
+        else
+        {
+            return QString("%1 to %2").arg(startDate.toString("yyyy-MM-dd"))
+            .arg(endDate.toString("yyyy-MM-dd"));
+        }
+    }
+};
 
 /**
  * @class TimelineModel
@@ -171,16 +246,34 @@ public:
      */
     static QColor colorForType(TimelineEventType type);
 
+    /**
+     * @brief Archive an event (soft delete)
+     */
     bool archiveEvent(const QString& eventId);
+
+    /**
+     * @brief Restore an archived event
+     */
     bool restoreEvent(const QString& eventId);
+
+    /**
+     * @brief Permanently delete an archived event
+     */
     bool permanentlyDeleteArchivedEvent(const QString& eventId);
+
+    /**
+     * @brief Get an archived event by ID
+     */
     const TimelineEvent* getArchivedEvent(const QString& eventId) const;
+
+    /**
+     * @brief Get all archived events
+     */
     QVector<TimelineEvent> getAllArchivedEvents() const;
-    int archivedEventCount() const { return archivedEvents_.size(); }
 
 signals:
     /**
-     * @brief Emitted when a new event is added
+     * @brief Emitted when an event is added
      */
     void eventAdded(const QString& eventId);
 
@@ -190,45 +283,29 @@ signals:
     void eventRemoved(const QString& eventId);
 
     /**
-     * @brief Emitted when an event's data changes
+     * @brief Emitted when an event is updated
      */
     void eventUpdated(const QString& eventId);
 
     /**
-     * @brief Emitted when all events are cleared
-     */
-    void eventsCleared();
-
-    /**
-     * @brief Emitted when lanes have been recalculated (Sprint 2)
+     * @brief Emitted when lanes are recalculated
      */
     void lanesRecalculated();
 
-    /**
-     * @brief Emitted when version date range changes
-     */
-    void versionDatesChanged(const QDate& start, const QDate& end);
-
-    void eventArchived(const QString& eventId);
-    void eventRestored(const QString& eventId);
-
 private:
     /**
-     * @brief Generates a unique event ID using UUID
-     */
-    QString generateEventId() const;
-
-    /**
-     * @brief Internal lane assignment using LaneAssigner algorithm
+     * @brief Assigns lanes to all events to prevent visual overlap
      */
     void assignLanesToEvents();
 
-    QVector<TimelineEvent> events_;             ///< All timeline events
-    QVector<TimelineEvent> archivedEvents_;     ///<
-    QDate versionStart_;                        ///< Start date of the software version
-    QDate versionEnd_;                          ///< End date of the software version
-    int nextEventIdCounter_ = 0;                ///< Counter for generating unique IDs
-    int maxLane_ = 0;                           ///< Maximum lane number currently used
+    /**
+     * @brief Generates a unique event ID
+     */
+    QString generateEventId();
+
+    QDate versionStart_;        ///< Version start date boundary
+    QDate versionEnd_;          ///< Version end date boundary
+    QVector<TimelineEvent> events_;         ///< Active events
+    QVector<TimelineEvent> archivedEvents_; ///< Archived events
+    int maxLane_ = 0;           ///< Maximum lane number in use
 };
-
-

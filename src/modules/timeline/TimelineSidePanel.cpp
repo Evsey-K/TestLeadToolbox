@@ -217,8 +217,8 @@ void TimelineSidePanel::showTodayTabContextMenu(const QPoint& globalPos)
     QAction* filterMeetingAction = filterMenu->addAction("Meeting");
     QAction* filterActionAction = filterMenu->addAction("Action");
     QAction* filterTestAction = filterMenu->addAction("Test Event");
-    QAction* filterDueDateAction = filterMenu->addAction("Due Date");
     QAction* filterReminderAction = filterMenu->addAction("Reminder");
+    QAction* filterJiraAction = filterMenu->addAction("Jira Ticket");
     filterMenu->addSeparator();
     QAction* filterAllAction = filterMenu->addAction("All Types...");
 
@@ -226,14 +226,14 @@ void TimelineSidePanel::showTodayTabContextMenu(const QPoint& globalPos)
     filterMeetingAction->setCheckable(true);
     filterActionAction->setCheckable(true);
     filterTestAction->setCheckable(true);
-    filterDueDateAction->setCheckable(true);
     filterReminderAction->setCheckable(true);
+    filterJiraAction->setCheckable(true);
 
     filterMeetingAction->setChecked(activeFilterTypes_.contains(TimelineEventType_Meeting));
     filterActionAction->setChecked(activeFilterTypes_.contains(TimelineEventType_Action));
     filterTestAction->setChecked(activeFilterTypes_.contains(TimelineEventType_TestEvent));
-    filterDueDateAction->setChecked(activeFilterTypes_.contains(TimelineEventType_DueDate));
     filterReminderAction->setChecked(activeFilterTypes_.contains(TimelineEventType_Reminder));
+    filterJiraAction->setChecked(activeFilterTypes_.contains(TimelineEventType_JiraTicket));
 
     menu.addSeparator();
 
@@ -293,13 +293,13 @@ void TimelineSidePanel::showTodayTabContextMenu(const QPoint& globalPos)
     {
         toggleFilter(TimelineEventType_TestEvent);
     }
-    else if (selected == filterDueDateAction)
-    {
-        toggleFilter(TimelineEventType_DueDate);
-    }
     else if (selected == filterReminderAction)
     {
         toggleFilter(TimelineEventType_Reminder);
+    }
+    else if (selected == filterJiraAction)
+    {
+        toggleFilter(TimelineEventType_JiraTicket);
     }
     else if (selected == filterAllAction)
     {
@@ -372,21 +372,21 @@ void TimelineSidePanel::showLookaheadTabContextMenu(const QPoint& globalPos)
     QAction* filterMeetingAction = filterMenu->addAction("Meeting");
     QAction* filterActionAction = filterMenu->addAction("Action");
     QAction* filterTestAction = filterMenu->addAction("Test Event");
-    QAction* filterDueDateAction = filterMenu->addAction("Due Date");
     QAction* filterReminderAction = filterMenu->addAction("Reminder");
+    QAction* filterJiraAction = filterMenu->addAction("Jira Ticket");
     QAction* filterAllAction = filterMenu->addAction("All Types");
 
     filterMeetingAction->setCheckable(true);
     filterActionAction->setCheckable(true);
     filterTestAction->setCheckable(true);
-    filterDueDateAction->setCheckable(true);
     filterReminderAction->setCheckable(true);
+    filterJiraAction->setCheckable(true);
 
     filterMeetingAction->setChecked(activeFilterTypes_.contains(TimelineEventType_Meeting));
     filterActionAction->setChecked(activeFilterTypes_.contains(TimelineEventType_Action));
     filterTestAction->setChecked(activeFilterTypes_.contains(TimelineEventType_TestEvent));
-    filterDueDateAction->setChecked(activeFilterTypes_.contains(TimelineEventType_DueDate));
     filterReminderAction->setChecked(activeFilterTypes_.contains(TimelineEventType_Reminder));
+    filterJiraAction->setChecked(activeFilterTypes_.contains(TimelineEventType_JiraTicket));
 
     menu.addSeparator();
 
@@ -444,13 +444,13 @@ void TimelineSidePanel::showLookaheadTabContextMenu(const QPoint& globalPos)
     {
         toggleFilter(TimelineEventType_TestEvent);
     }
-    else if (selected == filterDueDateAction)
-    {
-        toggleFilter(TimelineEventType_DueDate);
-    }
     else if (selected == filterReminderAction)
     {
         toggleFilter(TimelineEventType_Reminder);
+    }
+    else if (selected == filterJiraAction)
+    {
+        toggleFilter(TimelineEventType_JiraTicket);
     }
     else if (selected == filterAllAction)
     {
@@ -532,8 +532,8 @@ void TimelineSidePanel::showAllEventsTabContextMenu(const QPoint& globalPos)
     filterMeetingAction->setChecked(activeFilterTypes_.contains(TimelineEventType_Meeting));
     filterActionAction->setChecked(activeFilterTypes_.contains(TimelineEventType_Action));
     filterTestAction->setChecked(activeFilterTypes_.contains(TimelineEventType_TestEvent));
-    filterDueDateAction->setChecked(activeFilterTypes_.contains(TimelineEventType_DueDate));
     filterReminderAction->setChecked(activeFilterTypes_.contains(TimelineEventType_Reminder));
+    filterDueDateAction->setChecked(activeFilterTypes_.contains(TimelineEventType_JiraTicket));
 
     menu.addSeparator();
 
@@ -584,9 +584,9 @@ void TimelineSidePanel::showAllEventsTabContextMenu(const QPoint& globalPos)
     {
         toggleFilter(TimelineEventType_TestEvent);
     }
-    else if (selected == filterDueDateAction)
+    else if (selected == filterJiraAction)
     {
-        toggleFilter(TimelineEventType_DueDate);
+        toggleFilter(TimelineEventType_JiraTicket);
     }
     else if (selected == filterReminderAction)
     {
@@ -1094,16 +1094,359 @@ void TimelineSidePanel::adjustWidthToFitTabs()
 void TimelineSidePanel::displayEventDetails(const QString& eventId)
 {
     const TimelineEvent* event = model_->getEvent(eventId);
-
-    if (event)
+    if (!event)
     {
-        updateEventDetails(*event);
+        clearEventDetails();
+        return;
+    }
+
+    // === COMMON FIELDS (All Event Types) ===
+    ui->titleValueLabel->setText(event->title);
+    ui->typeValueLabel->setText(eventTypeToString(event->type));
+    ui->priorityValueLabel->setText(QString("Priority: %1").arg(event->priority));
+
+    // Clear previous type-specific content
+    clearTypeSpecificFields();
+
+    // === TYPE-SPECIFIC FIELDS ===
+    switch (event->type)
+    {
+    case TimelineEventType_Meeting:
+        displayMeetingDetails(*event);
+        break;
+
+    case TimelineEventType_Action:
+        displayActionDetails(*event);
+        break;
+
+    case TimelineEventType_TestEvent:
+        displayTestEventDetails(*event);
+        break;
+
+    case TimelineEventType_Reminder:
+        displayReminderDetails(*event);
+        break;
+
+    case TimelineEventType_JiraTicket:
+        displayJiraTicketDetails(*event);
+        break;
+
+    default:
+        displayGenericDetails(*event);
+        break;
+    }
+
+    // === DESCRIPTION (Common to all types) ===
+    if (!event->description.isEmpty())
+    {
+        ui->descriptionTextEdit->setPlainText(event->description);
     }
     else
     {
-        clearEventDetails();
+        ui->descriptionTextEdit->setPlainText("(No description)");
     }
+
+    // Show the details group box
+    ui->eventDetailsGroupBox->setVisible(true);
 }
+
+
+void TimelineSidePanel::clearTypeSpecificFields()
+{
+    // Clear any dynamically created labels/widgets for type-specific fields
+    // This ensures clean slate before displaying new event details
+
+    // If using dynamic labels, remove them here
+    // For simplicity, we'll use a rich text display approach
+}
+
+
+void TimelineSidePanel::displayMeetingDetails(const TimelineEvent& event)
+{
+    QString details;
+
+    // Date/Time Information
+    details += QString("<b>When:</b><br>");
+    details += QString("Start: %1 at %2<br>")
+                   .arg(event.startDate.toString("yyyy-MM-dd"))
+                   .arg(event.startTime.toString("HH:mm"));
+    details += QString("End: %1 at %2<br>")
+                   .arg(event.endDate.toString("yyyy-MM-dd"))
+                   .arg(event.endTime.toString("HH:mm"));
+
+    // Duration calculation
+    int durationDays = event.startDate.daysTo(event.endDate);
+    if (durationDays == 0)
+    {
+        QTime startTime = event.startTime;
+        QTime endTime = event.endTime;
+        int minutes = startTime.secsTo(endTime) / 60;
+        int hours = minutes / 60;
+        int mins = minutes % 60;
+        details += QString("Duration: %1h %2m<br>").arg(hours).arg(mins);
+    }
+    else
+    {
+        details += QString("Duration: %1 days<br>").arg(durationDays + 1);
+    }
+
+    details += "<br>";
+
+    // Location
+    if (!event.location.isEmpty())
+    {
+        details += QString("<b>Location:</b><br>%1<br><br>").arg(event.location);
+    }
+
+    // Participants
+    if (!event.participants.isEmpty())
+    {
+        details += QString("<b>Participants:</b><br>%1<br>").arg(event.participants);
+    }
+
+    ui->datesValueLabel->setText(details);
+}
+
+
+void TimelineSidePanel::displayActionDetails(const TimelineEvent& event)
+{
+    QString details;
+
+    // Start Date/Time
+    details += QString("<b>Started:</b><br>");
+    details += QString("%1 at %2<br><br>")
+                   .arg(event.startDate.toString("yyyy-MM-dd"))
+                   .arg(event.startTime.toString("HH:mm"));
+
+    // Due Date/Time
+    if (event.dueDateTime.isValid())
+    {
+        details += QString("<b>Due:</b><br>");
+        details += QString("%1<br><br>")
+                       .arg(event.dueDateTime.toString("yyyy-MM-dd HH:mm"));
+
+        // Calculate time remaining
+        QDateTime now = QDateTime::currentDateTime();
+        qint64 secsRemaining = now.secsTo(event.dueDateTime);
+
+        if (secsRemaining > 0)
+        {
+            int days = secsRemaining / 86400;
+            int hours = (secsRemaining % 86400) / 3600;
+            details += QString("<b>Time Remaining:</b><br>%1 days, %2 hours<br><br>")
+                           .arg(days).arg(hours);
+        }
+        else
+        {
+            details += QString("<b style='color:red;'>OVERDUE</b><br><br>");
+        }
+    }
+
+    // Status
+    if (!event.status.isEmpty())
+    {
+        QString statusColor = "black";
+        if (event.status == "Completed")
+            statusColor = "green";
+        else if (event.status == "In Progress")
+            statusColor = "blue";
+        else if (event.status == "Blocked")
+            statusColor = "red";
+
+        details += QString("<b>Status:</b> <span style='color:%1;'>%2</span><br>")
+                       .arg(statusColor)
+                       .arg(event.status);
+    }
+
+    ui->datesValueLabel->setText(details);
+}
+
+
+void TimelineSidePanel::displayTestEventDetails(const TimelineEvent& event)
+{
+    QString details;
+
+    // Date Range
+    details += QString("<b>Test Period:</b><br>");
+    details += QString("%1 to %2<br>")
+                   .arg(event.startDate.toString("yyyy-MM-dd"))
+                   .arg(event.endDate.toString("yyyy-MM-dd"));
+    details += QString("Duration: %1 days<br><br>")
+                   .arg(event.startDate.daysTo(event.endDate) + 1);
+
+    // Test Category
+    if (!event.testCategory.isEmpty())
+    {
+        details += QString("<b>Category:</b> %1<br><br>").arg(event.testCategory);
+    }
+
+    // Preparation Checklist
+    if (!event.preparationChecklist.isEmpty())
+    {
+        details += QString("<b>Preparation Checklist:</b><br>");
+
+        int completed = 0;
+        int total = event.preparationChecklist.size();
+
+        for (auto it = event.preparationChecklist.begin();
+             it != event.preparationChecklist.end(); ++it)
+        {
+            QString checkMark = it.value() ? "✓" : "☐";
+            QString style = it.value() ? "color:green;" : "color:gray;";
+            details += QString("<span style='%1'>%2 %3</span><br>")
+                           .arg(style)
+                           .arg(checkMark)
+                           .arg(it.key());
+
+            if (it.value())
+                completed++;
+        }
+
+        details += QString("<br><b>Progress:</b> %1/%2 completed (%3%)<br>")
+                       .arg(completed)
+                       .arg(total)
+                       .arg((completed * 100) / total);
+    }
+
+    ui->datesValueLabel->setText(details);
+}
+
+
+void TimelineSidePanel::displayReminderDetails(const TimelineEvent& event)
+{
+    QString details;
+
+    // Reminder Date/Time
+    if (event.reminderDateTime.isValid())
+    {
+        details += QString("<b>Reminder Set For:</b><br>");
+        details += QString("%1<br><br>")
+                       .arg(event.reminderDateTime.toString("yyyy-MM-dd HH:mm"));
+
+        // Calculate time until reminder
+        QDateTime now = QDateTime::currentDateTime();
+        qint64 secsUntil = now.secsTo(event.reminderDateTime);
+
+        if (secsUntil > 0)
+        {
+            int days = secsUntil / 86400;
+            int hours = (secsUntil % 86400) / 3600;
+            int mins = ((secsUntil % 86400) % 3600) / 60;
+
+            details += QString("<b>Time Until:</b><br>");
+            if (days > 0)
+                details += QString("%1 days, ").arg(days);
+            details += QString("%1 hours, %2 minutes<br><br>").arg(hours).arg(mins);
+        }
+        else
+        {
+            details += QString("<b style='color:red;'>Past due</b><br><br>");
+        }
+    }
+
+    // Recurring Rule
+    if (!event.recurringRule.isEmpty() && event.recurringRule != "None")
+    {
+        details += QString("<b>Recurrence:</b> %1<br>").arg(event.recurringRule);
+    }
+
+    ui->datesValueLabel->setText(details);
+}
+
+
+void TimelineSidePanel::displayJiraTicketDetails(const TimelineEvent& event)
+{
+    QString details;
+
+    // Jira Key (clickable if it's a URL pattern)
+    if (!event.jiraKey.isEmpty())
+    {
+        details += QString("<b>Jira Ticket:</b> %1<br><br>").arg(event.jiraKey);
+    }
+
+    // Summary
+    if (!event.jiraSummary.isEmpty())
+    {
+        details += QString("<b>Summary:</b><br>%1<br><br>").arg(event.jiraSummary);
+    }
+
+    // Type
+    if (!event.jiraType.isEmpty())
+    {
+        QString typeIcon = "📋";
+        if (event.jiraType == "Bug")
+            typeIcon = "🐛";
+        else if (event.jiraType == "Story")
+            typeIcon = "📖";
+        else if (event.jiraType == "Epic")
+            typeIcon = "🎯";
+        else if (event.jiraType == "Task")
+            typeIcon = "✅";
+
+        details += QString("<b>Type:</b> %1 %2<br>").arg(typeIcon).arg(event.jiraType);
+    }
+
+    // Status
+    if (!event.jiraStatus.isEmpty())
+    {
+        QString statusColor = "black";
+        if (event.jiraStatus == "Done")
+            statusColor = "green";
+        else if (event.jiraStatus == "In Progress")
+            statusColor = "blue";
+
+        details += QString("<b>Status:</b> <span style='color:%1;'>%2</span><br><br>")
+                       .arg(statusColor)
+                       .arg(event.jiraStatus);
+    }
+
+    // Date Range
+    details += QString("<b>Timeline:</b><br>");
+    details += QString("Start: %1<br>").arg(event.startDate.toString("yyyy-MM-dd"));
+    details += QString("Due: %1<br>").arg(event.endDate.toString("yyyy-MM-dd"));
+
+    // Calculate time remaining
+    QDate today = QDate::currentDate();
+    int daysRemaining = today.daysTo(event.endDate);
+
+    if (daysRemaining > 0)
+    {
+        details += QString("<b>Days Remaining:</b> %1<br>").arg(daysRemaining);
+    }
+    else if (daysRemaining < 0)
+    {
+        details += QString("<b style='color:red;'>Overdue by %1 days</b><br>").arg(-daysRemaining);
+    }
+    else
+    {
+        details += QString("<b style='color:orange;'>Due today!</b><br>");
+    }
+
+    ui->datesValueLabel->setText(details);
+}
+
+
+void TimelineSidePanel::displayGenericDetails(const TimelineEvent& event)
+{
+    // Fallback for any event type without specific handler
+    QString details;
+
+    details += QString("<b>Dates:</b><br>");
+    details += QString("%1 to %2<br>")
+                   .arg(event.startDate.toString("yyyy-MM-dd"))
+                   .arg(event.endDate.toString("yyyy-MM-dd"));
+
+    if (event.startDate.daysTo(event.endDate) > 0)
+    {
+        details += QString("Duration: %1 days<br>")
+        .arg(event.startDate.daysTo(event.endDate) + 1);
+    }
+
+    ui->datesValueLabel->setText(details);
+}
+
+
+
 
 
 void TimelineSidePanel::updateEventDetails(const TimelineEvent& event)
@@ -1111,13 +1454,14 @@ void TimelineSidePanel::updateEventDetails(const TimelineEvent& event)
     ui->titleValueLabel->setText(event.title);
 
     QString typeText;
+
     switch (event.type)
     {
     case TimelineEventType_Meeting: typeText = "Meeting"; break;
     case TimelineEventType_Action: typeText = "Action"; break;
     case TimelineEventType_TestEvent: typeText = "Test Event"; break;
-    case TimelineEventType_DueDate: typeText = "Deadline"; break;
     case TimelineEventType_Reminder: typeText = "Reminder"; break;
+    case TimelineEventType_JiraTicket: typeText = "Jira Ticket"; break;
     default: typeText = "Unknown"; break;
     }
     ui->typeValueLabel->setText(typeText);
@@ -1390,15 +1734,6 @@ void TimelineSidePanel::focusNextItem(QListWidget* listWidget, int deletedRow)
 }
 
 
-
-
-
-
-
-
-
-
-
 void TimelineSidePanel::toggleFilter(TimelineEventType type)
 {
     if (activeFilterTypes_.contains(type))
@@ -1437,12 +1772,14 @@ void TimelineSidePanel::onRefreshTab()
     }
 }
 
+
 void TimelineSidePanel::onSortByDate()
 {
     currentSortMode_ = TimelineSettings::SortMode::ByDate;
     TimelineSettings::instance().setSidePanelSortMode(currentSortMode_);
     refreshAllTabs();
 }
+
 
 void TimelineSidePanel::onSortByPriority()
 {
@@ -1451,12 +1788,14 @@ void TimelineSidePanel::onSortByPriority()
     refreshAllTabs();
 }
 
+
 void TimelineSidePanel::onSortByType()
 {
     currentSortMode_ = TimelineSettings::SortMode::ByType;
     TimelineSettings::instance().setSidePanelSortMode(currentSortMode_);
     refreshAllTabs();
 }
+
 
 void TimelineSidePanel::onFilterByType()
 {
@@ -1472,20 +1811,20 @@ void TimelineSidePanel::onFilterByType()
     QCheckBox* meetingCheck = new QCheckBox("Meeting");
     QCheckBox* actionCheck = new QCheckBox("Action");
     QCheckBox* testCheck = new QCheckBox("Test Event");
-    QCheckBox* dueDateCheck = new QCheckBox("Due Date");
     QCheckBox* reminderCheck = new QCheckBox("Reminder");
+    QCheckBox* jiraCheck = new QCheckBox("Jira Ticket");
 
     meetingCheck->setChecked(activeFilterTypes_.contains(TimelineEventType_Meeting));
     actionCheck->setChecked(activeFilterTypes_.contains(TimelineEventType_Action));
     testCheck->setChecked(activeFilterTypes_.contains(TimelineEventType_TestEvent));
-    dueDateCheck->setChecked(activeFilterTypes_.contains(TimelineEventType_DueDate));
     reminderCheck->setChecked(activeFilterTypes_.contains(TimelineEventType_Reminder));
+    jiraCheck->setChecked(activeFilterTypes_.contains(TimelineEventType_JiraTicket));
 
     layout->addWidget(meetingCheck);
     layout->addWidget(actionCheck);
     layout->addWidget(testCheck);
-    layout->addWidget(dueDateCheck);
     layout->addWidget(reminderCheck);
+    layout->addWidget(jiraCheck);
 
     layout->addStretch();
 
@@ -1507,16 +1846,16 @@ void TimelineSidePanel::onFilterByType()
         meetingCheck->setChecked(true);
         actionCheck->setChecked(true);
         testCheck->setChecked(true);
-        dueDateCheck->setChecked(true);
         reminderCheck->setChecked(true);
+        jiraCheck->setChecked(true);
     });
 
     connect(clearAllButton, &QPushButton::clicked, [&]() {
         meetingCheck->setChecked(false);
         actionCheck->setChecked(false);
         testCheck->setChecked(false);
-        dueDateCheck->setChecked(false);
         reminderCheck->setChecked(false);
+        jiraCheck->setChecked(false);
     });
 
     connect(okButton, &QPushButton::clicked, &dialog, &QDialog::accept);
@@ -1529,8 +1868,8 @@ void TimelineSidePanel::onFilterByType()
         if (meetingCheck->isChecked()) activeFilterTypes_.insert(TimelineEventType_Meeting);
         if (actionCheck->isChecked()) activeFilterTypes_.insert(TimelineEventType_Action);
         if (testCheck->isChecked()) activeFilterTypes_.insert(TimelineEventType_TestEvent);
-        if (dueDateCheck->isChecked()) activeFilterTypes_.insert(TimelineEventType_DueDate);
         if (reminderCheck->isChecked()) activeFilterTypes_.insert(TimelineEventType_Reminder);
+        if (jiraCheck->isChecked()) activeFilterTypes_.insert(TimelineEventType_JiraTicket);
 
         // Save to settings
         TimelineSettings::instance().setSidePanelFilterTypes(activeFilterTypes_);
@@ -1661,6 +2000,7 @@ QVector<TimelineEvent> TimelineSidePanel::filterEvents(const QVector<TimelineEve
     return filtered;
 }
 
+
 QVector<TimelineEvent> TimelineSidePanel::applySortAndFilter(const QVector<TimelineEvent>& events) const
 {
     // First filter
@@ -1671,6 +2011,7 @@ QVector<TimelineEvent> TimelineSidePanel::applySortAndFilter(const QVector<Timel
 
     return result;
 }
+
 
 QString TimelineSidePanel::sortModeToString(TimelineSettings::SortMode mode) const
 {
@@ -1683,15 +2024,22 @@ QString TimelineSidePanel::sortModeToString(TimelineSettings::SortMode mode) con
     }
 }
 
+
 QString TimelineSidePanel::eventTypeToString(TimelineEventType type) const
 {
     switch (type)
     {
-    case TimelineEventType_Meeting: return "Meeting";
-    case TimelineEventType_Action: return "Action";
-    case TimelineEventType_TestEvent: return "Test Event";
-    case TimelineEventType_DueDate: return "Due Date";
-    case TimelineEventType_Reminder: return "Reminder";
-    default: return "Unknown";
+    case TimelineEventType_Meeting:
+        return "Meeting";
+    case TimelineEventType_Action:
+        return "Action";
+    case TimelineEventType_TestEvent:
+        return "Test Event";
+    case TimelineEventType_Reminder:
+        return "Reminder";
+    case TimelineEventType_JiraTicket:
+        return "Jira Ticket";
+    default:
+        return "Unknown";
     }
 }

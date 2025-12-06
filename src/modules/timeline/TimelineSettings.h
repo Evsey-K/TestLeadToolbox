@@ -61,7 +61,7 @@ public:
 
     // Side Panel Sort/Filter Preferences
     enum class SortMode { ByDate, ByPriority, ByType };
-    enum class FilterMode { All, Meeting, Action, TestEvent, DueDate, Reminder };
+    enum class FilterMode { All, Meeting, Action, TestEvent, Reminder, JiraTicket };
 
     SortMode sidePanelSortMode() const;
     void setSidePanelSortMode(SortMode mode);

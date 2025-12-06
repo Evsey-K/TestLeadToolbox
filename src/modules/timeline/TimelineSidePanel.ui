@@ -198,12 +198,15 @@
            </property>
           </widget>
          </item>
-         <item row="2" column="1">
-          <widget class="QLabel" name="datesValueLabel">
-           <property name="text">
-            <string/>
-           </property>
-          </widget>
+         <item row="2" column="1">		 
+		 <widget class="QTextBrowser" name="detailsBrowser">
+		  <property name="readOnly">
+		   <bool>true</bool>
+		  </property>
+		  <property name="openExternalLinks">
+		   <bool>true</bool>
+		  </property>
+		 </widget>		  
          </item>
          <item row="3" column="0">
           <widget class="QLabel" name="priorityLabel">

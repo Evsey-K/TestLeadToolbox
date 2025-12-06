@@ -1,135 +1,486 @@
-// AddEventDialog.cpp
-
+// AddEventDialog.cpp - Complete Implementation with Dynamic Fields
 
 #include "AddEventDialog.h"
-#include "ui_AddEventDialog.h"
-#include "TimelineModel.h"
-#include <QMessageBox>
-
 
 AddEventDialog::AddEventDialog(const QDate& versionStart,
                                const QDate& versionEnd,
                                QWidget* parent)
     : QDialog(parent)
-    , ui(new Ui::AddEventDialog)
     , versionStart_(versionStart)
     , versionEnd_(versionEnd)
 {
-    // Initialize the UI from the .ui file - creates all widgets and layouts
-    ui->setupUi(this);
+    setupUi();
+    createFieldGroups();
 
-    // Populate the type combo box with all event types
-    // Must be done in code because we need to attach enum values as UserRole data
-    ui->typeCombo->addItem("Meeting", static_cast<int>(TimelineEventType_Meeting));
-    ui->typeCombo->addItem("Action", static_cast<int>(TimelineEventType_Action));
-    ui->typeCombo->addItem("Test Event", static_cast<int>(TimelineEventType_TestEvent));
-    ui->typeCombo->addItem("Due Date", static_cast<int>(TimelineEventType_DueDate));
-    ui->typeCombo->addItem("Reminder", static_cast<int>(TimelineEventType_Reminder));
-
-    // Configure start date picker with validation boundaries
-    // Default to today's date for convenience
-    // NOTE: calendarPopup and displayFormat should be set in .ui file properties
-    // Only set here if not already configured in Qt Designer
-    ui->startDateEdit->setDate(QDate::currentDate());
-    ui->startDateEdit->setMinimumDate(versionStart_);
-    ui->startDateEdit->setMaximumDate(versionEnd_);
-
-    // Configure end date picker with same boundaries
-    // Initially set to same date as start date
-    // NOTE: calendarPopup and displayFormat should be set in .ui file properties
-    // Only set here if not already configured in Qt Designer
-    ui->endDateEdit->setDate(QDate::currentDate());
-    ui->endDateEdit->setMinimumDate(versionStart_);
-    ui->endDateEdit->setMaximumDate(versionEnd_);
-
-    // Connect button signals to dialog slots
-    // Cancel button triggers standard QDialog rejection
-    connect(ui->cancelButton, &QPushButton::clicked, this, &QDialog::reject);
-
-    // Add button triggers custom validation before acceptance
-    connect(ui->addButton, &QPushButton::clicked, this, &AddEventDialog::validateAndAccept);
-
-    // Connect start date changes to handler that maintains date consistency
-    connect(ui->startDateEdit, &QDateEdit::dateChanged, this, &AddEventDialog::onStartDateChanged);
+    // Set default to Meeting type
+    typeCombo_->setCurrentIndex(0);
+    onTypeChanged(0);
 }
-
 
 AddEventDialog::~AddEventDialog()
 {
-    // Clean up the UI pointer allocated in the constructor
-    // Qt's parent-child hierarchy handles widget cleanup, but ui itself must be deleted
-    delete ui;
+    // Qt parent-child hierarchy handles cleanup
 }
 
+void AddEventDialog::setupUi()
+{
+    setWindowTitle("Add Timeline Event");
+    setMinimumWidth(500);
+
+    QVBoxLayout* mainLayout = new QVBoxLayout(this);
+
+    // === COMMON FIELDS SECTION ===
+    QGroupBox* commonGroup = new QGroupBox("Event Information");
+    QFormLayout* commonLayout = new QFormLayout(commonGroup);
+
+    // Type combo
+    typeCombo_ = new QComboBox();
+    typeCombo_->addItem("Meeting", TimelineEventType_Meeting);
+    typeCombo_->addItem("Action", TimelineEventType_Action);
+    typeCombo_->addItem("Test Event", TimelineEventType_TestEvent);
+    typeCombo_->addItem("Reminder", TimelineEventType_Reminder);
+    typeCombo_->addItem("Jira Ticket", TimelineEventType_JiraTicket);
+    commonLayout->addRow("Type:", typeCombo_);
+
+    // Title
+    titleEdit_ = new QLineEdit();
+    titleEdit_->setPlaceholderText("Enter event title...");
+    commonLayout->addRow("Title:", titleEdit_);
+
+    // Priority
+    prioritySpinner_ = new QSpinBox();
+    prioritySpinner_->setRange(0, 5);
+    prioritySpinner_->setValue(2);
+    prioritySpinner_->setToolTip("0 = Highest priority, 5 = Lowest priority");
+    commonLayout->addRow("Priority:", prioritySpinner_);
+
+    // Description
+    descriptionEdit_ = new QTextEdit();
+    descriptionEdit_->setPlaceholderText("Enter description...");
+    descriptionEdit_->setMaximumHeight(100);
+    commonLayout->addRow("Description:", descriptionEdit_);
+
+    mainLayout->addWidget(commonGroup);
+
+    // === TYPE-SPECIFIC FIELDS SECTION ===
+    fieldStack_ = new QStackedWidget();
+    mainLayout->addWidget(fieldStack_);
+
+    // === BUTTONS ===
+    QDialogButtonBox* buttonBox = new QDialogButtonBox(
+        QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+    mainLayout->addWidget(buttonBox);
+
+    // Connections
+    connect(typeCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &AddEventDialog::onTypeChanged);
+    connect(buttonBox, &QDialogButtonBox::accepted, this, &AddEventDialog::validateAndAccept);
+    connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
+}
+
+void AddEventDialog::createFieldGroups()
+{
+    fieldStack_->addWidget(createMeetingFields());        // Index 0
+    fieldStack_->addWidget(createActionFields());          // Index 1
+    fieldStack_->addWidget(createTestEventFields());       // Index 2
+    fieldStack_->addWidget(createReminderFields());        // Index 3
+    fieldStack_->addWidget(createJiraTicketFields());      // Index 4
+}
+
+QWidget* AddEventDialog::createMeetingFields()
+{
+    QWidget* widget = new QWidget();
+    QFormLayout* layout = new QFormLayout(widget);
+
+    // Start Date/Time
+    QHBoxLayout* startLayout = new QHBoxLayout();
+    meetingStartDate_ = new QDateEdit(QDate::currentDate());
+    meetingStartDate_->setCalendarPopup(true);
+    meetingStartDate_->setMinimumDate(versionStart_);
+    meetingStartDate_->setMaximumDate(versionEnd_);
+    meetingStartTime_ = new QTimeEdit(QTime(9, 0));
+    startLayout->addWidget(meetingStartDate_);
+    startLayout->addWidget(meetingStartTime_);
+    layout->addRow("Start:", startLayout);
+
+    // End Date/Time
+    QHBoxLayout* endLayout = new QHBoxLayout();
+    meetingEndDate_ = new QDateEdit(QDate::currentDate());
+    meetingEndDate_->setCalendarPopup(true);
+    meetingEndDate_->setMinimumDate(versionStart_);
+    meetingEndDate_->setMaximumDate(versionEnd_);
+    meetingEndTime_ = new QTimeEdit(QTime(10, 0));
+    endLayout->addWidget(meetingEndDate_);
+    endLayout->addWidget(meetingEndTime_);
+    layout->addRow("End:", endLayout);
+
+    // Location
+    locationEdit_ = new QLineEdit();
+    locationEdit_->setPlaceholderText("Physical location or virtual link");
+    layout->addRow("Location:", locationEdit_);
+
+    // Participants
+    participantsEdit_ = new QTextEdit();
+    participantsEdit_->setPlaceholderText("Enter attendee names/emails...");
+    participantsEdit_->setMaximumHeight(60);
+    layout->addRow("Participants:", participantsEdit_);
+
+    // Connect date change handler
+    connect(meetingStartDate_, &QDateEdit::dateChanged, [this](const QDate& date) {
+        if (meetingEndDate_->date() < date)
+            meetingEndDate_->setDate(date);
+    });
+
+    return widget;
+}
+
+QWidget* AddEventDialog::createActionFields()
+{
+    QWidget* widget = new QWidget();
+    QFormLayout* layout = new QFormLayout(widget);
+
+    // Start Date/Time
+    QHBoxLayout* startLayout = new QHBoxLayout();
+    actionStartDate_ = new QDateEdit(QDate::currentDate());
+    actionStartDate_->setCalendarPopup(true);
+    actionStartDate_->setMinimumDate(versionStart_);
+    actionStartDate_->setMaximumDate(versionEnd_);
+    actionStartTime_ = new QTimeEdit(QTime::currentTime());
+    startLayout->addWidget(actionStartDate_);
+    startLayout->addWidget(actionStartTime_);
+    layout->addRow("Start:", startLayout);
+
+    // Due Date/Time
+    actionDueDateTime_ = new QDateTimeEdit(QDateTime::currentDateTime().addDays(7));
+    actionDueDateTime_->setCalendarPopup(true);
+    actionDueDateTime_->setDisplayFormat("yyyy-MM-dd HH:mm");
+    layout->addRow("Due:", actionDueDateTime_);
+
+    // Status
+    statusCombo_ = new QComboBox();
+    statusCombo_->addItems({"Not Started", "In Progress", "Blocked", "Completed"});
+    layout->addRow("Status:", statusCombo_);
+
+    return widget;
+}
+
+QWidget* AddEventDialog::createTestEventFields()
+{
+    QWidget* widget = new QWidget();
+    QFormLayout* layout = new QFormLayout(widget);
+
+    // Start Date
+    testStartDate_ = new QDateEdit(QDate::currentDate());
+    testStartDate_->setCalendarPopup(true);
+    testStartDate_->setMinimumDate(versionStart_);
+    testStartDate_->setMaximumDate(versionEnd_);
+    layout->addRow("Start Date:", testStartDate_);
+
+    // End Date
+    testEndDate_ = new QDateEdit(QDate::currentDate().addDays(1));
+    testEndDate_->setCalendarPopup(true);
+    testEndDate_->setMinimumDate(versionStart_);
+    testEndDate_->setMaximumDate(versionEnd_);
+    layout->addRow("End Date:", testEndDate_);
+
+    // Test Category
+    testCategoryCombo_ = new QComboBox();
+    testCategoryCombo_->addItems({"Dry Run", "Preliminary", "Formal"});
+    layout->addRow("Category:", testCategoryCombo_);
+
+    // Preparation Checklist
+    QGroupBox* checklistGroup = new QGroupBox("Preparation Checklist");
+    QVBoxLayout* checklistLayout = new QVBoxLayout(checklistGroup);
+
+    QStringList checklistItemNames = {
+        "IAVM Installation (C/U)",
+        "CM Software Audit (C/U)",
+        "Latest Build Installation (C/U)",
+        "Lab Configuration Verified (C/U)",
+        "Test Scenarios Prepared",
+        "Test Event Schedule Created",
+        "Test Binders Prepared",
+        "Issue Report Forms Prepared",
+        "TRR Slides Prepared",
+        "In-Brief Slides Prepared",
+        "Test Event Meetings Established"
+    };
+
+    for (const QString& itemName : checklistItemNames)
+    {
+        QCheckBox* checkbox = new QCheckBox(itemName);
+        checklistLayout->addWidget(checkbox);
+        checklistItems_[itemName] = checkbox;
+    }
+
+    layout->addRow(checklistGroup);
+
+    // Connect date change handler
+    connect(testStartDate_, &QDateEdit::dateChanged, [this](const QDate& date) {
+        if (testEndDate_->date() < date)
+            testEndDate_->setDate(date);
+    });
+
+    return widget;
+}
+
+QWidget* AddEventDialog::createReminderFields()
+{
+    QWidget* widget = new QWidget();
+    QFormLayout* layout = new QFormLayout(widget);
+
+    // Reminder Date/Time
+    reminderDateTime_ = new QDateTimeEdit(QDateTime::currentDateTime().addDays(1));
+    reminderDateTime_->setCalendarPopup(true);
+    reminderDateTime_->setDisplayFormat("yyyy-MM-dd HH:mm");
+    layout->addRow("Reminder:", reminderDateTime_);
+
+    // Recurring Rule
+    recurringRuleCombo_ = new QComboBox();
+    recurringRuleCombo_->addItems({"None", "Daily", "Weekly", "Monthly"});
+    layout->addRow("Recurrence:", recurringRuleCombo_);
+
+    return widget;
+}
+
+QWidget* AddEventDialog::createJiraTicketFields()
+{
+    QWidget* widget = new QWidget();
+    QFormLayout* layout = new QFormLayout(widget);
+
+    // Jira Key
+    jiraKeyEdit_ = new QLineEdit();
+    jiraKeyEdit_->setPlaceholderText("e.g., ABC-123");
+    layout->addRow("Ticket Key:", jiraKeyEdit_);
+
+    // Jira Summary
+    jiraSummaryEdit_ = new QLineEdit();
+    jiraSummaryEdit_->setPlaceholderText("Brief summary from Jira");
+    layout->addRow("Summary:", jiraSummaryEdit_);
+
+    // Jira Type
+    jiraTypeCombo_ = new QComboBox();
+    jiraTypeCombo_->addItems({"Story", "Bug", "Task", "Sub-task", "Epic"});
+    layout->addRow("Type:", jiraTypeCombo_);
+
+    // Jira Status
+    jiraStatusCombo_ = new QComboBox();
+    jiraStatusCombo_->addItems({"To Do", "In Progress", "Done"});
+    layout->addRow("Status:", jiraStatusCombo_);
+
+    // Start Date
+    jiraStartDate_ = new QDateEdit(QDate::currentDate());
+    jiraStartDate_->setCalendarPopup(true);
+    jiraStartDate_->setMinimumDate(versionStart_);
+    jiraStartDate_->setMaximumDate(versionEnd_);
+    layout->addRow("Start Date:", jiraStartDate_);
+
+    // Due Date
+    jiraDueDate_ = new QDateEdit(QDate::currentDate().addDays(14));
+    jiraDueDate_->setCalendarPopup(true);
+    jiraDueDate_->setMinimumDate(versionStart_);
+    jiraDueDate_->setMaximumDate(versionEnd_);
+    layout->addRow("Due Date:", jiraDueDate_);
+
+    return widget;
+}
+
+void AddEventDialog::onTypeChanged(int index)
+{
+    TimelineEventType type = static_cast<TimelineEventType>(
+        typeCombo_->itemData(index).toInt());
+
+    showFieldsForType(type);
+}
+
+void AddEventDialog::showFieldsForType(TimelineEventType type)
+{
+    switch (type)
+    {
+    case TimelineEventType_Meeting:
+        fieldStack_->setCurrentIndex(0);
+        break;
+    case TimelineEventType_Action:
+        fieldStack_->setCurrentIndex(1);
+        break;
+    case TimelineEventType_TestEvent:
+        fieldStack_->setCurrentIndex(2);
+        break;
+    case TimelineEventType_Reminder:
+        fieldStack_->setCurrentIndex(3);
+        break;
+    case TimelineEventType_JiraTicket:
+        fieldStack_->setCurrentIndex(4);
+        break;
+    }
+
+    // Adjust dialog size to fit content
+    adjustSize();
+}
 
 void AddEventDialog::onStartDateChanged(const QDate& date)
 {
-    // Update end date minimum to match the new start date
-    // This prevents end date from being earlier than start date
-    ui->endDateEdit->setMinimumDate(date);
-
-    // If the current end date is now invalid (earlier than new start date),
-    // automatically adjust it to match the start date
-    if(ui->endDateEdit->date() < date)
-    {
-        ui->endDateEdit->setDate(date);
-    }
+    // This method can be used for additional date validation if needed
 }
 
+bool AddEventDialog::validateCommonFields()
+{
+    if (titleEdit_->text().trimmed().isEmpty())
+    {
+        QMessageBox::warning(this, "Validation Error",
+                             "Please enter a title for the event.");
+        titleEdit_->setFocus();
+        return false;
+    }
+    return true;
+}
+
+bool AddEventDialog::validateTypeSpecificFields()
+{
+    TimelineEventType type = static_cast<TimelineEventType>(
+        typeCombo_->currentData().toInt());
+
+    switch (type)
+    {
+    case TimelineEventType_Meeting:
+        if (meetingEndDate_->date() < meetingStartDate_->date())
+        {
+            QMessageBox::warning(this, "Validation Error",
+                                 "End date cannot be before start date.");
+            return false;
+        }
+        if (meetingEndDate_->date() == meetingStartDate_->date() &&
+            meetingEndTime_->time() < meetingStartTime_->time())
+        {
+            QMessageBox::warning(this, "Validation Error",
+                                 "End time cannot be before start time on the same day.");
+            return false;
+        }
+        break;
+
+    case TimelineEventType_Action:
+        if (actionDueDateTime_->dateTime() < QDateTime(actionStartDate_->date(), actionStartTime_->time()))
+        {
+            QMessageBox::warning(this, "Validation Error",
+                                 "Due date/time must be after start date/time.");
+            return false;
+        }
+        break;
+
+    case TimelineEventType_TestEvent:
+        if (testEndDate_->date() < testStartDate_->date())
+        {
+            QMessageBox::warning(this, "Validation Error",
+                                 "End date cannot be before start date.");
+            return false;
+        }
+        break;
+
+    case TimelineEventType_JiraTicket:
+        if (jiraKeyEdit_->text().trimmed().isEmpty())
+        {
+            QMessageBox::warning(this, "Validation Error",
+                                 "Please enter a Jira ticket key.");
+            jiraKeyEdit_->setFocus();
+            return false;
+        }
+        if (jiraDueDate_->date() < jiraStartDate_->date())
+        {
+            QMessageBox::warning(this, "Validation Error",
+                                 "Due date cannot be before start date.");
+            return false;
+        }
+        break;
+
+    // Other types have no specific validation requirements
+    default:
+        break;
+    }
+
+    return true;
+}
 
 void AddEventDialog::validateAndAccept()
 {
-    // Validate title field - must not be empty or whitespace-only
-    if(ui->titleEdit->text().trimmed().isEmpty())
+    if (!validateCommonFields() || !validateTypeSpecificFields())
     {
-        QMessageBox::warning(this, "Validation Error", "Please enter a title for the event.");
-        ui->titleEdit->setFocus();
-
         return;
     }
-
-    // Validate date range (redundant check, but good practice)
-    if(ui->startDateEdit->date() > ui->endDateEdit->date())
-    {
-        QMessageBox::warning(this, "Validation Error", "Start date must be before or equal to end date.");
-        ui->startDateEdit->setFocus();
-
-        return;
-    }
-
-    // All validation passed - accept the dialog with QDialog::Accepted status
     accept();
 }
-
 
 TimelineEvent AddEventDialog::getEvent() const
 {
     TimelineEvent event;
 
-    // Extract type from combo box user data (stored as integer enum value)
-    int typeValue = ui->typeCombo->currentData().toInt();
-    event.type = static_cast<TimelineEventType>(typeValue);
+    // Populate common fields
+    populateCommonFields(event);
 
-    // Extract and trim title text to remove leading/trailing whitespace
-    event.title = ui->titleEdit->text().trimmed();
+    // Populate type-specific fields
+    populateTypeSpecificFields(event);
 
-    // Extract date range from date picker widgets
-    event.startDate = ui->startDateEdit->date();
-    event.endDate = ui->endDateEdit->date();
-
-    // Extract and trim description - may be empty if user left it blank
-    event.description = ui->descriptionEdit->toPlainText().trimmed();
-
-    // Extract priority value from spinner (0-5 range)
-    event.priority = ui->prioritySpinner->value();
-
-    // Assign color based on event type using model's color mapping
-    // This ensures consistent color coding across the application
+    // Assign color based on type
     event.color = TimelineModel::colorForType(event.type);
-
-    // Leave ID empty - the model will generate a unique ID when adding the event
-    event.id = QString();
 
     return event;
 }
 
+void AddEventDialog::populateCommonFields(TimelineEvent& event) const
+{
+    event.type = static_cast<TimelineEventType>(typeCombo_->currentData().toInt());
+    event.title = titleEdit_->text().trimmed();
+    event.priority = prioritySpinner_->value();
+    event.description = descriptionEdit_->toPlainText().trimmed();
+}
+
+void AddEventDialog::populateTypeSpecificFields(TimelineEvent& event) const
+{
+    switch (event.type)
+    {
+    case TimelineEventType_Meeting:
+        event.startDate = meetingStartDate_->date();
+        event.endDate = meetingEndDate_->date();
+        event.startTime = meetingStartTime_->time();
+        event.endTime = meetingEndTime_->time();
+        event.location = locationEdit_->text().trimmed();
+        event.participants = participantsEdit_->toPlainText().trimmed();
+        break;
+
+    case TimelineEventType_Action:
+        event.startDate = actionStartDate_->date();
+        event.startTime = actionStartTime_->time();
+        event.dueDateTime = actionDueDateTime_->dateTime();
+        event.status = statusCombo_->currentText();
+        // Set endDate to due date for timeline rendering
+        event.endDate = event.dueDateTime.date();
+        break;
+
+    case TimelineEventType_TestEvent:
+        event.startDate = testStartDate_->date();
+        event.endDate = testEndDate_->date();
+        event.testCategory = testCategoryCombo_->currentText();
+        // Collect checklist items
+        for (auto it = checklistItems_.begin(); it != checklistItems_.end(); ++it)
+        {
+            event.preparationChecklist[it.key()] = it.value()->isChecked();
+        }
+        break;
+
+    case TimelineEventType_Reminder:
+        event.reminderDateTime = reminderDateTime_->dateTime();
+        event.recurringRule = recurringRuleCombo_->currentText();
+        // Set startDate and endDate to reminder date for timeline rendering
+        event.startDate = event.reminderDateTime.date();
+        event.endDate = event.reminderDateTime.date();
+        break;
+
+    case TimelineEventType_JiraTicket:
+        event.jiraKey = jiraKeyEdit_->text().trimmed();
+        event.jiraSummary = jiraSummaryEdit_->text().trimmed();
+        event.jiraType = jiraTypeCombo_->currentText();
+        event.jiraStatus = jiraStatusCombo_->currentText();
+        event.startDate = jiraStartDate_->date();
+        event.endDate = jiraDueDate_->date();  // Due date as end date
+        break;
+    }
+}
