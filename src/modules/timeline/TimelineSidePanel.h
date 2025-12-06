@@ -136,6 +136,7 @@ private:
     void setupListWidgetContextMenu(QListWidget* listWidget);
     void showListItemContextMenu(QListWidget* listWidget, const QPoint& pos);
     void setupTabBarContextMenu();
+    void toggleFilter(TimelineEventType type);                                                  ///< @brief Toggle a specific event type in the filter
     void sortEvents(QVector<TimelineEvent>& events) const;                                      ///< @brief Sort events according to current sort mode
     QVector<TimelineEvent> filterEvents(const QVector<TimelineEvent>& events) const;            ///< @brief Filter events according to active filter types
     QVector<TimelineEvent> applySortAndFilter(const QVector<TimelineEvent>& events) const;      ///< @brief Apply both sorting and filtering to events
