@@ -40,7 +40,7 @@ bool TimelineExporter::exportToCSV(const TimelineModel* model, const QString& fi
     return true;
 }
 
-QPixmap TimelineExporter::exportToImage(TimelineScene* scene, bool useSceneRect)
+QPixmap TimelineExporter::renderSceneToPixmap(QGraphicsScene* scene, bool fullScene)
 {
     if (!scene)
     {
@@ -48,7 +48,7 @@ QPixmap TimelineExporter::exportToImage(TimelineScene* scene, bool useSceneRect)
     }
 
     // Determine render area
-    QRectF renderRect = useSceneRect ?
+    QRectF renderRect = fullScene ?
                             scene->sceneRect() : scene->itemsBoundingRect();
 
     // Create pixmap with appropriate size
