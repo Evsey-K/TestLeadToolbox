@@ -3,6 +3,7 @@
 
 #pragma once
 #include <QGraphicsView>
+#include <QPoint>
 
 
 class TimelineScene;
@@ -17,7 +18,8 @@ class TimelineCoordinateMapper;
  * Provides:
  * - Viewport for the timeline scene
  * - Horizontal zoom via mouse wheel
- * - Drag-based panning
+ * - Left-click rubber band selection for multi-select
+ * - Right-click drag-based panning
  * - Scene management
  */
 class TimelineView : public QGraphicsView {
@@ -45,7 +47,24 @@ protected:
      */
     void wheelEvent(QWheelEvent* event) override;
 
+    /**
+     * @brief Override to handle right-click panning start
+     */
+    void mousePressEvent(QMouseEvent* event) override;
+
+    /**
+     * @brief Override to handle right-click panning movement
+     */
+    void mouseMoveEvent(QMouseEvent* event) override;
+
+    /**
+     * @brief Override to handle right-click panning end
+     */
+    void mouseReleaseEvent(QMouseEvent* event) override;
+
 private:
     TimelineScene* scene_;
     TimelineCoordinateMapper* mapper_;
+    bool isPanning_;
+    QPoint lastPanPoint_;
 };

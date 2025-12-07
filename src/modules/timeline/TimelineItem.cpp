@@ -1,5 +1,4 @@
-// TimelineItem.cpp (Enhanced)
-
+// TimelineItem.cpp (Enhanced with Multi-Drag Support - FIXED)
 
 #include "TimelineItem.h"
 #include "TimelineModel.h"
@@ -7,12 +6,12 @@
 #include <QGraphicsSceneContextMenuEvent>
 #include <QGraphicsSceneMouseEvent>
 #include <QGraphicsSceneHoverEvent>
+#include <QGraphicsScene>
 #include <QCursor>
 #include <QPainter>
 #include <QPen>
 #include <QMenu>
 #include <QStyleOptionGraphicsItem>
-
 
 TimelineItem::TimelineItem(const QRectF& rect, QGraphicsItem* parent)
     : QGraphicsObject(parent)
@@ -33,14 +32,12 @@ TimelineItem::TimelineItem(const QRectF& rect, QGraphicsItem* parent)
     setAcceptHoverEvents(true);
 }
 
-
 QRectF TimelineItem::boundingRect() const
 {
     // Return the rectangle bounds (with some padding for pen width)
     return rect_.adjusted(-pen_.widthF()/2, -pen_.widthF()/2,
                           pen_.widthF()/2, pen_.widthF()/2);
 }
-
 
 void TimelineItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* /*widget*/)
 {
@@ -60,7 +57,6 @@ void TimelineItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* opti
     }
 }
 
-
 void TimelineItem::setRect(const QRectF& rect)
 {
     prepareGeometryChange();
@@ -68,29 +64,46 @@ void TimelineItem::setRect(const QRectF& rect)
     update();
 }
 
-
 QVariant TimelineItem::itemChange(GraphicsItemChange change, const QVariant& value)
 {
-    if (change == ItemPositionHasChanged && scene() && isDragging_ && !isResizing_)
+    if (change == ItemPositionHasChanged && scene())
     {
-        // Constrain movement to horizontal only (preserve lane)
-        QPointF newPos = value.toPointF();
+        if (isMultiDragging_)
+        {
+            // Multi-drag: move all selected items together
+            QPointF newPos = value.toPointF();
+            QPointF delta = newPos - dragStartPos_;
 
-        // Keep Y position fixed to preserve lane assignment
-        newPos.setY(dragStartPos_.y());
+            // Keep Y position fixed to preserve lane assignment
+            delta.setY(0);
 
-        return newPos;
-    }
+            // Move all other selected items by the same delta
+            for (auto it = multiDragStartPositions_.constBegin();
+                 it != multiDragStartPositions_.constEnd(); ++it)
+            {
+                QGraphicsItem* item = it.key();
+                if (item != this) // Don't move self again
+                {
+                    QPointF newItemPos = it.value() + delta;
+                    newItemPos.setY(it.value().y()); // Preserve Y
+                    item->setPos(newItemPos);
+                }
+            }
 
-    if (change == ItemPositionHasChanged && isDragging_)
-    {
-        // Position changed during drag - could update preview here
-        // For now, we'll update the model only on release
+            // Return corrected position with Y preserved
+            return QPointF(newPos.x(), dragStartPos_.y());
+        }
+        else if (isDragging_ && !isResizing_)
+        {
+            // Single-drag: constrain movement to horizontal only (preserve lane)
+            QPointF newPos = value.toPointF();
+            newPos.setY(dragStartPos_.y());
+            return newPos;
+        }
     }
 
     return QGraphicsObject::itemChange(change, value);
 }
-
 
 void TimelineItem::mousePressEvent(QGraphicsSceneMouseEvent* event)
 {
@@ -100,12 +113,7 @@ void TimelineItem::mousePressEvent(QGraphicsSceneMouseEvent* event)
         return;
     }
 
-    // Emit clicked signal FIRST (before any drag/resize logic)
-    if (!eventId_.isEmpty())
-    {
-        emit clicked(eventId_);
-    }
-
+    // Store starting position
     dragStartPos_ = pos();
     resizeStartRect_ = rect_;
 
@@ -122,11 +130,40 @@ void TimelineItem::mousePressEvent(QGraphicsSceneMouseEvent* event)
         }
     }
 
-    // Otherwise, it's a drag operation
-    isDragging_ = true;
+    // Check if this item is already selected and there are multiple selections
+    if (isSelected() && scene())
+    {
+        QList<QGraphicsItem*> selectedItems = scene()->selectedItems();
+        if (selectedItems.size() > 1)
+        {
+            // Multi-drag mode: record all selected item positions
+            isMultiDragging_ = true;
+            multiDragStartPositions_.clear();
+
+            for (QGraphicsItem* item : selectedItems)
+            {
+                multiDragStartPositions_[item] = item->pos();
+            }
+        }
+        else
+        {
+            // Single item selected
+            isDragging_ = true;
+        }
+    }
+    else
+    {
+        // Item not selected or no multi-selection
+        // Emit clicked signal to allow selection management
+        if (!eventId_.isEmpty())
+        {
+            emit clicked(eventId_);
+        }
+        isDragging_ = true;
+    }
+
     QGraphicsObject::mousePressEvent(event);
 }
-
 
 void TimelineItem::mouseMoveEvent(QGraphicsSceneMouseEvent* event)
 {
@@ -164,78 +201,129 @@ void TimelineItem::mouseMoveEvent(QGraphicsSceneMouseEvent* event)
         return;
     }
 
-    if (isDragging_)
+    if (isDragging_ || isMultiDragging_)
     {
         QGraphicsObject::mouseMoveEvent(event);
     }
 }
 
-
 void TimelineItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event)
 {
-    if (event->button() != Qt::LeftButton)
+    if (event->button() == Qt::LeftButton)
     {
-        QGraphicsObject::mouseReleaseEvent(event);
-        return;
-    }
-
-    if (isResizing_)
-    {
-        // Resize operation completed
-        isResizing_ = false;
-        activeHandle_ = None;
-
-        // Check if size actually changed
-        if (rect_ != resizeStartRect_)
+        if (isResizing_)
         {
-            updateModelFromSize();
+            // Resize completed - update model with new dates
+            isResizing_ = false;
+            activeHandle_ = None;
+
+            // Check if size actually changed
+            if (rect_ != resizeStartRect_)
+            {
+                updateModelFromSize();
+            }
+
+            event->accept();
+            return;
         }
 
-        event->accept();
-        return;
-    }
-
-    if (isDragging_)
-    {
-        // Drag operation completed
-        isDragging_ = false;
-
-        // Check if position actually changed
-        if (pos() != dragStartPos_)
+        if (isMultiDragging_)
         {
-            updateModelFromPosition();
+            // Multi-drag completed - update all moved items in batch
+            isMultiDragging_ = false;
+
+            if (model_ && mapper_ && scene())
+            {
+                QList<QGraphicsItem*> selectedItems = scene()->selectedItems();
+
+                // CRITICAL FIX: Block signals to prevent premature scene updates
+                bool wasBlocked = model_->blockSignals(true);
+
+                // Update all items in the model without triggering scene updates
+                for (QGraphicsItem* item : selectedItems)
+                {
+                    TimelineItem* timelineItem = qgraphicsitem_cast<TimelineItem*>(item);
+                    if (timelineItem && !timelineItem->eventId().isEmpty())
+                    {
+                        // Get current event data
+                        const TimelineEvent* currentEvent = model_->getEvent(timelineItem->eventId());
+                        if (!currentEvent)
+                        {
+                            continue;
+                        }
+
+                        // Calculate new start date based on current X position
+                        QPointF itemPos = timelineItem->pos();
+                        QRectF itemRect = timelineItem->rect();
+                        double xPos = itemRect.x() + itemPos.x();
+                        QDate newStartDate = mapper_->xToDate(xPos);
+
+                        // Calculate duration to preserve event length
+                        int duration = currentEvent->startDate.daysTo(currentEvent->endDate);
+                        QDate newEndDate = newStartDate.addDays(duration);
+
+                        // Create updated event
+                        TimelineEvent updatedEvent = *currentEvent;
+                        updatedEvent.startDate = newStartDate;
+                        updatedEvent.endDate = newEndDate;
+
+                        // Update model (signals are blocked, so no scene update yet)
+                        model_->updateEvent(timelineItem->eventId(), updatedEvent);
+                    }
+                }
+
+                // Re-enable signals and trigger a single lane recalculation
+                model_->blockSignals(wasBlocked);
+
+                // Manually trigger lane recalculation for all updated events
+                // This will cause a single scene rebuild instead of one per item
+                if (!selectedItems.isEmpty())
+                {
+                    // The model should recalculate lanes and emit appropriate signals
+                    // We can force this by calling a method or emitting a signal
+                    // For now, we'll emit the lanesRecalculated signal if available
+                    // Or we can call updateEvent on the first item with signals enabled
+
+                    // Option 1: If model has a method to force lane recalculation
+                    // model_->recalculateLanes(); // <-- If this method exists
+
+                    // Option 2: Trigger one update with signals enabled
+                    TimelineItem* firstItem = qgraphicsitem_cast<TimelineItem*>(selectedItems.first());
+                    if (firstItem && !firstItem->eventId().isEmpty())
+                    {
+                        const TimelineEvent* evt = model_->getEvent(firstItem->eventId());
+                        if (evt)
+                        {
+                            // This will trigger lane recalculation and scene update
+                            model_->updateEvent(firstItem->eventId(), *evt);
+                        }
+                    }
+                }
+            }
+
+            multiDragStartPositions_.clear();
+            event->accept();
+            return;
+        }
+
+        if (isDragging_)
+        {
+            // Single drag completed - update model with new dates
+            isDragging_ = false;
+
+            // Check if position actually changed
+            if (pos() != dragStartPos_)
+            {
+                updateModelFromPosition();
+            }
+
+            event->accept();
+            return;
         }
     }
 
     QGraphicsObject::mouseReleaseEvent(event);
 }
-
-
-void TimelineItem::hoverMoveEvent(QGraphicsSceneHoverEvent* event)
-{
-    if (!resizable_ || isResizing_ || isDragging_)
-    {
-        QGraphicsObject::hoverMoveEvent(event);
-        return;
-    }
-
-    ResizeHandle handle = getResizeHandle(event->pos());
-    updateCursor(handle);
-
-    QGraphicsObject::hoverMoveEvent(event);
-}
-
-
-void TimelineItem::hoverLeaveEvent(QGraphicsSceneHoverEvent* event)
-{
-    if (!isDragging_ && !isResizing_)
-    {
-        unsetCursor();
-    }
-
-    QGraphicsObject::hoverLeaveEvent(event);
-}
-
 
 void TimelineItem::updateModelFromPosition()
 {
@@ -267,7 +355,6 @@ void TimelineItem::updateModelFromPosition()
     // Update model (this will trigger lane recalculation and eventUpdated signal)
     model_->updateEvent(eventId_, updatedEvent);
 }
-
 
 void TimelineItem::updateModelFromSize()
 {
@@ -303,53 +390,40 @@ void TimelineItem::updateModelFromSize()
     model_->updateEvent(eventId_, updatedEvent);
 }
 
-
-TimelineItem::ResizeHandle TimelineItem::getResizeHandle(const QPointF& pos) const
+void TimelineItem::hoverMoveEvent(QGraphicsSceneHoverEvent* event)
 {
-    // Check left edge
-    if (qAbs(pos.x() - rect_.left()) <= RESIZE_HANDLE_WIDTH)
+    if (!resizable_)
     {
-        return LeftEdge;
+        QGraphicsObject::hoverMoveEvent(event);
+        return;
     }
 
-    // Check right edge
-    if (qAbs(pos.x() - rect_.right()) <= RESIZE_HANDLE_WIDTH)
+    ResizeHandle handle = getResizeHandle(event->pos());
+
+    if (handle == LeftEdge || handle == RightEdge)
     {
-        return RightEdge;
-    }
-
-    return None;
-}
-
-
-void TimelineItem::updateCursor(ResizeHandle handle)
-{
-    switch (handle)
-    {
-    case LeftEdge:
-    case RightEdge:
         setCursor(Qt::SizeHorCursor);
-        break;
-    case None:
-    default:
-        unsetCursor();
-        break;
     }
+    else
+    {
+        setCursor(Qt::ArrowCursor);
+    }
+
+    QGraphicsObject::hoverMoveEvent(event);
 }
 
+void TimelineItem::hoverLeaveEvent(QGraphicsSceneHoverEvent* event)
+{
+    setCursor(Qt::ArrowCursor);
+    QGraphicsObject::hoverLeaveEvent(event);
+}
 
 void TimelineItem::contextMenuEvent(QGraphicsSceneContextMenuEvent* event)
 {
-    // Create context menu (Phase 5)
     QMenu menu;
-
     QAction* editAction = menu.addAction("✏️ Edit Event");
-    editAction->setToolTip("Open edit dialog for this event");
-
     menu.addSeparator();
-
     QAction* deleteAction = menu.addAction("🗑️ Delete Event");
-    deleteAction->setToolTip("Delete this event permanently");
 
     QFont deleteFont = deleteAction->font();
     deleteFont.setBold(true);
@@ -367,4 +441,25 @@ void TimelineItem::contextMenuEvent(QGraphicsSceneContextMenuEvent* event)
     }
 
     event->accept();
+}
+
+TimelineItem::ResizeHandle TimelineItem::getResizeHandle(const QPointF& pos) const
+{
+    if (!resizable_)
+    {
+        return None;
+    }
+
+    const double edgeThreshold = 8.0; // pixels
+
+    if (qAbs(pos.x() - rect_.left()) < edgeThreshold)
+    {
+        return LeftEdge;
+    }
+    else if (qAbs(pos.x() - rect_.right()) < edgeThreshold)
+    {
+        return RightEdge;
+    }
+
+    return None;
 }

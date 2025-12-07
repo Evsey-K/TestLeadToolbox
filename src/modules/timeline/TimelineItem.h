@@ -1,17 +1,15 @@
 // TimelineItem.h
 
-
 #pragma once
 #include <QGraphicsObject>
 #include <QBrush>
 #include <QPen>
 #include <QString>
 #include <QRectF>
-
+#include <QMap>
 
 class TimelineModel;
 class TimelineCoordinateMapper;
-
 
 /**
  * @class TimelineItem
@@ -24,6 +22,7 @@ class TimelineCoordinateMapper;
  * - Updates the model when dragging or resizing completes
  * - Supports selection highlighting
  * - Shows appropriate cursors for resize handles
+ * - Supports multi-item drag operations
  *
  * NOTE: Inherits from QGraphicsObject (not QGraphicsRectItem) to support signals/slots
  */
@@ -98,6 +97,10 @@ private:
     bool isResizing_ = false;                               ///< Whether currently being resized
     bool resizable_ = true;                                 ///< Whether item can be resized
     ResizeHandle activeHandle_ = None;                      ///< Currently active resize handle
+
+    // Multi-drag support
+    bool isMultiDragging_ = false;                          ///< Whether performing multi-item drag
+    QMap<QGraphicsItem*, QPointF> multiDragStartPositions_; ///< Starting positions of all selected items
 
     // Rectangle geometry and styling
     QRectF rect_;                                           ///< Item's rectangle

@@ -1,19 +1,19 @@
 // TimelineView.cpp
 
-
 #include "TimelineView.h"
 #include "TimelineScene.h"
 #include "TimelineModel.h"
 #include "TimelineCoordinateMapper.h"
 #include <QWheelEvent>
+#include <QMouseEvent>
 #include <QScrollBar>
-
 
 TimelineView::TimelineView(TimelineModel* model,
                            TimelineCoordinateMapper* mapper,
                            QWidget* parent)
     : QGraphicsView(parent)
     , mapper_(mapper)
+    , isPanning_(false)
 {
     // Create the scene with model and mapper
     scene_ = new TimelineScene(model, mapper, this);
@@ -28,13 +28,12 @@ TimelineView::TimelineView(TimelineModel* model,
     // Enable horizontal scroll bar
     setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 
-    // Enable hand drag mode for panning
-    setDragMode(QGraphicsView::ScrollHandDrag);
+    // Enable rubber band selection for left-click drag
+    setDragMode(QGraphicsView::RubberBandDrag);
 
     // Set background color
     setBackgroundBrush(QBrush(QColor(250, 250, 250)));
 }
-
 
 void TimelineView::wheelEvent(QWheelEvent* event)
 {
@@ -45,7 +44,6 @@ void TimelineView::wheelEvent(QWheelEvent* event)
         const double zoomFactor = 1.15;
 
         // Get the mouse position in widget coordinates
-        // Qt 6 uses position() which returns QPointF
         QPointF widgetPos = event->position();
 
         // Convert to scene coordinates before zoom
@@ -71,30 +69,76 @@ void TimelineView::wheelEvent(QWheelEvent* event)
         // Convert same widget position to scene coordinates after zoom
         QPointF scenePosAfter = mapToScene(widgetPos.toPoint());
 
-        // Calculate how much the scene position shifted
+        // Calculate the difference and adjust the scroll bars
         QPointF delta = scenePosAfter - scenePosBefore;
+        horizontalScrollBar()->setValue(horizontalScrollBar()->value() + delta.x());
+        verticalScrollBar()->setValue(verticalScrollBar()->value() + delta.y());
 
-        // Adjust horizontal scroll to compensate for the shift
-        // This keeps the point under the mouse cursor stationary
-        int newScrollValue = horizontalScrollBar()->value() + static_cast<int>(delta.x());
-        horizontalScrollBar()->setValue(newScrollValue);
-
+        event->accept();
+    }
+    else if (event->modifiers() & Qt::ShiftModifier)
+    {
+        // Shift + Mouse wheel: Vertical scrolling
+        int delta = event->angleDelta().y();
+        verticalScrollBar()->setValue(verticalScrollBar()->value() - delta);
         event->accept();
     }
     else
     {
-        // Plain wheel = horizontal scroll
-        // Calculate scroll amount (typical wheel delta is ±120)
+        // Default: Horizontal scrolling (no modifiers)
         int delta = event->angleDelta().y();
-
-        // Convert wheel delta to scroll pixels
-        // Negative delta = scroll right, positive = scroll left (natural scrolling)
-        int scrollAmount = -delta;
-
-        // Apply scroll to horizontal scrollbar
-        int currentValue = horizontalScrollBar()->value();
-        horizontalScrollBar()->setValue(currentValue + scrollAmount);
-
+        horizontalScrollBar()->setValue(horizontalScrollBar()->value() - delta);
         event->accept();
     }
+}
+
+void TimelineView::mousePressEvent(QMouseEvent* event)
+{
+    if (event->button() == Qt::RightButton)
+    {
+        // Start right-click panning
+        isPanning_ = true;
+        lastPanPoint_ = event->pos();
+        setCursor(Qt::ClosedHandCursor);
+        event->accept();
+        return;
+    }
+
+    // For left-click, use default behavior (rubber band selection)
+    QGraphicsView::mousePressEvent(event);
+}
+
+void TimelineView::mouseMoveEvent(QMouseEvent* event)
+{
+    if (isPanning_)
+    {
+        // Calculate the delta movement
+        QPoint delta = event->pos() - lastPanPoint_;
+        lastPanPoint_ = event->pos();
+
+        // Pan the view by adjusting scroll bars
+        horizontalScrollBar()->setValue(horizontalScrollBar()->value() - delta.x());
+        verticalScrollBar()->setValue(verticalScrollBar()->value() - delta.y());
+
+        event->accept();
+        return;
+    }
+
+    // For left-click, use default behavior (rubber band selection)
+    QGraphicsView::mouseMoveEvent(event);
+}
+
+void TimelineView::mouseReleaseEvent(QMouseEvent* event)
+{
+    if (event->button() == Qt::RightButton && isPanning_)
+    {
+        // End right-click panning
+        isPanning_ = false;
+        setCursor(Qt::ArrowCursor);
+        event->accept();
+        return;
+    }
+
+    // For left-click, use default behavior (rubber band selection)
+    QGraphicsView::mouseReleaseEvent(event);
 }
