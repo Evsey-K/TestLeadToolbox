@@ -480,7 +480,13 @@ void TimelineItem::updateModelFromSize()
     double rightX = leftX + rect_.width();
 
     QDate newStartDate = mapper_->xToDate(leftX);
-    QDate newEndDate = mapper_->xToDate(rightX);
+    QDate newEndDate = mapper_->xToDate(rightX).addDays(-1);  // ← CRITICAL: Subtract 1 day because rightX represents start of next day
+
+    // Ensure at least 1-day duration
+    if (newEndDate < newStartDate)
+    {
+        newEndDate = newStartDate;
+    }
 
     // Create updated event
     TimelineEvent updatedEvent = *currentEvent;
