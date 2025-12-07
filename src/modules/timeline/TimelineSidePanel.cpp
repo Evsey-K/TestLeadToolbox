@@ -45,6 +45,12 @@ TimelineSidePanel::TimelineSidePanel(TimelineModel* model, TimelineView* view, Q
     ui->splitter->setStretchFactor(0, 7);
     ui->splitter->setStretchFactor(1, 3);
 
+    // Prevent event details pane from collapsing when dragging splitter
+    ui->splitter->setChildrenCollapsible(false);
+
+    // Set minimum height for event details pane to prevent it from being too small
+    ui->eventDetailsGroupBox->setMinimumHeight(220);
+
     // Hide details panel initially
     ui->eventDetailsGroupBox->setVisible(false);
 
@@ -1109,45 +1115,53 @@ void TimelineSidePanel::displayEventDetails(const QString& eventId)
     // Clear previous type-specific content
     clearTypeSpecificFields();
 
-    // Build details text combining type-specific info and description
+    // Build details text starting with description, then type-specific info
     QString detailsText;
 
+    // === DESCRIPTION FIRST (Common to all types) ===
+    if (!event->description.isEmpty())
+    {
+        detailsText = QString("<b>Description:</b><br>%1").arg(event->description);
+    }
+
     // === TYPE-SPECIFIC FIELDS ===
+    QString typeSpecificDetails;
+
     switch (event->type)
     {
     case TimelineEventType_Meeting:
-        detailsText = buildMeetingDetails(*event);
+        typeSpecificDetails = buildMeetingDetails(*event);
         break;
 
     case TimelineEventType_Action:
-        detailsText = buildActionDetails(*event);
+        typeSpecificDetails = buildActionDetails(*event);
         break;
 
     case TimelineEventType_TestEvent:
-        detailsText = buildTestEventDetails(*event);
+        typeSpecificDetails = buildTestEventDetails(*event);
         break;
 
     case TimelineEventType_Reminder:
-        detailsText = buildReminderDetails(*event);
+        typeSpecificDetails = buildReminderDetails(*event);
         break;
 
     case TimelineEventType_JiraTicket:
-        detailsText = buildJiraTicketDetails(*event);
+        typeSpecificDetails = buildJiraTicketDetails(*event);
         break;
 
     default:
-        detailsText = buildGenericDetails(*event);
+        typeSpecificDetails = buildGenericDetails(*event);
         break;
     }
 
-    // === ADD DESCRIPTION (Common to all types) ===
-    if (!event->description.isEmpty())
+    // Combine description and type-specific details with proper spacing
+    if (!typeSpecificDetails.isEmpty())
     {
         if (!detailsText.isEmpty())
         {
-            detailsText += "\n\n";
+            detailsText += "<br><br>";  // Add blank line between description and type-specific
         }
-        detailsText += QString("<b>Description:</b><br>%1").arg(event->description);
+        detailsText += typeSpecificDetails;
     }
 
     // Set the combined details text
@@ -1245,10 +1259,10 @@ QString TimelineSidePanel::buildActionDetails(const TimelineEvent& event)
         }
     }
 
-    // Assignee
-    if (!event.assignee.isEmpty())
+    // Status (if present)
+    if (!event.status.isEmpty())
     {
-        details += QString("<b>Assignee:</b><br>%1<br>").arg(event.assignee);
+        details += QString("<b>Status:</b><br>%1<br>").arg(event.status);
     }
 
     return details;
@@ -1264,22 +1278,26 @@ QString TimelineSidePanel::buildTestEventDetails(const TimelineEvent& event)
     details += QString("Start: %1<br>").arg(event.startDate.toString("yyyy-MM-dd"));
     details += QString("End: %1<br><br>").arg(event.endDate.toString("yyyy-MM-dd"));
 
-    // Test Type
-    if (!event.testType.isEmpty())
+    // Test Category
+    if (!event.testCategory.isEmpty())
     {
-        details += QString("<b>Test Type:</b><br>%1<br><br>").arg(event.testType);
+        details += QString("<b>Test Category:</b><br>%1<br><br>").arg(event.testCategory);
     }
 
-    // Environment
-    if (!event.environment.isEmpty())
+    // Preparation Checklist
+    if (!event.preparationChecklist.isEmpty())
     {
-        details += QString("<b>Environment:</b><br>%1<br><br>").arg(event.environment);
-    }
+        int completedCount = 0;
+        int totalCount = event.preparationChecklist.size();
 
-    // Test Lead
-    if (!event.testLead.isEmpty())
-    {
-        details += QString("<b>Test Lead:</b><br>%1<br>").arg(event.testLead);
+        for (bool completed : event.preparationChecklist.values())
+        {
+            if (completed) completedCount++;
+        }
+
+        details += QString("<b>Checklist Progress:</b><br>%1 / %2 completed<br>")
+                       .arg(completedCount)
+                       .arg(totalCount);
     }
 
     return details;
@@ -1290,48 +1308,55 @@ QString TimelineSidePanel::buildReminderDetails(const TimelineEvent& event)
 {
     QString details;
 
-    // Reminder Time
-    details += QString("<b>Reminder Date/Time:</b><br>");
-    details += QString("%1 at %2<br><br>")
-                   .arg(event.startDate.toString("yyyy-MM-dd"))
-                   .arg(event.startTime.toString("HH:mm"));
-
-    // Calculate time until reminder
-    QDateTime reminderTime(event.startDate, event.startTime);
-    QDateTime now = QDateTime::currentDateTime();
-    qint64 secsUntilReminder = now.secsTo(reminderTime);
-
-    if (secsUntilReminder > 0)
+    // Reminder DateTime
+    if (event.reminderDateTime.isValid())
     {
-        int days = secsUntilReminder / 86400;
-        int hours = (secsUntilReminder % 86400) / 3600;
-        int mins = ((secsUntilReminder % 86400) % 3600) / 60;
+        details += QString("<b>Reminder Date/Time:</b><br>");
+        details += QString("%1<br><br>")
+                       .arg(event.reminderDateTime.toString("yyyy-MM-dd HH:mm"));
 
-        if (days > 0)
+        // Calculate time until reminder
+        QDateTime now = QDateTime::currentDateTime();
+        qint64 secsUntilReminder = now.secsTo(event.reminderDateTime);
+
+        if (secsUntilReminder > 0)
         {
-            details += QString("<b>Time Until:</b><br>%1 days, %2 hours, %3 minutes<br>")
-            .arg(days)
+            int days = secsUntilReminder / 86400;
+            int hours = (secsUntilReminder % 86400) / 3600;
+            int mins = ((secsUntilReminder % 86400) % 3600) / 60;
+
+            if (days > 0)
+            {
+                details += QString("<b>Time Until:</b><br>%1 days, %2 hours, %3 minutes<br>")
+                .arg(days)
+                    .arg(hours)
+                    .arg(mins);
+            }
+            else if (hours > 0)
+            {
+                details += QString("<b>Time Until:</b><br>%1 hours, %2 minutes<br>")
                 .arg(hours)
-                .arg(mins);
+                    .arg(mins);
+            }
+            else
+            {
+                details += QString("<b>Time Until:</b><br>%1 minutes<br>").arg(mins);
+            }
         }
-        else if (hours > 0)
+        else if (secsUntilReminder < 0)
         {
-            details += QString("<b>Time Until:</b><br>%1 hours, %2 minutes<br>")
-            .arg(hours)
-                .arg(mins);
+            details += QString("<b style='color:red;'>Reminder Past Due</b><br>");
         }
         else
         {
-            details += QString("<b>Time Until:</b><br>%1 minutes<br>").arg(mins);
+            details += QString("<b style='color:orange;'>Reminder is NOW!</b><br>");
         }
     }
-    else if (secsUntilReminder < 0)
+
+    // Recurring Rule
+    if (!event.recurringRule.isEmpty())
     {
-        details += QString("<b style='color:red;'>Reminder Past Due</b><br>");
-    }
-    else
-    {
-        details += QString("<b style='color:orange;'>Reminder is NOW!</b><br>");
+        details += QString("<br><b>Recurrence:</b><br>%1<br>").arg(event.recurringRule);
     }
 
     return details;
@@ -1424,10 +1449,6 @@ QString TimelineSidePanel::buildGenericDetails(const TimelineEvent& event)
 }
 
 
-
-
-
-
 void TimelineSidePanel::clearTypeSpecificFields()
 {
     // Clear any dynamically created labels/widgets for type-specific fields
@@ -1436,294 +1457,6 @@ void TimelineSidePanel::clearTypeSpecificFields()
     // If using dynamic labels, remove them here
     // For simplicity, we'll use a rich text display approach
 }
-
-
-void TimelineSidePanel::displayMeetingDetails(const TimelineEvent& event)
-{
-    QString details;
-
-    // Date/Time Information
-    details += QString("<b>When:</b><br>");
-    details += QString("Start: %1 at %2<br>")
-                   .arg(event.startDate.toString("yyyy-MM-dd"))
-                   .arg(event.startTime.toString("HH:mm"));
-    details += QString("End: %1 at %2<br>")
-                   .arg(event.endDate.toString("yyyy-MM-dd"))
-                   .arg(event.endTime.toString("HH:mm"));
-
-    // Duration calculation
-    int durationDays = event.startDate.daysTo(event.endDate);
-    if (durationDays == 0)
-    {
-        QTime startTime = event.startTime;
-        QTime endTime = event.endTime;
-        int minutes = startTime.secsTo(endTime) / 60;
-        int hours = minutes / 60;
-        int mins = minutes % 60;
-        details += QString("Duration: %1h %2m<br>").arg(hours).arg(mins);
-    }
-    else
-    {
-        details += QString("Duration: %1 days<br>").arg(durationDays + 1);
-    }
-
-    details += "<br>";
-
-    // Location
-    if (!event.location.isEmpty())
-    {
-        details += QString("<b>Location:</b><br>%1<br><br>").arg(event.location);
-    }
-
-    // Participants
-    if (!event.participants.isEmpty())
-    {
-        details += QString("<b>Participants:</b><br>%1<br>").arg(event.participants);
-    }
-
-    ui->datesValueLabel->setText(details);
-}
-
-
-void TimelineSidePanel::displayActionDetails(const TimelineEvent& event)
-{
-    QString details;
-
-    // Start Date/Time
-    details += QString("<b>Started:</b><br>");
-    details += QString("%1 at %2<br><br>")
-                   .arg(event.startDate.toString("yyyy-MM-dd"))
-                   .arg(event.startTime.toString("HH:mm"));
-
-    // Due Date/Time
-    if (event.dueDateTime.isValid())
-    {
-        details += QString("<b>Due:</b><br>");
-        details += QString("%1<br><br>")
-                       .arg(event.dueDateTime.toString("yyyy-MM-dd HH:mm"));
-
-        // Calculate time remaining
-        QDateTime now = QDateTime::currentDateTime();
-        qint64 secsRemaining = now.secsTo(event.dueDateTime);
-
-        if (secsRemaining > 0)
-        {
-            int days = secsRemaining / 86400;
-            int hours = (secsRemaining % 86400) / 3600;
-            details += QString("<b>Time Remaining:</b><br>%1 days, %2 hours<br><br>")
-                           .arg(days).arg(hours);
-        }
-        else
-        {
-            details += QString("<b style='color:red;'>OVERDUE</b><br><br>");
-        }
-    }
-
-    // Status
-    if (!event.status.isEmpty())
-    {
-        QString statusColor = "black";
-        if (event.status == "Completed")
-            statusColor = "green";
-        else if (event.status == "In Progress")
-            statusColor = "blue";
-        else if (event.status == "Blocked")
-            statusColor = "red";
-
-        details += QString("<b>Status:</b> <span style='color:%1;'>%2</span><br>")
-                       .arg(statusColor)
-                       .arg(event.status);
-    }
-
-    ui->datesValueLabel->setText(details);
-}
-
-
-void TimelineSidePanel::displayTestEventDetails(const TimelineEvent& event)
-{
-    QString details;
-
-    // Date Range
-    details += QString("<b>Test Period:</b><br>");
-    details += QString("%1 to %2<br>")
-                   .arg(event.startDate.toString("yyyy-MM-dd"))
-                   .arg(event.endDate.toString("yyyy-MM-dd"));
-    details += QString("Duration: %1 days<br><br>")
-                   .arg(event.startDate.daysTo(event.endDate) + 1);
-
-    // Test Category
-    if (!event.testCategory.isEmpty())
-    {
-        details += QString("<b>Category:</b> %1<br><br>").arg(event.testCategory);
-    }
-
-    // Preparation Checklist
-    if (!event.preparationChecklist.isEmpty())
-    {
-        details += QString("<b>Preparation Checklist:</b><br>");
-
-        int completed = 0;
-        int total = event.preparationChecklist.size();
-
-        for (auto it = event.preparationChecklist.begin();
-             it != event.preparationChecklist.end(); ++it)
-        {
-            QString checkMark = it.value() ? "✓" : "☐";
-            QString style = it.value() ? "color:green;" : "color:gray;";
-            details += QString("<span style='%1'>%2 %3</span><br>")
-                           .arg(style)
-                           .arg(checkMark)
-                           .arg(it.key());
-
-            if (it.value())
-                completed++;
-        }
-
-        details += QString("<br><b>Progress:</b> %1/%2 completed (%3%)<br>")
-                       .arg(completed)
-                       .arg(total)
-                       .arg((completed * 100) / total);
-    }
-
-    ui->datesValueLabel->setText(details);
-}
-
-
-void TimelineSidePanel::displayReminderDetails(const TimelineEvent& event)
-{
-    QString details;
-
-    // Reminder Date/Time
-    if (event.reminderDateTime.isValid())
-    {
-        details += QString("<b>Reminder Set For:</b><br>");
-        details += QString("%1<br><br>")
-                       .arg(event.reminderDateTime.toString("yyyy-MM-dd HH:mm"));
-
-        // Calculate time until reminder
-        QDateTime now = QDateTime::currentDateTime();
-        qint64 secsUntil = now.secsTo(event.reminderDateTime);
-
-        if (secsUntil > 0)
-        {
-            int days = secsUntil / 86400;
-            int hours = (secsUntil % 86400) / 3600;
-            int mins = ((secsUntil % 86400) % 3600) / 60;
-
-            details += QString("<b>Time Until:</b><br>");
-            if (days > 0)
-                details += QString("%1 days, ").arg(days);
-            details += QString("%1 hours, %2 minutes<br><br>").arg(hours).arg(mins);
-        }
-        else
-        {
-            details += QString("<b style='color:red;'>Past due</b><br><br>");
-        }
-    }
-
-    // Recurring Rule
-    if (!event.recurringRule.isEmpty() && event.recurringRule != "None")
-    {
-        details += QString("<b>Recurrence:</b> %1<br>").arg(event.recurringRule);
-    }
-
-    ui->datesValueLabel->setText(details);
-}
-
-
-void TimelineSidePanel::displayJiraTicketDetails(const TimelineEvent& event)
-{
-    QString details;
-
-    // Jira Key (clickable if it's a URL pattern)
-    if (!event.jiraKey.isEmpty())
-    {
-        details += QString("<b>Jira Ticket:</b> %1<br><br>").arg(event.jiraKey);
-    }
-
-    // Summary
-    if (!event.jiraSummary.isEmpty())
-    {
-        details += QString("<b>Summary:</b><br>%1<br><br>").arg(event.jiraSummary);
-    }
-
-    // Type
-    if (!event.jiraType.isEmpty())
-    {
-        QString typeIcon = "📋";
-        if (event.jiraType == "Bug")
-            typeIcon = "🐛";
-        else if (event.jiraType == "Story")
-            typeIcon = "📖";
-        else if (event.jiraType == "Epic")
-            typeIcon = "🎯";
-        else if (event.jiraType == "Task")
-            typeIcon = "✅";
-
-        details += QString("<b>Type:</b> %1 %2<br>").arg(typeIcon).arg(event.jiraType);
-    }
-
-    // Status
-    if (!event.jiraStatus.isEmpty())
-    {
-        QString statusColor = "black";
-        if (event.jiraStatus == "Done")
-            statusColor = "green";
-        else if (event.jiraStatus == "In Progress")
-            statusColor = "blue";
-
-        details += QString("<b>Status:</b> <span style='color:%1;'>%2</span><br><br>")
-                       .arg(statusColor)
-                       .arg(event.jiraStatus);
-    }
-
-    // Date Range
-    details += QString("<b>Timeline:</b><br>");
-    details += QString("Start: %1<br>").arg(event.startDate.toString("yyyy-MM-dd"));
-    details += QString("Due: %1<br>").arg(event.endDate.toString("yyyy-MM-dd"));
-
-    // Calculate time remaining
-    QDate today = QDate::currentDate();
-    int daysRemaining = today.daysTo(event.endDate);
-
-    if (daysRemaining > 0)
-    {
-        details += QString("<b>Days Remaining:</b> %1<br>").arg(daysRemaining);
-    }
-    else if (daysRemaining < 0)
-    {
-        details += QString("<b style='color:red;'>Overdue by %1 days</b><br>").arg(-daysRemaining);
-    }
-    else
-    {
-        details += QString("<b style='color:orange;'>Due today!</b><br>");
-    }
-
-    ui->datesValueLabel->setText(details);
-}
-
-
-void TimelineSidePanel::displayGenericDetails(const TimelineEvent& event)
-{
-    // Fallback for any event type without specific handler
-    QString details;
-
-    details += QString("<b>Dates:</b><br>");
-    details += QString("%1 to %2<br>")
-                   .arg(event.startDate.toString("yyyy-MM-dd"))
-                   .arg(event.endDate.toString("yyyy-MM-dd"));
-
-    if (event.startDate.daysTo(event.endDate) > 0)
-    {
-        details += QString("Duration: %1 days<br>")
-        .arg(event.startDate.daysTo(event.endDate) + 1);
-    }
-
-    ui->datesValueLabel->setText(details);
-}
-
-
-
 
 
 void TimelineSidePanel::updateEventDetails(const TimelineEvent& event)
