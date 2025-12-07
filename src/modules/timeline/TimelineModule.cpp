@@ -110,7 +110,7 @@ void TimelineModule::setupUi()
     // ✅ NOW create side panel WITH view_ parameter
     sidePanel_ = new TimelineSidePanel(model_, view_, this);
     sidePanel_->setMinimumWidth(300);
-    sidePanel_->setMaximumWidth(500);
+    sidePanel_->setMaximumWidth(800);
     splitter_->addWidget(sidePanel_);
 
     // Set initial splitter sizes (70% timeline, 30% panel)
@@ -240,7 +240,7 @@ void TimelineModule::setupConnections()
                 mapper_->setVersionDates(model_->versionStartDate(), model_->versionEndDate());
             });
 
-    // TIER 2: Connect selection change signals to update delete button state
+    // Connect selection change signals to update delete button state
     connect(view_->timelineScene(), &QGraphicsScene::selectionChanged,
             this, &TimelineModule::updateDeleteActionState);
     connect(sidePanel_, &TimelineSidePanel::selectionChanged,

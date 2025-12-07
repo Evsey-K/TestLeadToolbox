@@ -1,5 +1,6 @@
 // TimelineView.cpp
 
+
 #include "TimelineView.h"
 #include "TimelineScene.h"
 #include "TimelineModel.h"
@@ -7,6 +8,7 @@
 #include <QWheelEvent>
 #include <QMouseEvent>
 #include <QScrollBar>
+
 
 TimelineView::TimelineView(TimelineModel* model,
                            TimelineCoordinateMapper* mapper,
@@ -23,7 +25,7 @@ TimelineView::TimelineView(TimelineModel* model,
     setRenderHint(QPainter::Antialiasing, true);
 
     // Disable vertical scroll bar
-    setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 
     // Enable horizontal scroll bar
     setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
@@ -34,6 +36,7 @@ TimelineView::TimelineView(TimelineModel* model,
     // Set background color
     setBackgroundBrush(QBrush(QColor(250, 250, 250)));
 }
+
 
 void TimelineView::wheelEvent(QWheelEvent* event)
 {
