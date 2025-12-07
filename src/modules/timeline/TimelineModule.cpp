@@ -21,7 +21,6 @@
 #include "TimelineSettings.h"
 #include "ConfirmationDialog.h"
 #include "ArchivedEventsDialog.h"
-
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QPushButton>
@@ -44,6 +43,7 @@ TimelineModule::TimelineModule(QWidget* parent)
     , legend_(nullptr)
     , legendCheckbox_(nullptr)
     , splitter_(nullptr)
+    , currentFilePath_("")
 {
     // Create model
     model_ = new TimelineModel(this);
@@ -75,13 +75,13 @@ TimelineModule::TimelineModule(QWidget* parent)
 
 TimelineModule::~TimelineModule()
 {
-    // Save before exit
-    if (autoSaveManager_)
+    // Only save on exit if we have a file path (user has saved at least once)
+    if (autoSaveManager_ && !currentFilePath_.isEmpty())
     {
         autoSaveManager_->saveNow();
     }
 
-    delete mapper_;     // Model and widgets are owned by Qt parent hierarchy
+    delete mapper_;
 }
 
 
@@ -145,11 +145,18 @@ QToolBar* TimelineModule::createToolbar()
 
     // File operations
     auto saveAction = toolbar->addAction("💾 Save");
-    saveAction->setToolTip("Save timeline data");
+    saveAction->setToolTip("Save timeline to current file");
+    saveAction->setShortcut(QKeySequence::Save);
     connect(saveAction, &QAction::triggered, this, &TimelineModule::onSaveClicked);
+
+    auto saveAsAction = toolbar->addAction("💾 Save As");
+    saveAsAction->setToolTip("Save timeline to new file");
+    saveAsAction->setShortcut(QKeySequence::SaveAs);
+    connect(saveAsAction, &QAction::triggered, this, &TimelineModule::onSaveAsClicked);
 
     auto loadAction = toolbar->addAction("📂 Load");
     loadAction->setToolTip("Load timeline data");
+    loadAction->setShortcut(QKeySequence::Open);
     connect(loadAction, &QAction::triggered, this, &TimelineModule::onLoadClicked);
 
 
@@ -267,14 +274,11 @@ void TimelineModule::setupConnections()
 
 void TimelineModule::setupAutoSave()
 {
-    QString saveFilePath = TimelineSerializer::getDefaultSaveLocation();
+    // Create auto-save manager but don't set file path or start it yet
+    // It will be configured after the first manual save
+    autoSaveManager_ = new AutoSaveManager(model_, "", this);
 
-    autoSaveManager_ = new AutoSaveManager(model_, saveFilePath, this);
-
-    // Start auto-save with 5-minute interval
-    autoSaveManager_->startAutoSave(300000); // 5 minutes in milliseconds
-
-    // Connect to auto-save signals
+    // Connect to auto-save signals (unchanged)
     connect(autoSaveManager_, &AutoSaveManager::autoSaveCompleted, [this](const QString& filePath)
             {
                 statusLabel_->setText("Auto-saved to: " + filePath);
@@ -305,6 +309,7 @@ void TimelineModule::loadTimelineData()
             mapper_->setVersionDates(model_->versionStartDate(), model_->versionEndDate());
             view_->timelineScene()->rebuildFromModel();
 
+            setCurrentFilePath(defaultPath);  // Enable auto-save to this file
             statusLabel_->setText("Timeline loaded from: " + defaultPath);
         }
     }
@@ -384,28 +389,83 @@ void TimelineModule::onEventSelectedInPanel(const QString& eventId)
 }
 
 
+bool TimelineModule::saveToFile(const QString& filePath)
+{
+    bool success = TimelineSerializer::saveToFile(model_, filePath);
+
+    if (success)
+    {
+        setCurrentFilePath(filePath);
+        autoSaveManager_->markClean();
+        statusLabel_->setText("Timeline saved to: " + filePath);
+        return true;
+    }
+    else
+    {
+        QMessageBox::warning(this, "Error", "Failed to save timeline.");
+        return false;
+    }
+}
+
+
+void TimelineModule::setCurrentFilePath(const QString& filePath)
+{
+    currentFilePath_ = filePath;
+
+    // Update auto-save manager with new path
+    autoSaveManager_->setSaveFilePath(filePath);
+
+    // Enable auto-save now that we have a file path (if user has it enabled)
+    if (!filePath.isEmpty() && TimelineSettings::instance().autoSaveEnabled())
+    {
+        if (!autoSaveManager_->isAutoSaveEnabled())
+        {
+            autoSaveManager_->startAutoSave(300000);  // 5 minutes
+        }
+    }
+    else
+    {
+        autoSaveManager_->stopAutoSave();
+    }
+}
+
+
 void TimelineModule::onSaveClicked()
 {
+    // If we have a current file path, save directly to it
+    if (!currentFilePath_.isEmpty())
+    {
+        if (saveToFile(currentFilePath_))
+        {
+            QMessageBox::information(this, "Success", "Timeline saved successfully!");
+        }
+    }
+    else
+    {
+        // No current file path - this is the first save, show dialog
+        onSaveAsClicked();
+    }
+}
+
+
+void TimelineModule::onSaveAsClicked()
+{
+    QString initialPath = currentFilePath_.isEmpty()
+    ? TimelineSerializer::getDefaultSaveLocation()
+    : currentFilePath_;
+
     QString filePath = QFileDialog::getSaveFileName(
         this,
-        "Save Timeline",
-        TimelineSerializer::getDefaultSaveLocation(),
+        "Save Timeline As",
+        initialPath,
         "JSON Files (*.json);;All Files (*)"
         );
 
     if (!filePath.isEmpty())
     {
-        bool success = TimelineSerializer::saveToFile(model_, filePath);
-
-        if (success)
+        if (saveToFile(filePath))
         {
-            statusLabel_->setText("Timeline saved to: " + filePath);
-            autoSaveManager_->markClean();
             QMessageBox::information(this, "Success", "Timeline saved successfully!");
-        }
-        else
-        {
-            QMessageBox::warning(this, "Error", "Failed to save timeline.");
         }
     }
 }
@@ -425,7 +485,7 @@ void TimelineModule::onLoadClicked()
 
         if (result == QMessageBox::Save)
         {
-            autoSaveManager_->saveNow();
+            onSaveClicked();
         }
         else if (result == QMessageBox::Cancel)
         {
@@ -433,10 +493,15 @@ void TimelineModule::onLoadClicked()
         }
     }
 
+    // Use current path's directory if available
+    QString initialPath = currentFilePath_.isEmpty()
+                              ? TimelineSerializer::getDefaultSaveLocation()
+                              : QFileInfo(currentFilePath_).absolutePath();
+
     QString filePath = QFileDialog::getOpenFileName(
         this,
         "Load Timeline",
-        TimelineSerializer::getDefaultSaveLocation(),
+        initialPath,
         "JSON Files (*.json);;All Files (*)"
         );
 
@@ -450,6 +515,8 @@ void TimelineModule::onLoadClicked()
             mapper_->setVersionDates(model_->versionStartDate(), model_->versionEndDate());
             view_->timelineScene()->rebuildFromModel();
 
+            // Set current file path and enable auto-save
+            setCurrentFilePath(filePath);
             statusLabel_->setText("Timeline loaded from: " + filePath);
             autoSaveManager_->markClean();
             QMessageBox::information(this, "Success", "Timeline loaded successfully!");

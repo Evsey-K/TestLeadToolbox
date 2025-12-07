@@ -1,5 +1,6 @@
 // MainWindow.cpp
 
+
 #include "MainWindow.h"
 #include "modules/timeline/TimelineModule.h"
 #include "modules/timeline/ArchivedEventsDialog.h"
@@ -16,6 +17,7 @@
 #include <QLabel>
 #include <QGroupBox>
 #include <QStatusBar>
+
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -40,9 +42,11 @@ MainWindow::MainWindow(QWidget *parent)
     statusBar()->showMessage("Ready");
 }
 
+
 MainWindow::~MainWindow()
 {
 }
+
 
 void MainWindow::setupMenuBar()
 {
@@ -51,6 +55,7 @@ void MainWindow::setupMenuBar()
     setupViewMenu();
     setupHelpMenu();
 }
+
 
 void MainWindow::setupFileMenu()
 {
@@ -65,11 +70,33 @@ void MainWindow::setupFileMenu()
 
     fileMenu_->addSeparator();
 
+    // Save
+    auto saveAction = fileMenu_->addAction("&Save");
+    saveAction->setShortcut(QKeySequence::Save);
+    connect(saveAction, &QAction::triggered, [this]() {
+        if (timelineModule_) {
+            // Trigger the save action in TimelineModule
+            // You'll need to expose onSaveClicked() as a public slot or add a save() method
+        }
+    });
+
+    // Save As
+    auto saveAsAction = fileMenu_->addAction("Save &As...");
+    saveAsAction->setShortcut(QKeySequence::SaveAs);
+    connect(saveAsAction, &QAction::triggered, [this]() {
+        if (timelineModule_) {
+            // Trigger the save as action in TimelineModule
+        }
+    });
+
+    fileMenu_->addSeparator();
+
     // Exit
     auto exitAction = fileMenu_->addAction("E&xit");
     exitAction->setShortcut(QKeySequence::Quit);
-    connect(exitAction, &QAction::triggered, this, &QMainWindow::close);
+    connect(exitAction, &QAction::triggered, this, &QWidget::close);
 }
+
 
 void MainWindow::setupEditMenu()
 {
@@ -93,6 +120,7 @@ void MainWindow::setupEditMenu()
     connect(preferencesAction_, &QAction::triggered, this, &MainWindow::onShowPreferences);
 }
 
+
 void MainWindow::setupViewMenu()
 {
     viewMenu_ = menuBar()->addMenu("&View");
@@ -115,6 +143,7 @@ void MainWindow::setupViewMenu()
         }
     });
 }
+
 
 void MainWindow::setupHelpMenu()
 {
@@ -140,6 +169,7 @@ void MainWindow::setupHelpMenu()
         QMessageBox::information(this, "Keyboard Shortcuts", shortcuts);
     });
 }
+
 
 void MainWindow::connectUndoStack()
 {
@@ -191,6 +221,7 @@ void MainWindow::connectUndoStack()
     redoAction_->setEnabled(undoStack->canRedo());
 }
 
+
 void MainWindow::onShowArchivedEvents()
 {
     if (!timelineModule_)
@@ -206,6 +237,7 @@ void MainWindow::onShowArchivedEvents()
 
     dialog.exec();
 }
+
 
 void MainWindow::onShowPreferences()
 {
@@ -286,6 +318,7 @@ void MainWindow::onShowPreferences()
     }
 }
 
+
 void MainWindow::onShowAbout()
 {
     QString aboutText =
@@ -305,6 +338,7 @@ void MainWindow::onShowAbout()
 
     QMessageBox::about(this, "About Test Lead Toolbox", aboutText);
 }
+
 
 void MainWindow::closeEvent(QCloseEvent* event)
 {

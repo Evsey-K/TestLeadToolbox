@@ -56,98 +56,41 @@ public:
      */
     ~TimelineModule();
 
-    /**
-     * @brief Get access to the model (useful for testing or external integration)
-     */
-    TimelineModel* model() const
-    {
-        return model_;
-    }
+    TimelineModel* model() const { return model_; }         ///< @brief Get access to the model (useful for testing or external integration)
 
-    QUndoStack* undoStack() const { return undoStack_; }
+    QUndoStack* undoStack() const { return undoStack_; }    ///<
 
 protected:
     void resizeEvent(QResizeEvent* event) override;
 
 private slots:
-    /**
-     * @brief Handle Add Event button click
-     */
-    void onAddEventClicked();
+    void onAddEventClicked();                                   ///< @brief Handle Add Event button click
+    void onVersionSettingsClicked();                            ///< @brief Handle Version Settings button click
+    void onSaveClicked();                                       ///< @brief Handle Save button click
+    void onSaveAsClicked();                                     ///< @brief Handle Save As button click - always prompts for new location
+    void onLoadClicked();                                       ///< @brief Handle Load button click
 
-    /**
-     * @brief Handle Version Settings button click
-     */
-    void onVersionSettingsClicked();
+    void onEventSelectedInPanel(const QString& eventId);        ///< @brief Handle event selection from side panel
 
-    /**
-     * @brief Handle event selection from side panel
-     */
-    void onEventSelectedInPanel(const QString& eventId);
+    void onExportScreenshot();                                  ///< @brief Handle Export Screenshot action
+    void onExportCSV();                                         ///< @brief Handle Export CSV action
+    void onExportPDF();                                         ///< @brief Handle Export PDF action
 
-    /**
-     * @brief Handle Save button click
-     */
-    void onSaveClicked();
+    void onScrollToDate();                                      ///< @brief Handle Scroll to Date action
 
-    /**
-     * @brief Handle Load button click
-     */
-    void onLoadClicked();
-
-    /**
-     * @brief Handle Export Screenshot action
-     */
-    void onExportScreenshot();
-
-    /**
-     * @brief Handle Export CSV action
-     */
-    void onExportCSV();
-
-    /**
-     * @brief Handle Export PDF action
-     */
-    void onExportPDF();
-
-    /**
-     * @brief Handle Scroll to Date action
-     */
-    void onScrollToDate();
-
-    /**
-     * @brief Handle edit event request from scene or side panel
-     */
-    void onEditEventRequested(const QString& eventId);
-
-    /**
-     * @brief Handle delete event request from scene or side panel
-     */
-    void onDeleteEventRequested(const QString& eventId);
-
-    /**
-     * @brief Handle batch delete request from scene
-     */
-    void onBatchDeleteRequested(const QStringList& eventIds);
-
-    /**
-     * @brief Handle toolbar delete button click (TIER 2)
-     */
-    void onDeleteActionTriggered();
+    void onEditEventRequested(const QString& eventId);          ///< @brief Handle edit event request from scene or side panel
+    void onDeleteEventRequested(const QString& eventId);        ///< @brief Handle delete event request from scene or side panel
+    void onBatchDeleteRequested(const QStringList& eventIds);   ///< @brief Handle batch delete request from scene
+    void onDeleteActionTriggered();                             ///< @brief Handle toolbar delete button click
 
     void onShowArchivedEvents();
 
-    /**
-     * @brief Update delete button enabled state based on selection (TIER 2)
-     */
-    void updateDeleteActionState();
+    void updateDeleteActionState();                             ///< @brief Update delete button enabled state based on selection
 
-    /**
-     * @brief Handle side panel toggle button click (PHASE 6)
-     */
-    void onToggleSidePanelClicked();
+    void onToggleSidePanelClicked();                            ///< @brief Handle side panel toggle button click
 
     void onLegendToggled(bool checked);
+
     void onSplitterMoved(int pos, int index);
 
 private:
@@ -157,23 +100,26 @@ private:
     void loadTimelineData();
     void setupUndoStack();
 
-    QToolBar* createToolbar();                          ///< @brief Create toolbar with all actions
+    QToolBar* createToolbar();                                          ///< @brief Create toolbar with all actions
 
-    void updateToggleButtonState();                     ///< @brief Update toggle button state based on panel visibility
-    void restoreSidePanelState();                       ///< @brief Load and apply side panel visibility from settings
+    void updateToggleButtonState();                                     ///< @brief Update toggle button state based on panel visibility
+    void restoreSidePanelState();                                       ///< @brief Load and apply side panel visibility from settings
 
     void createLegend();
     void updateLegendPosition();
     void setLegendVisible(bool visible);
 
-    bool confirmDeletion(const QString& eventId);       ///< @brief Show confirmation dialog for single event deletion
-    bool deleteEvent(const QString& eventId);           ///< @brief Delete a single event with confirmation
+    bool confirmDeletion(const QString& eventId);                       ///< @brief Show confirmation dialog for single event deletion
+    bool deleteEvent(const QString& eventId);                           ///< @brief Delete a single event with confirmation
 
     bool confirmBatchDeletion(const QStringList& eventIds);             ///< @brief Show confirmation dialog for batch event deletion
     bool deleteEventWithoutConfirmation(const QString& eventId);        ///< @brief Delete a single event without confirmation (for use after EditDialog)
     bool deleteBatchEvents(const QStringList& eventIds);                ///< @brief Delete multiple events with single confirmation dialog
 
-    QStringList getAllSelectedEventIds() const;         ///< @brief Get all currently selected event IDs from both scene and side panel
+    QStringList getAllSelectedEventIds() const;                         ///< @brief Get all currently selected event IDs from both scene and side panel
+
+    bool saveToFile(const QString& filePath);                           ///< @brief Save timeline to specified file path
+    void setCurrentFilePath(const QString& filePath);                   ///< @brief Set current file path and update auto-save state
 
     TimelineModel* model_;
     TimelineCoordinateMapper* mapper_;
@@ -191,4 +137,5 @@ private:
     TimelineLegend* legend_;                    ///< Color legend (nullable)
     QCheckBox* legendCheckbox_;                 ///< Legend visibility checkbox
     QSplitter* splitter_;                       ///< Splitter between view and panel
+    QString currentFilePath_;                   ///< Path to currently opened/saved file (empty if not saved yet)
 };
