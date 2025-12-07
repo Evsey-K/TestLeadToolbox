@@ -1103,53 +1103,329 @@ void TimelineSidePanel::displayEventDetails(const QString& eventId)
     // === COMMON FIELDS (All Event Types) ===
     ui->titleValueLabel->setText(event->title);
     ui->typeValueLabel->setText(eventTypeToString(event->type));
-    ui->priorityValueLabel->setText(QString::number(event->priority));  // FIXED: Removed "Priority: " prefix
-    ui->laneValueLabel->setText(QString::number(event->lane));          // FIXED: Added missing lane display
+    ui->priorityValueLabel->setText(QString::number(event->priority));
+    ui->laneValueLabel->setText(QString::number(event->lane));
 
     // Clear previous type-specific content
     clearTypeSpecificFields();
+
+    // Build details text combining type-specific info and description
+    QString detailsText;
 
     // === TYPE-SPECIFIC FIELDS ===
     switch (event->type)
     {
     case TimelineEventType_Meeting:
-        displayMeetingDetails(*event);
+        detailsText = buildMeetingDetails(*event);
         break;
 
     case TimelineEventType_Action:
-        displayActionDetails(*event);
+        detailsText = buildActionDetails(*event);
         break;
 
     case TimelineEventType_TestEvent:
-        displayTestEventDetails(*event);
+        detailsText = buildTestEventDetails(*event);
         break;
 
     case TimelineEventType_Reminder:
-        displayReminderDetails(*event);
+        detailsText = buildReminderDetails(*event);
         break;
 
     case TimelineEventType_JiraTicket:
-        displayJiraTicketDetails(*event);
+        detailsText = buildJiraTicketDetails(*event);
         break;
 
     default:
-        displayGenericDetails(*event);
+        detailsText = buildGenericDetails(*event);
         break;
     }
 
-    // === DESCRIPTION (Common to all types) ===
+    // === ADD DESCRIPTION (Common to all types) ===
     if (!event->description.isEmpty())
     {
-        ui->descriptionTextEdit->setPlainText(event->description);
+        if (!detailsText.isEmpty())
+        {
+            detailsText += "\n\n";
+        }
+        detailsText += QString("<b>Description:</b><br>%1").arg(event->description);
     }
-    else
-    {
-        ui->descriptionTextEdit->setPlainText("(No description)");
-    }
+
+    // Set the combined details text
+    ui->detailsTextEdit->setHtml(detailsText);
 
     // Show the details group box
     ui->eventDetailsGroupBox->setVisible(true);
 }
+
+
+QString TimelineSidePanel::buildMeetingDetails(const TimelineEvent& event)
+{
+    QString details;
+
+    // Date/Time Information
+    details += QString("<b>When:</b><br>");
+    details += QString("Start: %1 at %2<br>")
+                   .arg(event.startDate.toString("yyyy-MM-dd"))
+                   .arg(event.startTime.toString("HH:mm"));
+    details += QString("End: %1 at %2<br>")
+                   .arg(event.endDate.toString("yyyy-MM-dd"))
+                   .arg(event.endTime.toString("HH:mm"));
+
+    // Duration calculation
+    int durationDays = event.startDate.daysTo(event.endDate);
+    if (durationDays == 0)
+    {
+        QTime startTime = event.startTime;
+        QTime endTime = event.endTime;
+        int minutes = startTime.secsTo(endTime) / 60;
+        int hours = minutes / 60;
+        int mins = minutes % 60;
+        details += QString("Duration: %1h %2m<br>").arg(hours).arg(mins);
+    }
+    else
+    {
+        details += QString("Duration: %1 days<br>").arg(durationDays + 1);
+    }
+
+    details += "<br>";
+
+    // Location
+    if (!event.location.isEmpty())
+    {
+        details += QString("<b>Location:</b><br>%1<br><br>").arg(event.location);
+    }
+
+    // Participants
+    if (!event.participants.isEmpty())
+    {
+        details += QString("<b>Participants:</b><br>%1<br>").arg(event.participants);
+    }
+
+    return details;
+}
+
+
+QString TimelineSidePanel::buildActionDetails(const TimelineEvent& event)
+{
+    QString details;
+
+    // Start Date/Time
+    details += QString("<b>Started:</b><br>");
+    details += QString("%1 at %2<br><br>")
+                   .arg(event.startDate.toString("yyyy-MM-dd"))
+                   .arg(event.startTime.toString("HH:mm"));
+
+    // Due Date/Time
+    if (event.dueDateTime.isValid())
+    {
+        details += QString("<b>Due:</b><br>");
+        details += QString("%1<br><br>")
+                       .arg(event.dueDateTime.toString("yyyy-MM-dd HH:mm"));
+
+        // Calculate time remaining
+        QDateTime now = QDateTime::currentDateTime();
+        qint64 secsRemaining = now.secsTo(event.dueDateTime);
+
+        if (secsRemaining > 0)
+        {
+            int days = secsRemaining / 86400;
+            int hours = (secsRemaining % 86400) / 3600;
+            details += QString("<b>Time Remaining:</b><br>%1 days, %2 hours<br><br>")
+                           .arg(days)
+                           .arg(hours);
+        }
+        else if (secsRemaining < 0)
+        {
+            int days = (-secsRemaining) / 86400;
+            details += QString("<b style='color:red;'>Overdue by:</b> %1 days<br><br>").arg(days);
+        }
+        else
+        {
+            details += QString("<b style='color:orange;'>Due now!</b><br><br>");
+        }
+    }
+
+    // Assignee
+    if (!event.assignee.isEmpty())
+    {
+        details += QString("<b>Assignee:</b><br>%1<br>").arg(event.assignee);
+    }
+
+    return details;
+}
+
+
+QString TimelineSidePanel::buildTestEventDetails(const TimelineEvent& event)
+{
+    QString details;
+
+    // Date Information
+    details += QString("<b>Test Window:</b><br>");
+    details += QString("Start: %1<br>").arg(event.startDate.toString("yyyy-MM-dd"));
+    details += QString("End: %1<br><br>").arg(event.endDate.toString("yyyy-MM-dd"));
+
+    // Test Type
+    if (!event.testType.isEmpty())
+    {
+        details += QString("<b>Test Type:</b><br>%1<br><br>").arg(event.testType);
+    }
+
+    // Environment
+    if (!event.environment.isEmpty())
+    {
+        details += QString("<b>Environment:</b><br>%1<br><br>").arg(event.environment);
+    }
+
+    // Test Lead
+    if (!event.testLead.isEmpty())
+    {
+        details += QString("<b>Test Lead:</b><br>%1<br>").arg(event.testLead);
+    }
+
+    return details;
+}
+
+
+QString TimelineSidePanel::buildReminderDetails(const TimelineEvent& event)
+{
+    QString details;
+
+    // Reminder Time
+    details += QString("<b>Reminder Date/Time:</b><br>");
+    details += QString("%1 at %2<br><br>")
+                   .arg(event.startDate.toString("yyyy-MM-dd"))
+                   .arg(event.startTime.toString("HH:mm"));
+
+    // Calculate time until reminder
+    QDateTime reminderTime(event.startDate, event.startTime);
+    QDateTime now = QDateTime::currentDateTime();
+    qint64 secsUntilReminder = now.secsTo(reminderTime);
+
+    if (secsUntilReminder > 0)
+    {
+        int days = secsUntilReminder / 86400;
+        int hours = (secsUntilReminder % 86400) / 3600;
+        int mins = ((secsUntilReminder % 86400) % 3600) / 60;
+
+        if (days > 0)
+        {
+            details += QString("<b>Time Until:</b><br>%1 days, %2 hours, %3 minutes<br>")
+            .arg(days)
+                .arg(hours)
+                .arg(mins);
+        }
+        else if (hours > 0)
+        {
+            details += QString("<b>Time Until:</b><br>%1 hours, %2 minutes<br>")
+            .arg(hours)
+                .arg(mins);
+        }
+        else
+        {
+            details += QString("<b>Time Until:</b><br>%1 minutes<br>").arg(mins);
+        }
+    }
+    else if (secsUntilReminder < 0)
+    {
+        details += QString("<b style='color:red;'>Reminder Past Due</b><br>");
+    }
+    else
+    {
+        details += QString("<b style='color:orange;'>Reminder is NOW!</b><br>");
+    }
+
+    return details;
+}
+
+
+QString TimelineSidePanel::buildJiraTicketDetails(const TimelineEvent& event)
+{
+    QString details;
+
+    // Jira Key
+    if (!event.jiraKey.isEmpty())
+    {
+        details += QString("<b>Jira Key:</b> %1<br><br>").arg(event.jiraKey);
+    }
+
+    // Jira Type with Icon
+    if (!event.jiraType.isEmpty())
+    {
+        QString typeIcon = "📝";
+        if (event.jiraType == "Bug")
+            typeIcon = "🐛";
+        else if (event.jiraType == "Story")
+            typeIcon = "📖";
+        else if (event.jiraType == "Epic")
+            typeIcon = "🎯";
+        else if (event.jiraType == "Task")
+            typeIcon = "✅";
+
+        details += QString("<b>Type:</b> %1 %2<br>").arg(typeIcon).arg(event.jiraType);
+    }
+
+    // Status
+    if (!event.jiraStatus.isEmpty())
+    {
+        QString statusColor = "black";
+        if (event.jiraStatus == "Done")
+            statusColor = "green";
+        else if (event.jiraStatus == "In Progress")
+            statusColor = "blue";
+
+        details += QString("<b>Status:</b> <span style='color:%1;'>%2</span><br><br>")
+                       .arg(statusColor)
+                       .arg(event.jiraStatus);
+    }
+
+    // Date Range
+    details += QString("<b>Timeline:</b><br>");
+    details += QString("Start: %1<br>").arg(event.startDate.toString("yyyy-MM-dd"));
+    details += QString("Due: %1<br>").arg(event.endDate.toString("yyyy-MM-dd"));
+
+    // Calculate time remaining
+    QDate today = QDate::currentDate();
+    int daysRemaining = today.daysTo(event.endDate);
+
+    if (daysRemaining > 0)
+    {
+        details += QString("<b>Days Remaining:</b> %1<br>").arg(daysRemaining);
+    }
+    else if (daysRemaining < 0)
+    {
+        details += QString("<b style='color:red;'>Overdue by %1 days</b><br>").arg(-daysRemaining);
+    }
+    else
+    {
+        details += QString("<b style='color:orange;'>Due today!</b><br>");
+    }
+
+    return details;
+}
+
+
+QString TimelineSidePanel::buildGenericDetails(const TimelineEvent& event)
+{
+    // Fallback for any event type without specific handler
+    QString details;
+
+    details += QString("<b>Dates:</b><br>");
+    details += QString("%1 to %2<br>")
+                   .arg(event.startDate.toString("yyyy-MM-dd"))
+                   .arg(event.endDate.toString("yyyy-MM-dd"));
+
+    if (event.startDate.daysTo(event.endDate) > 0)
+    {
+        details += QString("Duration: %1 days<br>")
+        .arg(event.startDate.daysTo(event.endDate) + 1);
+    }
+
+    return details;
+}
+
+
+
+
 
 
 void TimelineSidePanel::clearTypeSpecificFields()
@@ -1467,6 +1743,13 @@ void TimelineSidePanel::updateEventDetails(const TimelineEvent& event)
     }
     ui->typeValueLabel->setText(typeText);
 
+    ui->priorityValueLabel->setText(QString::number(event.priority));
+    ui->laneValueLabel->setText(QString::number(event.lane));
+
+    // Build combined details text
+    QString detailsText;
+
+    // Add date range
     QString dateRange;
     if (event.startDate == event.endDate)
     {
@@ -1478,11 +1761,15 @@ void TimelineSidePanel::updateEventDetails(const TimelineEvent& event)
         .arg(event.startDate.toString("MMM dd, yyyy"))
             .arg(event.endDate.toString("MMM dd, yyyy"));
     }
-    ui->datesValueLabel->setText(dateRange);
+    detailsText = QString("<b>Date Range:</b><br>%1").arg(dateRange);
 
-    ui->priorityValueLabel->setText(QString::number(event.priority));
-    ui->laneValueLabel->setText(QString::number(event.lane));
-    ui->descriptionTextEdit->setPlainText(event.description);
+    // Add description if present
+    if (!event.description.isEmpty())
+    {
+        detailsText += QString("\n\n<b>Description:</b><br>%1").arg(event.description);
+    }
+
+    ui->detailsTextEdit->setHtml(detailsText);
 
     ui->eventDetailsGroupBox->setVisible(true);
 }
@@ -1492,13 +1779,13 @@ void TimelineSidePanel::clearEventDetails()
 {
     ui->titleValueLabel->clear();
     ui->typeValueLabel->clear();
-    ui->datesValueLabel->clear();
     ui->priorityValueLabel->clear();
     ui->laneValueLabel->clear();
-    ui->descriptionTextEdit->clear();
+    ui->detailsTextEdit->clear();
 
     ui->eventDetailsGroupBox->setVisible(false);
 }
+
 
 
 void TimelineSidePanel::onEventAdded(const QString& /*eventId*/)
@@ -1927,27 +2214,22 @@ void TimelineSidePanel::onCopyEventDetails()
                                   "Type: %2\n"
                                   "Dates: %3 to %4\n"
                                   "Priority: %5\n"
-                                  "Description: %6\n"
+                                  "Lane: %6\n"
+                                  "Description: %7\n"
                                   ).arg(event->title)
                                   .arg(eventTypeToString(event->type))
                                   .arg(event->startDate.toString("yyyy-MM-dd"))
                                   .arg(event->endDate.toString("yyyy-MM-dd"))
                                   .arg(event->priority)
-                                  .arg(event->description.isEmpty() ? "(none)" : event->description);
+                                  .arg(event->lane)
+                                  .arg(event->description.isEmpty() ? "(No description)" : event->description);
 
             eventDetails.append(details);
         }
     }
 
-    if (!eventDetails.isEmpty())
-    {
-        QString clipboardText = eventDetails.join("\n---\n\n");
-        QClipboard* clipboard = QGuiApplication::clipboard();
-        clipboard->setText(clipboardText);
-
-        // Note: Feedback shown in status bar (not implemented here, but could be added via signal)
-        qDebug() << QString("Copied %1 event(s) to clipboard").arg(selectedIds.size());
-    }
+    QString fullDetails = eventDetails.join("\n---\n");
+    QGuiApplication::clipboard()->setText(fullDetails);
 }
 
 
