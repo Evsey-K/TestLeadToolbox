@@ -235,45 +235,71 @@ QString TimelineModel::generateEventId() const
 
 void TimelineModel::assignLanesToEvents()
 {
-    // Lane Assignment Algorithm
-    // Uses LaneAssigner utility to prevent visual overlap
-
     if (events_.isEmpty())
     {
         maxLane_ = 0;
-
         return;
     }
 
-    // Step 1: Convert our events to LaneAssigner format
-    QVector<LaneAssigner::EventData> laneEvents;
+    // Separate events into manually-controlled and auto-assigned
+    QVector<LaneAssigner::EventData> autoEvents;
+    QVector<LaneAssigner::EventData> manualEvents;
 
-    laneEvents.reserve(events_.size());
-
-    for(int i = 0; i < events_.size(); ++i)
+    for (int i = 0; i < events_.size(); ++i)
     {
-        laneEvents.append(LaneAssigner::EventData(
-            events_[i].id,
-            events_[i].startDate,
-            events_[i].endDate,
-            &events_[i]             // Store pointer for eay update
-        ));
-    }
+        TimelineEvent& event = events_[i];
 
-    // Step 2: Run lane assignment algorithm
-    maxLane_ = LaneAssigner::assignLanes(laneEvents);
+        LaneAssigner::EventData data(
+            event.id,
+            event.startDate,
+            event.endDate,
+            &event
+            );
 
-    // Step 3: Update our events with assigned lanes
-    for (const auto& laneEvent : laneEvents)
-    {
-        TimelineEvent* event = static_cast<TimelineEvent*>(laneEvent.userData);
-        if (event)
+        if (event.laneControlEnabled)
         {
-            event->lane = laneEvent.lane;
+            // For manual events, set the lane to the user-specified value
+            data.lane = event.manualLane;
+            event.lane = event.manualLane;
+            manualEvents.append(data);
+        }
+        else
+        {
+            autoEvents.append(data);
         }
     }
 
-    // Step 4: Emit signal that lanes have been recalculated
+    // Assign lanes to auto events, respecting manual events
+    if (!autoEvents.isEmpty())
+    {
+        int maxLaneUsed = LaneAssigner::assignLanesWithReserved(autoEvents, manualEvents);
+
+        // Apply assigned lanes back to events
+        for (const auto& data : autoEvents)
+        {
+            if (data.userData)
+            {
+                TimelineEvent* event = static_cast<TimelineEvent*>(data.userData);
+                event->lane = data.lane;
+            }
+        }
+
+        // Update maxLane
+        maxLane_ = maxLaneUsed;
+    }
+    else
+    {
+        // Only manual events, find max lane
+        maxLane_ = 0;
+        for (const auto& data : manualEvents)
+        {
+            if (data.lane > maxLane_)
+            {
+                maxLane_ = data.lane;
+            }
+        }
+    }
+
     emit lanesRecalculated();
 }
 
@@ -378,7 +404,40 @@ QVector<TimelineEvent> TimelineModel::getAllArchivedEvents() const
 }
 
 
+bool TimelineModel::hasLaneConflict(const QDate& startDate, const QDate& endDate,
+                                    int manualLane, const QString& excludeEventId) const
+{
+    // Check if any existing lane-controlled event occupies this lane and overlaps in time
+    for (const auto& event : events_)
+    {
+        // Skip the event being updated
+        if (!excludeEventId.isEmpty() && event.id == excludeEventId)
+        {
+            continue;
+        }
 
+        // Only check events with lane control enabled
+        if (!event.laneControlEnabled)
+        {
+            continue;
+        }
+
+        // Check if same lane
+        if (event.manualLane != manualLane)
+        {
+            continue;
+        }
+
+        // Check for date overlap
+        // Events overlap if: startA <= endB AND endA >= startB
+        if (startDate <= event.endDate && endDate >= event.startDate)
+        {
+            return true;  // Conflict found
+        }
+    }
+
+    return false;  // No conflict
+}
 
 
 

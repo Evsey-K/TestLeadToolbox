@@ -1,6 +1,8 @@
-// AddEventDialog.h - Updated with Dynamic Field Support
+// AddEventDialog.h
+
 
 #pragma once
+#include "TimelineModel.h"
 #include <QDialog>
 #include <QDate>
 #include <QComboBox>
@@ -18,7 +20,8 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QMessageBox>
-#include "TimelineModel.h"
+#include <QLabel>
+
 
 /**
  * @class AddEventDialog
@@ -48,56 +51,18 @@ public:
     TimelineEvent getEvent() const;
 
 private slots:
-    /**
-     * @brief Handle event type selection change
-     */
-    void onTypeChanged(int index);
-
-    /**
-     * @brief Validate and accept the dialog
-     */
-    void validateAndAccept();
-
-    /**
-     * @brief Update end date minimum when start date changes
-     */
-    void onStartDateChanged(const QDate& date);
+    void onTypeChanged(int index);                                  ///< @brief Handle event type selection change
+    void validateAndAccept();                                       ///< @brief Validate and accept the dialog
+    void onStartDateChanged(const QDate& date);                     ///< @brief Update end date minimum when start date changes
 
 private:
-    /**
-     * @brief Setup UI components and connections
-     */
-    void setupUi();
-
-    /**
-     * @brief Create field group widgets
-     */
-    void createFieldGroups();
-
-    /**
-     * @brief Show appropriate field group for event type
-     */
-    void showFieldsForType(TimelineEventType type);
-
-    /**
-     * @brief Validate common fields
-     */
-    bool validateCommonFields();
-
-    /**
-     * @brief Validate type-specific fields
-     */
-    bool validateTypeSpecificFields();
-
-    /**
-     * @brief Populate event from common fields
-     */
-    void populateCommonFields(TimelineEvent& event) const;
-
-    /**
-     * @brief Populate event from type-specific fields
-     */
-    void populateTypeSpecificFields(TimelineEvent& event) const;
+    void setupUi();                                                 ///< @brief Setup UI components and connections
+    void createFieldGroups();                                       ///< @brief Create field group widgets
+    void showFieldsForType(TimelineEventType type);                 ///< @brief Show appropriate field group for event type
+    bool validateCommonFields();                                    ///< @brief Validate common fields
+    bool validateTypeSpecificFields();                              ///< @brief Validate type-specific fields
+    void populateCommonFields(TimelineEvent& event) const;          ///< @brief Populate event from common fields
+    void populateTypeSpecificFields(TimelineEvent& event) const;    ///< @brief Populate event from type-specific fields
 
     // Helper methods for creating field groups
     QWidget* createMeetingFields();
@@ -148,4 +113,9 @@ private:
     // Configuration
     QDate versionStart_;
     QDate versionEnd_;
+
+    // Lane Control Fields
+    QCheckBox* laneControlCheckbox_;
+    QSpinBox* manualLaneSpinner_;
+    QLabel* laneControlWarningLabel_;
 };

@@ -1,6 +1,8 @@
 // EditEventDialog.cpp - Complete Implementation with Dynamic Fields
 
+
 #include "EditEventDialog.h"
+
 
 EditEventDialog::EditEventDialog(const QString& eventId,
                                  TimelineModel* model,
@@ -30,10 +32,12 @@ EditEventDialog::EditEventDialog(const QString& eventId,
     }
 }
 
+
 EditEventDialog::~EditEventDialog()
 {
     // Qt parent-child hierarchy handles cleanup
 }
+
 
 void EditEventDialog::setupUi()
 {
@@ -72,6 +76,42 @@ void EditEventDialog::setupUi()
     descriptionEdit_->setMaximumHeight(100);
     commonLayout->addRow("Description:", descriptionEdit_);
 
+    // Lane Control Section
+    QGroupBox* laneControlGroup = new QGroupBox("Lane Control (Advanced)");
+    QVBoxLayout* laneControlLayout = new QVBoxLayout(laneControlGroup);
+
+    laneControlCheckbox_ = new QCheckBox("Enable manual lane control");
+    laneControlCheckbox_->setToolTip("When enabled, you can specify which lane this event appears in");
+    laneControlLayout->addWidget(laneControlCheckbox_);
+
+    QHBoxLayout* laneNumberLayout = new QHBoxLayout();
+    QLabel* laneLabel = new QLabel("Lane number:");
+    manualLaneSpinner_ = new QSpinBox();
+    manualLaneSpinner_->setRange(0, 20);
+    manualLaneSpinner_->setValue(0);
+    manualLaneSpinner_->setEnabled(false);
+    manualLaneSpinner_->setToolTip("Lane 0 is at the top, higher numbers are below");
+    laneNumberLayout->addWidget(laneLabel);
+    laneNumberLayout->addWidget(manualLaneSpinner_);
+    laneNumberLayout->addStretch();
+    laneControlLayout->addLayout(laneNumberLayout);
+
+    laneControlWarningLabel_ = new QLabel(
+        "<i>Note: If another manually-controlled event already occupies this lane "
+        "at the same time, you'll receive a conflict warning.</i>");
+    laneControlWarningLabel_->setWordWrap(true);
+    laneControlWarningLabel_->setStyleSheet("QLabel { color: #666; }");
+    laneControlWarningLabel_->setVisible(false);
+    laneControlLayout->addWidget(laneControlWarningLabel_);
+
+    mainLayout->addWidget(laneControlGroup);
+
+    // Connect lane control checkbox
+    connect(laneControlCheckbox_, &QCheckBox::toggled, [this](bool checked) {
+        manualLaneSpinner_->setEnabled(checked);
+        laneControlWarningLabel_->setVisible(checked);
+    });
+
     mainLayout->addWidget(commonGroup);
 
     // === TYPE-SPECIFIC FIELDS SECTION ===
@@ -95,6 +135,7 @@ void EditEventDialog::setupUi()
     connect(cancelButton, &QPushButton::clicked, this, &QDialog::reject);
 }
 
+
 void EditEventDialog::createFieldGroups()
 {
     fieldStack_->addWidget(createMeetingFields());        // Index 0
@@ -103,6 +144,7 @@ void EditEventDialog::createFieldGroups()
     fieldStack_->addWidget(createReminderFields());        // Index 3
     fieldStack_->addWidget(createJiraTicketFields());      // Index 4
 }
+
 
 QWidget* EditEventDialog::createMeetingFields()
 {
@@ -151,6 +193,7 @@ QWidget* EditEventDialog::createMeetingFields()
     return widget;
 }
 
+
 QWidget* EditEventDialog::createActionFields()
 {
     QWidget* widget = new QWidget();
@@ -180,6 +223,7 @@ QWidget* EditEventDialog::createActionFields()
 
     return widget;
 }
+
 
 QWidget* EditEventDialog::createTestEventFields()
 {
@@ -241,6 +285,7 @@ QWidget* EditEventDialog::createTestEventFields()
     return widget;
 }
 
+
 QWidget* EditEventDialog::createReminderFields()
 {
     QWidget* widget = new QWidget();
@@ -259,6 +304,7 @@ QWidget* EditEventDialog::createReminderFields()
 
     return widget;
 }
+
 
 QWidget* EditEventDialog::createJiraTicketFields()
 {
@@ -302,6 +348,7 @@ QWidget* EditEventDialog::createJiraTicketFields()
     return widget;
 }
 
+
 void EditEventDialog::populateFromEvent(const TimelineEvent& event)
 {
     // Set type combo
@@ -317,6 +364,10 @@ void EditEventDialog::populateFromEvent(const TimelineEvent& event)
     // Set common fields
     titleEdit_->setText(event.title);
     prioritySpinner_->setValue(event.priority);
+    laneControlCheckbox_->setChecked(event.laneControlEnabled);
+    manualLaneSpinner_->setValue(event.manualLane);
+    manualLaneSpinner_->setEnabled(event.laneControlEnabled);
+    laneControlWarningLabel_->setVisible(event.laneControlEnabled);
     descriptionEdit_->setPlainText(event.description);
 
     // Set type-specific fields
@@ -414,6 +465,7 @@ void EditEventDialog::populateFromEvent(const TimelineEvent& event)
     showFieldsForType(event.type);
 }
 
+
 void EditEventDialog::onTypeChanged(int index)
 {
     TimelineEventType newType = static_cast<TimelineEventType>(
@@ -448,6 +500,7 @@ void EditEventDialog::onTypeChanged(int index)
     showFieldsForType(newType);
 }
 
+
 void EditEventDialog::showFieldsForType(TimelineEventType type)
 {
     switch (type)
@@ -473,6 +526,7 @@ void EditEventDialog::showFieldsForType(TimelineEventType type)
     adjustSize();
 }
 
+
 bool EditEventDialog::validateCommonFields()
 {
     if (titleEdit_->text().trimmed().isEmpty())
@@ -484,6 +538,7 @@ bool EditEventDialog::validateCommonFields()
     }
     return true;
 }
+
 
 bool EditEventDialog::validateTypeSpecificFields()
 {
@@ -549,6 +604,7 @@ bool EditEventDialog::validateTypeSpecificFields()
     return true;
 }
 
+
 void EditEventDialog::validateAndAccept()
 {
     if (!validateCommonFields() || !validateTypeSpecificFields())
@@ -557,6 +613,7 @@ void EditEventDialog::validateAndAccept()
     }
     accept();
 }
+
 
 void EditEventDialog::onDeleteClicked()
 {
@@ -574,6 +631,7 @@ void EditEventDialog::onDeleteClicked()
     }
 }
 
+
 TimelineEvent EditEventDialog::getEvent() const
 {
     TimelineEvent event;
@@ -584,6 +642,10 @@ TimelineEvent EditEventDialog::getEvent() const
     // Populate common fields
     populateCommonFields(event);
 
+    // Populate lane control fields
+    event.laneControlEnabled = laneControlCheckbox_->isChecked();
+    event.manualLane = manualLaneSpinner_->value();
+
     // Populate type-specific fields
     populateTypeSpecificFields(event);
 
@@ -593,6 +655,7 @@ TimelineEvent EditEventDialog::getEvent() const
     return event;
 }
 
+
 void EditEventDialog::populateCommonFields(TimelineEvent& event) const
 {
     event.type = static_cast<TimelineEventType>(typeCombo_->currentData().toInt());
@@ -600,6 +663,7 @@ void EditEventDialog::populateCommonFields(TimelineEvent& event) const
     event.priority = prioritySpinner_->value();
     event.description = descriptionEdit_->toPlainText().trimmed();
 }
+
 
 void EditEventDialog::populateTypeSpecificFields(TimelineEvent& event) const
 {

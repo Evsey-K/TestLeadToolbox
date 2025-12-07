@@ -342,8 +342,34 @@ void TimelineModule::onAddEventClicked()
     if (dialog.exec() == QDialog::Accepted)
     {
         TimelineEvent newEvent = dialog.getEvent();
-        undoStack_->push(new AddEventCommand(model_, newEvent));
 
+        // Validate lane conflicts if lane control is enabled
+        if (newEvent.laneControlEnabled)
+        {
+            bool hasConflict = model_->hasLaneConflict(
+                newEvent.startDate,
+                newEvent.endDate,
+                newEvent.manualLane
+                );
+
+            if (hasConflict)
+            {
+                QMessageBox::warning(
+                    this,
+                    "Lane Conflict",
+                    QString("Another manually-controlled event already occupies lane %1 "
+                            "during this time period.\n\n"
+                            "Please choose a different lane number or adjust the event dates.")
+                        .arg(newEvent.manualLane)
+                    );
+                // Re-open the dialog to let user fix the conflict
+                onAddEventClicked();
+                return;
+            }
+        }
+
+        // No conflict, proceed with adding
+        undoStack_->push(new AddEventCommand(model_, newEvent));
         statusLabel_->setText(QString("Event '%1' added").arg(newEvent.title));
     }
 }
@@ -687,7 +713,6 @@ void TimelineModule::onEditEventRequested(const QString& eventId)
     if (!event)
     {
         qWarning() << "Cannot edit event: event not found" << eventId;
-
         return;
     }
 
@@ -698,7 +723,9 @@ void TimelineModule::onEditEventRequested(const QString& eventId)
 
     bool deleteRequested = false;
 
-    connect(&dialog, &EditEventDialog::deleteRequested, [&deleteRequested]() { deleteRequested = true; });
+    connect(&dialog, &EditEventDialog::deleteRequested, [&deleteRequested]() {
+        deleteRequested = true;
+    });
 
     int result = dialog.exec();
 
@@ -706,7 +733,6 @@ void TimelineModule::onEditEventRequested(const QString& eventId)
     {
         // User clicked Delete button in the dialog
         onDeleteEventRequested(eventId);
-
         return;
     }
 
@@ -715,12 +741,42 @@ void TimelineModule::onEditEventRequested(const QString& eventId)
         // User clicked Save - update the event
         TimelineEvent updatedEvent = dialog.getEvent();
 
+        // Validate lane conflicts if lane control is enabled
+        if (updatedEvent.laneControlEnabled)
+        {
+            bool hasConflict = model_->hasLaneConflict(
+                updatedEvent.startDate,
+                updatedEvent.endDate,
+                updatedEvent.manualLane,
+                eventId  // Exclude current event from conflict check
+                );
+
+            if (hasConflict)
+            {
+                QMessageBox::warning(
+                    this,
+                    "Lane Conflict",
+                    QString("Another manually-controlled event already occupies lane %1 "
+                            "during this time period.\n\n"
+                            "Please choose a different lane number or adjust the event dates.")
+                        .arg(updatedEvent.manualLane)
+                    );
+                // Re-open the dialog to let user fix the conflict
+                onEditEventRequested(eventId);
+                return;
+            }
+        }
+
+        // No conflict, proceed with update
         if (!model_->updateEvent(eventId, updatedEvent))
         {
             QMessageBox::warning(this, "Update Failed", "Failed to update event. Please try again.");
         }
+        else
+        {
+            statusLabel_->setText(QString("Event '%1' updated").arg(updatedEvent.title));
+        }
     }
-    // If result == QDialog::Rejected, user clicked Cancel - do nothing
 }
 
 

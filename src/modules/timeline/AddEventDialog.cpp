@@ -29,11 +29,11 @@ void AddEventDialog::setupUi()
 
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
 
-    // === COMMON FIELDS SECTION ===
+    // Common Fields Section
     QGroupBox* commonGroup = new QGroupBox("Event Information");
     QFormLayout* commonLayout = new QFormLayout(commonGroup);
 
-    // Type combo
+    // Type Combo
     typeCombo_ = new QComboBox();
     typeCombo_->addItem("Meeting", TimelineEventType_Meeting);
     typeCombo_->addItem("Action", TimelineEventType_Action);
@@ -60,20 +60,55 @@ void AddEventDialog::setupUi()
     descriptionEdit_->setMaximumHeight(100);
     commonLayout->addRow("Description:", descriptionEdit_);
 
+    // Lane Control
+    QGroupBox* laneControlGroup = new QGroupBox("Lane Control (Advanced)");
+    QVBoxLayout* laneControlLayout = new QVBoxLayout(laneControlGroup);
+
+    laneControlCheckbox_ = new QCheckBox("Enable manual lane control");
+    laneControlCheckbox_->setToolTip("When enabled, you can specify which lane this event appears in");
+    laneControlLayout->addWidget(laneControlCheckbox_);
+
+    QHBoxLayout* laneNumberLayout = new QHBoxLayout();
+    QLabel* laneLabel = new QLabel("Lane number:");
+    manualLaneSpinner_ = new QSpinBox();
+    manualLaneSpinner_->setRange(0, 20);
+    manualLaneSpinner_->setValue(0);
+    manualLaneSpinner_->setEnabled(false);  // Initially disabled
+    manualLaneSpinner_->setToolTip("Lane 0 is at the top, higher numbers are below");
+    laneNumberLayout->addWidget(laneLabel);
+    laneNumberLayout->addWidget(manualLaneSpinner_);
+    laneNumberLayout->addStretch();
+    laneControlLayout->addLayout(laneNumberLayout);
+
+    laneControlWarningLabel_ = new QLabel(
+        "<i>Note: If another manually-controlled event already occupies this lane "
+        "at the same time, you'll receive a conflict warning.</i>");
+    laneControlWarningLabel_->setWordWrap(true);
+    laneControlWarningLabel_->setStyleSheet("QLabel { color: #666; }");
+    laneControlWarningLabel_->setVisible(false);
+    laneControlLayout->addWidget(laneControlWarningLabel_);
+
+    mainLayout->addWidget(laneControlGroup);
+
+    // Connect lane control checkbox
+    connect(laneControlCheckbox_, &QCheckBox::toggled, [this](bool checked)
+    {
+        manualLaneSpinner_->setEnabled(checked);
+        laneControlWarningLabel_->setVisible(checked);
+    });
+
     mainLayout->addWidget(commonGroup);
 
-    // === TYPE-SPECIFIC FIELDS SECTION ===
+    // Type-Specific Fields Section
     fieldStack_ = new QStackedWidget();
     mainLayout->addWidget(fieldStack_);
 
-    // === BUTTONS ===
-    QDialogButtonBox* buttonBox = new QDialogButtonBox(
-        QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+    // Buttons
+    QDialogButtonBox* buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
     mainLayout->addWidget(buttonBox);
 
     // Connections
-    connect(typeCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &AddEventDialog::onTypeChanged);
+    connect(typeCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &AddEventDialog::onTypeChanged);
     connect(buttonBox, &QDialogButtonBox::accepted, this, &AddEventDialog::validateAndAccept);
     connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
 }
@@ -410,14 +445,29 @@ bool AddEventDialog::validateTypeSpecificFields()
     return true;
 }
 
+
 void AddEventDialog::validateAndAccept()
 {
+    //
     if (!validateCommonFields() || !validateTypeSpecificFields())
     {
         return;
     }
+
+    // Validate lane control conflicts
+    if (laneControlCheckbox_->isChecked())
+    {
+        // Get the event data to check for conflicts
+        TimelineEvent tempEvent = getEvent();
+
+        // Note: We need access to the model to check conflicts
+        // This requires passing the model pointer to the dialog
+        // For now, we'll add this validation in the MainWindow when the dialog is accepted
+    }
+
     accept();
 }
+
 
 TimelineEvent AddEventDialog::getEvent() const
 {
@@ -425,6 +475,10 @@ TimelineEvent AddEventDialog::getEvent() const
 
     // Populate common fields
     populateCommonFields(event);
+
+    // Populate lane control fields
+    event.laneControlEnabled = laneControlCheckbox_->isChecked();
+    event.manualLane = manualLaneSpinner_->value();
 
     // Populate type-specific fields
     populateTypeSpecificFields(event);
@@ -435,6 +489,7 @@ TimelineEvent AddEventDialog::getEvent() const
     return event;
 }
 
+
 void AddEventDialog::populateCommonFields(TimelineEvent& event) const
 {
     event.type = static_cast<TimelineEventType>(typeCombo_->currentData().toInt());
@@ -442,6 +497,7 @@ void AddEventDialog::populateCommonFields(TimelineEvent& event) const
     event.priority = prioritySpinner_->value();
     event.description = descriptionEdit_->toPlainText().trimmed();
 }
+
 
 void AddEventDialog::populateTypeSpecificFields(TimelineEvent& event) const
 {

@@ -1,6 +1,8 @@
-// EditEventDialog.h - Updated with Dynamic Field Support
+// EditEventDialog.h
+
 
 #pragma once
+#include "TimelineModel.h"
 #include <QDialog>
 #include <QDate>
 #include <QComboBox>
@@ -19,7 +21,8 @@
 #include <QHBoxLayout>
 #include <QMessageBox>
 #include <QPushButton>
-#include "TimelineModel.h"
+#include <QLabel>
+
 
 /**
  * @class EditEventDialog
@@ -165,4 +168,9 @@ private:
     QDate versionStart_;
     QDate versionEnd_;
     TimelineEventType originalType_;
+
+    // =Lane Control Fields
+    QCheckBox* laneControlCheckbox_;
+    QSpinBox* manualLaneSpinner_;
+    QLabel* laneControlWarningLabel_;
 };

@@ -1,5 +1,6 @@
 // TimelineModel.h
 
+
 #pragma once
 #include <QObject>
 #include <QVector>
@@ -9,6 +10,7 @@
 #include <QString>
 #include <QColor>
 #include <QMap>
+
 
 // Forward declarations
 using TimelineEventType = int;
@@ -59,6 +61,10 @@ struct TimelineEvent
     int lane = 0;               ///< Vertical lane for collision avoidance
     bool archived = false;      ///< Soft-delete flag
 
+    // ========== LANE CONTROL FIELDS ==========
+    bool laneControlEnabled = false;    ///< If true, user has manually set the lane
+    int manualLane = 0;                 ///< User-specified lane number (when laneControlEnabled is true)
+
     // ========== DATE/TIME FIELDS ==========
     QDate startDate;            ///< Start date (used by most types)
     QDate endDate;              ///< End date (used by multi-day events)
@@ -74,12 +80,12 @@ struct TimelineEvent
     // ========== ACTION-SPECIFIC FIELDS ==========
     QString status;             ///< Status: Not Started, In Progress, Blocked, Completed
 
-    // ========== REMINDER-SPECIFIC FIELDS ==========
-    QString recurringRule;      ///< Recurrence rule: Daily, Weekly, Monthly
-
     // ========== TEST EVENT-SPECIFIC FIELDS ==========
     QString testCategory;       ///< Category: Dry Run, Preliminary, Formal
     QMap<QString, bool> preparationChecklist;  ///< Checklist items with completion status
+
+    // ========== REMINDER-SPECIFIC FIELDS ==========
+    QString recurringRule;      ///< Recurrence rule: Daily, Weekly, Monthly
 
     // ========== JIRA TICKET-SPECIFIC FIELDS ==========
     QString jiraKey;            ///< Jira ticket key (e.g., ABC-123)
@@ -148,184 +154,47 @@ class TimelineModel : public QObject
     Q_OBJECT
 
 public:
-    /**
-     * @brief Constructs a TimelineModel with version date range
-     * @param parent Qt parent object
-     */
-    explicit TimelineModel(QObject* parent = nullptr);
+    explicit TimelineModel(QObject* parent = nullptr);                                      ///< @brief Constructs a TimelineModel with version date range
 
-    /**
-     * @brief Sets the version's date range for the timeline
-     */
-    void setVersionDates(const QDate& start, const QDate& end);
+    void setVersionDates(const QDate& start, const QDate& end);                             ///< @brief Sets the version's date range for the timeline
+    QDate versionStartDate() const { return versionStart_; }                                ///< @brief Gets the version start date
+    QDate versionEndDate() const { return versionEnd_; }                                    ///< @brief Gets the version end date
+    QString addEvent(const TimelineEvent& event);                                           ///< @brief Adds a new event to the timeline
+    bool removeEvent(const QString& eventId);                                               ///< @brief Removes an event from the timeline
+    bool updateEvent(const QString& eventId, const TimelineEvent& updatedEvent);            ///< @brief Updates an existing event
 
-    /**
-     * @brief Gets the version start date
-     */
-    QDate versionStartDate() const { return versionStart_; }
+    TimelineEvent* getEvent(const QString& eventId);                                        ///< @brief Gets an event by ID (mutable)
+    const TimelineEvent* getEvent(const QString& eventId) const;                            ///< @brief Gets an event by ID (const)
+    QVector<TimelineEvent> getAllEvents() const;                                            ///< @brief Gets all events (sorted by start date, then lane)
+    QVector<TimelineEvent> getEventsInRange(const QDate& start, const QDate& end) const;    ///< @brief Gets events in date range
+    QVector<TimelineEvent> getEventsForToday() const;                                       ///< @brief Gets events for today
+    QVector<TimelineEvent> getEventsLookahead(int days = 14) const;                         ///< @brief Gets events in next N days (lookahead)
+    int eventCount() const { return events_.size(); }                                       ///< @brief Returns total number of events
+    int maxLane() const { return maxLane_; }                                                ///< @brief Returns maximum lane number used (for scene height calculation)
+    void clear();                                                                           ///< @brief Clears all events
+    void recalculateLanes();                                                                ///< @brief Force recalculation of all lanes
+    static QColor colorForType(TimelineEventType type);                                     ///< @brief Returns color for a given event type
+    bool archiveEvent(const QString& eventId);                                              ///< @brief Archive an event (soft delete)
+    bool restoreEvent(const QString& eventId);                                              ///< @brief Restore an archived event
+    bool permanentlyDeleteArchivedEvent(const QString& eventId);                            ///< @brief Permanently delete an archived event
+    const TimelineEvent* getArchivedEvent(const QString& eventId) const;                    ///< @brief Get an archived event by ID
+    QVector<TimelineEvent> getAllArchivedEvents() const;                                    ///< @brief Get all archived events
 
-    /**
-     * @brief Gets the version end date
-     */
-    QDate versionEndDate() const { return versionEnd_; }
-
-    /**
-     * @brief Adds a new event to the timeline
-     * @param event Event to add
-     * @return Event ID (generated if empty), or empty QString on failure
-     */
-    QString addEvent(const TimelineEvent& event);
-
-    /**
-     * @brief Removes an event from the timeline
-     * @param eventId Event ID to remove
-     * @return true if removed successfully
-     */
-    bool removeEvent(const QString& eventId);
-
-    /**
-     * @brief Updates an existing event
-     * @param eventId Event ID
-     * @param updatedEvent New event data
-     * @return true if updated successfully
-     */
-    bool updateEvent(const QString& eventId, const TimelineEvent& updatedEvent);
-
-    /**
-     * @brief Gets an event by ID (mutable)
-     */
-    TimelineEvent* getEvent(const QString& eventId);
-
-    /**
-     * @brief Gets an event by ID (const)
-     */
-    const TimelineEvent* getEvent(const QString& eventId) const;
-
-    /**
-     * @brief Gets all events (sorted by start date, then lane)
-     */
-    QVector<TimelineEvent> getAllEvents() const;
-
-    /**
-     * @brief Gets events in date range
-     */
-    QVector<TimelineEvent> getEventsInRange(const QDate& start, const QDate& end) const;
-
-    /**
-     * @brief Gets events for today
-     */
-    QVector<TimelineEvent> getEventsForToday() const;
-
-    /**
-     * @brief Gets events in next N days (lookahead)
-     */
-    QVector<TimelineEvent> getEventsLookahead(int days = 14) const;
-
-    /**
-     * @brief Returns total number of events
-     */
-    int eventCount() const { return events_.size(); }
-
-    /**
-     * @brief Returns maximum lane number used (for scene height calculation)
-     */
-    int maxLane() const { return maxLane_; }
-
-    /**
-     * @brief Clears all events
-     */
-    void clear();
-
-    /**
-     * @brief Force recalculation of all lanes
-     */
-    void recalculateLanes();
-
-    /**
-     * @brief Returns color for a given event type
-     */
-    static QColor colorForType(TimelineEventType type);
-
-    /**
-     * @brief Archive an event (soft delete)
-     */
-    bool archiveEvent(const QString& eventId);
-
-    /**
-     * @brief Restore an archived event
-     */
-    bool restoreEvent(const QString& eventId);
-
-    /**
-     * @brief Permanently delete an archived event
-     */
-    bool permanentlyDeleteArchivedEvent(const QString& eventId);
-
-    /**
-     * @brief Get an archived event by ID
-     */
-    const TimelineEvent* getArchivedEvent(const QString& eventId) const;
-
-    /**
-     * @brief Get all archived events
-     */
-    QVector<TimelineEvent> getAllArchivedEvents() const;
+    bool hasLaneConflict(const QDate& startDate, const QDate& endDate, int manualLane, const QString& excludeEventId = QString()) const;        ///< @brief Check if a manually-controlled lane placement conflicts with existing events
 
 signals:
-    /**
-     * @brief Emitted when an event is added
-     */
-    void eventAdded(const QString& eventId);
-
-    /**
-     * @brief Emitted when an event is removed
-     */
-    void eventRemoved(const QString& eventId);
-
-    /**
-     * @brief Emitted when an event is updated
-     */
-    void eventUpdated(const QString& eventId);
-
-    /**
-     * @brief Emitted when lanes are recalculated
-     */
-    void lanesRecalculated();
-
-    /**
-     * @brief Emitted when version dates change
-     * @param start New version start date
-     * @param end New version end date
-     */
-    void versionDatesChanged(const QDate& start, const QDate& end);
-
-    /**
-     * @brief Emitted when all events are cleared from the model
-     */
-    void eventsCleared();
-
-    /**
-     * @brief Emitted when an event is archived (soft delete)
-     * @param eventId ID of the archived event
-     */
-    void eventArchived(const QString& eventId);
-
-    /**
-     * @brief Emitted when an archived event is restored
-     * @param eventId ID of the restored event
-     */
-    void eventRestored(const QString& eventId);
+    void versionDatesChanged(const QDate& start, const QDate& end);         ///< @brief Emitted when version dates change
+    void eventAdded(const QString& eventId);                                ///< @brief Emitted when an event is added
+    void eventRemoved(const QString& eventId);                              ///< @brief Emitted when an event is removed
+    void eventUpdated(const QString& eventId);                              ///< @brief Emitted when an event is updated
+    void eventArchived(const QString& eventId);                             ///< @brief Emitted when an event is archived (soft delete)
+    void eventRestored(const QString& eventId);                             ///< @brief Emitted when an archived event is restored
+    void lanesRecalculated();                                               ///< @brief Emitted when lanes are recalculated
+    void eventsCleared();                                                   ///< @brief Emitted when all events are cleared from the model
 
 private:
-    /**
-     * @brief Assigns lanes to all events to prevent visual overlap
-     */
-    void assignLanesToEvents();
-
-    /**
-     * @brief Generates a unique event ID
-     */
-    QString generateEventId() const;
+    void assignLanesToEvents();                 ///< @brief Assigns lanes to all events to prevent visual overlap
+    QString generateEventId() const;            ///< @brief Generates a unique event ID
 
     QDate versionStart_;                        ///< Version start date boundary
     QDate versionEnd_;                          ///< Version end date boundary

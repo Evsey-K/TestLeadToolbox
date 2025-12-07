@@ -113,6 +113,7 @@ public:
         return lane * (laneHeight + laneSpacing);
     }
 
+
     /**
      * @brief Calculates total scene height needed for given lane count
      * @param maxLane Highest lane number used (0-based)
@@ -123,6 +124,87 @@ public:
     static double calculateSceneHeight(int maxLane, double laneHeight = 30.0, double laneSpacing = 5.0)
     {
         return (maxLane + 1) * (laneHeight + laneSpacing) + 50;     // +50 for padding
+    }
+
+
+    /**
+     * @brief Assigns lanes to events while respecting reserved lanes from manually-controlled events
+     * @param events Vector of events to assign lanes (modified in place)
+     * @param reservedEvents Vector of events with manually-controlled lanes (read-only)
+     * @return Maximum lane number used
+     */
+    static int assignLanesWithReserved(QVector<EventData>& events,
+                                       const QVector<EventData>& reservedEvents)
+    {
+        if (events.isEmpty())
+        {
+            return findMaxLane(reservedEvents);
+        }
+
+        // Step 1: Sort events by start date
+        std::sort(events.begin(), events.end(),
+                  [](const EventData& a, const EventData& b)
+                  {
+                      if (a.startDate != b.startDate)
+                          return a.startDate < b.startDate;
+                      return a.endDate < b.endDate;
+                  });
+
+        // Step 2: Track when each lane becomes free
+        QMap<int, QDate> laneFreeDate;
+
+        // Step 3: Assign each event to the lowest available lane
+        for (auto& event : events)
+        {
+            int assignedLane = 0;
+
+            // Find the lowest available lane
+            while (true)
+            {
+                bool laneAvailable = true;
+
+                // Check if this lane is reserved by a manual event that overlaps
+                for (const auto& reserved : reservedEvents)
+                {
+                    if (reserved.lane == assignedLane)
+                    {
+                        // Check for date overlap
+                        if (event.startDate <= reserved.endDate &&
+                            event.endDate >= reserved.startDate)
+                        {
+                            laneAvailable = false;
+                            break;
+                        }
+                    }
+                }
+
+                // Also check automatic lane tracking
+                if (laneAvailable)
+                {
+                    if (!laneFreeDate.contains(assignedLane) ||
+                        laneFreeDate[assignedLane] < event.startDate)
+                    {
+                        // Lane is available
+                        break;
+                    }
+                }
+
+                // Try next lane
+                ++assignedLane;
+            }
+
+            // Assign this event to the found lane
+            event.lane = assignedLane;
+
+            // Mark this lane as occupied until event.endDate
+            laneFreeDate[assignedLane] = event.endDate;
+        }
+
+        // Return maximum lane used
+        int maxLane = findMaxLane(events);
+        int maxReserved = findMaxLane(reservedEvents);
+
+        return std::max(maxLane, maxReserved);
     }
 
 private:
@@ -153,6 +235,23 @@ private:
 
         // No existing lane is available, return new lane
         return lane;
+    }
+
+
+    /**
+     * @brief Helper to find maximum lane in a vector
+     */
+    static int findMaxLane(const QVector<EventData>& events)
+    {
+        int maxLane = 0;
+        for (const auto& event : events)
+        {
+            if (event.lane > maxLane)
+            {
+                maxLane = event.lane;
+            }
+        }
+        return maxLane;
     }
 };
 

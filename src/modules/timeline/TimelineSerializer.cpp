@@ -1,5 +1,6 @@
 // TimelineSerializer.cpp - Updated with Type-Specific Field Support
 
+
 #include "TimelineSerializer.h"
 #include <QFile>
 #include <QJsonDocument>
@@ -8,6 +9,7 @@
 #include <QDebug>
 #include <QDir>
 #include <QStandardPaths>
+
 
 bool TimelineSerializer::saveToFile(const TimelineModel* model, const QString& filePath)
 {
@@ -35,6 +37,7 @@ bool TimelineSerializer::saveToFile(const TimelineModel* model, const QString& f
     qDebug() << "Timeline saved to:" << filePath;
     return true;
 }
+
 
 bool TimelineSerializer::loadFromFile(TimelineModel* model, const QString& filePath)
 {
@@ -67,6 +70,7 @@ bool TimelineSerializer::loadFromFile(TimelineModel* model, const QString& fileP
     return deserializeModel(model, doc.object());
 }
 
+
 QJsonObject TimelineSerializer::serializeModel(const TimelineModel* model)
 {
     QJsonObject obj;
@@ -98,6 +102,7 @@ QJsonObject TimelineSerializer::serializeModel(const TimelineModel* model)
 
     return obj;
 }
+
 
 bool TimelineSerializer::deserializeModel(TimelineModel* model, const QJsonObject& json)
 {
@@ -143,6 +148,7 @@ bool TimelineSerializer::deserializeModel(TimelineModel* model, const QJsonObjec
     return true;
 }
 
+
 QString TimelineSerializer::getDefaultSaveLocation()
 {
     QString appDataPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
@@ -153,6 +159,7 @@ QString TimelineSerializer::getDefaultSaveLocation()
     }
     return dir.filePath("timeline.json");
 }
+
 
 bool TimelineSerializer::createBackup(const QString& filePath)
 {
@@ -172,9 +179,6 @@ bool TimelineSerializer::createBackup(const QString& filePath)
     return QFile::copy(filePath, backupPath);
 }
 
-// ============================================================================
-// PRIVATE HELPER METHODS - Event Serialization
-// ============================================================================
 
 QJsonObject TimelineSerializer::serializeEvent(const TimelineEvent& event)
 {
@@ -188,6 +192,8 @@ QJsonObject TimelineSerializer::serializeEvent(const TimelineEvent& event)
     obj["priority"] = event.priority;
     obj["lane"] = event.lane;
     obj["archived"] = event.archived;
+    obj["laneControlEnabled"] = event.laneControlEnabled;
+    obj["manualLane"] = event.manualLane;
     obj["color"] = event.color.name();
 
     // Date/Time fields (used by most types)
@@ -245,6 +251,7 @@ QJsonObject TimelineSerializer::serializeEvent(const TimelineEvent& event)
     return obj;
 }
 
+
 TimelineEvent TimelineSerializer::deserializeEvent(const QJsonObject& json)
 {
     TimelineEvent event;
@@ -257,6 +264,8 @@ TimelineEvent TimelineSerializer::deserializeEvent(const QJsonObject& json)
     event.priority = json["priority"].toInt();
     event.lane = json["lane"].toInt();
     event.archived = json["archived"].toBool();
+    event.laneControlEnabled = json.contains("laneControlEnabled") ? json["laneControlEnabled"].toBool() : false;
+    event.manualLane = json.contains("manualLane") ? json["manualLane"].toInt() : 0;
 
     // Parse color
     QString colorStr = json["color"].toString();
