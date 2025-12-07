@@ -8,6 +8,7 @@
 #include "TimelineItem.h"
 #include "TimelineScene.h"
 #include "TimelineSidePanel.h"
+#include "TimelineLegend.h"
 #include "AddEventDialog.h"
 #include "VersionSettingsDialog.h"
 #include "TimelineSerializer.h"
@@ -20,9 +21,11 @@
 #include "TimelineSettings.h"
 #include "ConfirmationDialog.h"
 #include "ArchivedEventsDialog.h"
+
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QPushButton>
+#include <QCheckBox>
 #include <QSplitter>
 #include <QMessageBox>
 #include <QFileDialog>
@@ -38,6 +41,9 @@ TimelineModule::TimelineModule(QWidget* parent)
     , scrollAnimator_(nullptr)
     , deleteAction_(nullptr)
     , undoStack_(nullptr)
+    , legend_(nullptr)
+    , legendCheckbox_(nullptr)
+    , splitter_(nullptr)
 {
     // Create model
     model_ = new TimelineModel(this);
@@ -61,6 +67,9 @@ TimelineModule::TimelineModule(QWidget* parent)
 
     //
     setupUndoStack();
+
+    // Create the legend (initially hidden)
+    createLegend();
 }
 
 
@@ -86,14 +95,14 @@ void TimelineModule::setupUi()
     mainLayout->addWidget(toolbar);
 
     // Splitter for timeline view and side panel
-    auto splitter = new QSplitter(Qt::Horizontal);
+    splitter_ = new QSplitter(Qt::Horizontal);
 
     // Prevent side panel from collapsing when dragging splitter
-    splitter->setChildrenCollapsible(false);
+    splitter_->setChildrenCollapsible(false);
 
     // ⚠️ IMPORTANT: Create timeline view FIRST (before side panel needs it)
     view_ = new TimelineView(model_, mapper_, this);
-    splitter->addWidget(view_);
+    splitter_->addWidget(view_);
 
     // Create scroll animator
     scrollAnimator_ = new TimelineScrollAnimator(view_, mapper_, this);
@@ -102,13 +111,13 @@ void TimelineModule::setupUi()
     sidePanel_ = new TimelineSidePanel(model_, view_, this);
     sidePanel_->setMinimumWidth(300);
     sidePanel_->setMaximumWidth(500);
-    splitter->addWidget(sidePanel_);
+    splitter_->addWidget(sidePanel_);
 
     // Set initial splitter sizes (70% timeline, 30% panel)
-    splitter->setStretchFactor(0, 7);
-    splitter->setStretchFactor(1, 3);
+    splitter_->setStretchFactor(0, 7);
+    splitter_->setStretchFactor(1, 3);
 
-    mainLayout->addWidget(splitter, 1); // Give splitter all remaining space
+    mainLayout->addWidget(splitter_, 1); // Give splitter all remaining space
 
     // Status bar for feedback
     statusLabel_ = new QLabel("Ready");
@@ -123,6 +132,9 @@ void TimelineModule::setupUi()
 
     // Restore side panel visibility from settings
     restoreSidePanelState();
+
+    // Connect splitter moved signal to update legend position
+    connect(splitter_, &QSplitter::splitterMoved, this, &TimelineModule::onSplitterMoved);
 }
 
 
@@ -188,6 +200,13 @@ QToolBar* TimelineModule::createToolbar()
     auto scrollToDateAction = toolbar->addAction("📅 Go to Date");
     scrollToDateAction->setToolTip("Scroll to specific date");
     connect(scrollToDateAction, &QAction::triggered, this, &TimelineModule::onScrollToDate);
+
+    // Add legend checkbox after "Go to Date"
+    legendCheckbox_ = new QCheckBox("Legend");
+    legendCheckbox_->setToolTip("Show/Hide event type color legend");
+    legendCheckbox_->setChecked(false);  // Initially unchecked (legend hidden)
+    toolbar->addWidget(legendCheckbox_);
+    connect(legendCheckbox_, &QCheckBox::toggled, this, &TimelineModule::onLegendToggled);
 
     // Add spacer to push toggle button to the right
     QWidget* spacer = new QWidget();
@@ -985,4 +1004,107 @@ void TimelineModule::restoreSidePanelState()
     updateToggleButtonState();
 
     qDebug() << "Side panel restored to:" << (visible ? "visible" : "hidden");
+}
+
+
+void TimelineModule::createLegend()
+{
+    // Create legend as a widget overlay on top of the view
+    legend_ = new TimelineLegend(view_);
+
+    // Build legend entries from event types
+    QVector<TimelineLegend::LegendEntry> entries;
+
+    entries.append({ "Meeting", TimelineModel::colorForType(TimelineEventType_Meeting) });
+    entries.append({ "Action", TimelineModel::colorForType(TimelineEventType_Action) });
+    entries.append({ "Test Event", TimelineModel::colorForType(TimelineEventType_TestEvent) });
+    entries.append({ "Reminder", TimelineModel::colorForType(TimelineEventType_Reminder) });
+    entries.append({ "Jira Ticket", TimelineModel::colorForType(TimelineEventType_JiraTicket) });
+
+    legend_->setEntries(entries);
+
+    // Position the legend (initially hidden)
+    updateLegendPosition();
+
+    // Keep legend on top
+    legend_->raise();
+}
+
+
+void TimelineModule::setLegendVisible(bool visible)
+{
+    if (legend_)
+    {
+        if (visible)
+        {
+            legend_->show();
+            updateLegendPosition();
+            legend_->raise();  // Ensure it stays on top
+        }
+        else
+        {
+            legend_->hide();
+        }
+    }
+}
+
+
+void TimelineModule::updateLegendPosition()
+{
+    if (!legend_ || !legend_->isVisible())
+    {
+        return;
+    }
+
+    // Get splitter sizes to determine where the side panel begins
+    QList<int> sizes = splitter_->sizes();
+    if (sizes.size() < 2)
+    {
+        return;
+    }
+
+    // The timeline view width in pixels
+    int viewWidth = sizes[0];
+
+    // Position legend in the top-right corner of the view, with margin
+    int legendX = viewWidth - legend_->width() - 10;
+    int legendY = 10;
+
+    // Move the widget to this position
+    legend_->move(legendX, legendY);
+
+    // Ensure legend stays on top
+    legend_->raise();
+}
+
+
+void TimelineModule::onLegendToggled(bool checked)
+{
+    setLegendVisible(checked);
+
+    QString status = checked ? "Legend shown" : "Legend hidden";
+    statusLabel_->setText(status);
+}
+
+
+void TimelineModule::onSplitterMoved(int pos, int index)
+{
+    // When the splitter moves, update the legend position
+    // Only update if legend is visible
+    if (legend_ && legend_->isVisible())
+    {
+        updateLegendPosition();
+    }
+}
+
+
+void TimelineModule::resizeEvent(QResizeEvent* event)
+{
+    QWidget::resizeEvent(event);
+
+    // Update legend position when window is resized
+    if (legend_ && legend_->isVisible())
+    {
+        updateLegendPosition();
+    }
 }

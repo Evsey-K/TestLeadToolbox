@@ -211,15 +211,15 @@ QColor TimelineModel::colorForType(TimelineEventType type)
     switch (type)
     {
     case TimelineEventType_Meeting:
-        return QColor(100, 149, 237);       // Cornflower Blue - Professional meetings
+        return QColor(30, 144, 255);        // Dodger Blue (#1E90FF) - Calm, standard for scheduling
     case TimelineEventType_Action:
-        return QColor(255, 165, 0);         // Orange - Action items that need attention
+        return QColor(220, 20, 60);         // Crimson (#DC143C) - Strong signal for urgency
     case TimelineEventType_TestEvent:
-        return QColor(50, 205, 50);         // Lime Green - Test events and milestones
+        return QColor(138, 43, 226);        // Blue Violet (#8A2BE2) - Technical/specialized
     case TimelineEventType_Reminder:
-        return QColor(255, 215, 0);         // Gold - Important reminders
+        return QColor(255, 215, 0);         // Gold (#FFD700) - Visibility and attention
     case TimelineEventType_JiraTicket:
-        return QColor(70, 130, 180);        // Steel Blue - Jira ticket tracking
+        return QColor(50, 205, 50);         // Lime Green (#32CD32) - Progress/tasks/neutral work item
     default:
         return QColor(128, 128, 128);       // Gray fallback for unknown types
     }

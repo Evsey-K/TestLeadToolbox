@@ -104,6 +104,8 @@ set(SRC
     src/modules/timeline/TimelineSidePanel.cpp
     src/modules/timeline/TimelineSidePanel.h
     src/modules/timeline/TimelineSidePanel.ui
+    src/modules/timeline/TimelineLegend.h
+    src/modules/timeline/TimelineLegend.cpp
 
     # Timeline Module - Utilities
     src/modules/timeline/LaneAssigner.h

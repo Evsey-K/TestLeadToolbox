@@ -80,11 +80,11 @@ void AddEventDialog::setupUi()
 
 void AddEventDialog::createFieldGroups()
 {
-    fieldStack_->addWidget(createMeetingFields());        // Index 0
-    fieldStack_->addWidget(createActionFields());          // Index 1
-    fieldStack_->addWidget(createTestEventFields());       // Index 2
-    fieldStack_->addWidget(createReminderFields());        // Index 3
-    fieldStack_->addWidget(createJiraTicketFields());      // Index 4
+    fieldStack_->addWidget(createMeetingFields());          // Index 0
+    fieldStack_->addWidget(createActionFields());           // Index 1
+    fieldStack_->addWidget(createTestEventFields());        // Index 2
+    fieldStack_->addWidget(createReminderFields());         // Index 3
+    fieldStack_->addWidget(createJiraTicketFields());       // Index 4
 }
 
 QWidget* AddEventDialog::createMeetingFields()
@@ -92,8 +92,14 @@ QWidget* AddEventDialog::createMeetingFields()
     QWidget* widget = new QWidget();
     QFormLayout* layout = new QFormLayout(widget);
 
+    // Match spacing to other event types
+    layout->setVerticalSpacing(6);
+    layout->setHorizontalSpacing(10);
+
     // Start Date/Time
     QHBoxLayout* startLayout = new QHBoxLayout();
+    startLayout->setSpacing(5);
+    startLayout->setContentsMargins(0, 0, 0, 0);
     meetingStartDate_ = new QDateEdit(QDate::currentDate());
     meetingStartDate_->setCalendarPopup(true);
     meetingStartDate_->setMinimumDate(versionStart_);
@@ -105,6 +111,8 @@ QWidget* AddEventDialog::createMeetingFields()
 
     // End Date/Time
     QHBoxLayout* endLayout = new QHBoxLayout();
+    endLayout->setSpacing(5);
+    endLayout->setContentsMargins(0, 0, 0, 0);
     meetingEndDate_ = new QDateEdit(QDate::currentDate());
     meetingEndDate_->setCalendarPopup(true);
     meetingEndDate_->setMinimumDate(versionStart_);
@@ -123,6 +131,7 @@ QWidget* AddEventDialog::createMeetingFields()
     participantsEdit_ = new QTextEdit();
     participantsEdit_->setPlaceholderText("Enter attendee names/emails...");
     participantsEdit_->setMaximumHeight(60);
+    participantsEdit_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     layout->addRow("Participants:", participantsEdit_);
 
     // Connect date change handler
@@ -133,6 +142,7 @@ QWidget* AddEventDialog::createMeetingFields()
 
     return widget;
 }
+
 
 QWidget* AddEventDialog::createActionFields()
 {

@@ -17,6 +17,9 @@ class QPushButton;
 class QToolBar;
 class QLabel;
 class QAction;
+class TimelineLegend;
+class QCheckBox;
+class QSplitter;
 
 
 /**
@@ -62,6 +65,9 @@ public:
     }
 
     QUndoStack* undoStack() const { return undoStack_; }
+
+protected:
+    void resizeEvent(QResizeEvent* event) override;
 
 private slots:
     /**
@@ -141,6 +147,9 @@ private slots:
      */
     void onToggleSidePanelClicked();
 
+    void onLegendToggled(bool checked);
+    void onSplitterMoved(int pos, int index);
+
 private:
     void setupUi();
     void setupConnections();
@@ -152,6 +161,10 @@ private:
 
     void updateToggleButtonState();                     ///< @brief Update toggle button state based on panel visibility
     void restoreSidePanelState();                       ///< @brief Load and apply side panel visibility from settings
+
+    void createLegend();
+    void updateLegendPosition();
+    void setLegendVisible(bool visible);
 
     bool confirmDeletion(const QString& eventId);       ///< @brief Show confirmation dialog for single event deletion
     bool deleteEvent(const QString& eventId);           ///< @brief Delete a single event with confirmation
@@ -175,4 +188,7 @@ private:
     QAction* deleteAction_;
     QUndoStack* undoStack_;
     QAction* toggleSidePanelAction_;
+    TimelineLegend* legend_;                    ///< Color legend (nullable)
+    QCheckBox* legendCheckbox_;                 ///< Legend visibility checkbox
+    QSplitter* splitter_;                       ///< Splitter between view and panel
 };

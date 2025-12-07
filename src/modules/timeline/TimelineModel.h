@@ -15,9 +15,9 @@ using TimelineEventType = int;
 constexpr TimelineEventType TimelineEventType_Meeting = 0;
 constexpr TimelineEventType TimelineEventType_Action = 1;
 constexpr TimelineEventType TimelineEventType_TestEvent = 2;
-// TimelineEventType_DueDate = 3;  // REMOVED in favor of unified Action type
 constexpr TimelineEventType TimelineEventType_Reminder = 4;
-constexpr TimelineEventType TimelineEventType_JiraTicket = 5;  // NEW
+constexpr TimelineEventType TimelineEventType_JiraTicket = 5;
+
 
 /**
  * @struct TimelineEvent

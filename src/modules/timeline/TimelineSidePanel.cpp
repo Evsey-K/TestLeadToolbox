@@ -1103,7 +1103,8 @@ void TimelineSidePanel::displayEventDetails(const QString& eventId)
     // === COMMON FIELDS (All Event Types) ===
     ui->titleValueLabel->setText(event->title);
     ui->typeValueLabel->setText(eventTypeToString(event->type));
-    ui->priorityValueLabel->setText(QString("Priority: %1").arg(event->priority));
+    ui->priorityValueLabel->setText(QString::number(event->priority));  // FIXED: Removed "Priority: " prefix
+    ui->laneValueLabel->setText(QString::number(event->lane));          // FIXED: Added missing lane display
 
     // Clear previous type-specific content
     clearTypeSpecificFields();
