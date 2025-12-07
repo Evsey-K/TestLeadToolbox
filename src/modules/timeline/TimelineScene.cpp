@@ -225,6 +225,7 @@ TimelineItem* TimelineScene::createItemForEvent(const QString& eventId)
     item->setEventId(eventId);
     item->setModel(model_);
     item->setCoordinateMapper(mapper_);
+    item->setUndoStack(undoStack_);
 
     // Set visual properties
     item->setBrush(QBrush(event->color));

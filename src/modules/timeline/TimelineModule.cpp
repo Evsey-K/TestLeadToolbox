@@ -58,15 +58,15 @@ TimelineModule::TimelineModule(QWidget* parent)
         model_->versionEndDate(),
         TimelineCoordinateMapper::DEFAULT_PIXELS_PER_DAY);
 
+    // Create undo stack BEFORE setupUi()
+    setupUndoStack();
+
     setupUi();
     setupConnections();
     setupAutoSave();
 
     // Try to load existing timeline data
     loadTimelineData();
-
-    //
-    setupUndoStack();
 
     // Create the legend (initially hidden)
     createLegend();
@@ -85,22 +85,9 @@ TimelineModule::~TimelineModule()
 }
 
 
-void TimelineModule::save()
-{
-    onSaveClicked();
-}
-
-
-void TimelineModule::saveAs()
-{
-    onSaveAsClicked();
-}
-
-
-void TimelineModule::load()
-{
-    onLoadClicked();
-}
+void TimelineModule::save() { onSaveClicked(); }        ///<
+void TimelineModule::saveAs() { onSaveAsClicked(); }    ///<
+void TimelineModule::load() { onLoadClicked(); }        ///<
 
 
 void TimelineModule::setupUi()
@@ -118,9 +105,16 @@ void TimelineModule::setupUi()
     // Prevent side panel from collapsing when dragging splitter
     splitter_->setChildrenCollapsible(false);
 
-    // ⚠️ IMPORTANT: Create timeline view FIRST (before side panel needs it)
+    // Create timeline view FIRST (before side panel needs it)
     view_ = new TimelineView(model_, mapper_, this);
+    view_->timelineScene()->setUndoStack(undoStack_);
     splitter_->addWidget(view_);
+
+    // Connect undo stack to scene (must be after setupUndoStack() is called)
+    if (view_->timelineScene())
+    {
+        view_->timelineScene()->setUndoStack(undoStack_);
+    }
 
     // Create scroll animator
     scrollAnimator_ = new TimelineScrollAnimator(view_, mapper_, this);
@@ -768,14 +762,8 @@ void TimelineModule::onEditEventRequested(const QString& eventId)
         }
 
         // No conflict, proceed with update
-        if (!model_->updateEvent(eventId, updatedEvent))
-        {
-            QMessageBox::warning(this, "Update Failed", "Failed to update event. Please try again.");
-        }
-        else
-        {
-            statusLabel_->setText(QString("Event '%1' updated").arg(updatedEvent.title));
-        }
+        undoStack_->push(new UpdateEventCommand(model_, eventId, updatedEvent));
+        statusLabel_->setText(QString("Event '%1' updated").arg(updatedEvent.title));
     }
 }
 

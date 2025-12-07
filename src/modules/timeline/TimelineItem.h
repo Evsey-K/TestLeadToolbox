@@ -15,6 +15,7 @@ class TimelineCoordinateMapper;
 class QGraphicsSceneMouseEvent;
 class QGraphicsSceneHoverEvent;
 class QMenu;
+class QUndoStack;
 
 
 /**
@@ -58,6 +59,7 @@ public:
     QString eventId() const { return eventId_; }                                        ///< @brief Get the event ID
     void setModel(TimelineModel* model) { model_ = model; }                             ///< @brief Set the model reference (required for updates)
     void setCoordinateMapper(TimelineCoordinateMapper* mapper) { mapper_ = mapper; }    ///< @brief Set the coordinate mapper (required for date conversion)
+    void setUndoStack(QUndoStack* undoStack) { undoStack_ = undoStack; }                ///<
     void setResizable(bool resizable) { resizable_ = resizable; }                       ///< @brief Enable or disable resize functionality
     bool isResizable() const { return resizable_; }                                     ///< @brief Check if item is resizable
 
@@ -86,6 +88,7 @@ private:
 
     TimelineModel* model_ = nullptr;                        ///< Model reference (not owned)
     TimelineCoordinateMapper* mapper_ = nullptr;            ///< Coordinate mapper (not owned)
+    QUndoStack* undoStack_ = nullptr;                       ///<
 
     bool isDragging_ = false;                               ///< Whether currently being dragged
     bool isMultiDragging_ = false;                          ///< Whether performing multi-item drag

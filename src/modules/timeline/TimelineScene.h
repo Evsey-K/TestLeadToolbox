@@ -12,6 +12,7 @@ class TimelineItem;
 class TimelineDateScale;
 class CurrentDateMarker;
 class VersionBoundaryMarker;
+class QUndoStack;
 
 
 /**
@@ -42,6 +43,7 @@ public:
                            QObject *parent = nullptr);
 
     TimelineCoordinateMapper* coordinateMapper() const { return mapper_; }      ///< @brief Get the coordinate mapper
+    void setUndoStack(QUndoStack* undoStack) { undoStack_ = undoStack; }        ///<
     void rebuildFromModel();                                                    ///< @brief Rebuild all items from the model (useful after zoom or major changes)
     TimelineItem* findItemByEventId(const QString& eventId) const;              ///< @brief Find the TimelineItem associated with an event ID
 
@@ -73,6 +75,7 @@ private:
 
     TimelineModel* model_;                              ///< Data model (not owned)
     TimelineCoordinateMapper* mapper_;                  ///< Coordinate mapper (not owned)
+    QUndoStack* undoStack_ = nullptr;                   ///<
     QMap<QString, TimelineItem*> eventIdToItem_;        ///< Map event IDs to scene items
 
     TimelineDateScale* dateScale_;                      ///< Date scale renderer (owned by scene)

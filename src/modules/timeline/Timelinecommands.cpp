@@ -173,7 +173,24 @@ UpdateEventCommand::UpdateEventCommand(TimelineModel* model,
     if (oldEvent)
     {
         oldEvent_ = *oldEvent;
-        setText(QString("Edit Event: %1").arg(oldEvent->title));
+
+        // Determine what changed to create descriptive text
+        bool datesChanged = (oldEvent->startDate != newEvent.startDate ||
+                             oldEvent->endDate != newEvent.endDate);
+        bool laneChanged = (oldEvent->lane != newEvent.lane);
+
+        if (datesChanged && laneChanged)
+        {
+            setText(QString("Move Event: %1").arg(oldEvent->title));
+        }
+        else if (datesChanged)
+        {
+            setText(QString("Resize Event: %1").arg(oldEvent->title));
+        }
+        else
+        {
+            setText(QString("Edit Event: %1").arg(oldEvent->title));
+        }
     }
     else
     {
@@ -219,26 +236,6 @@ void UpdateEventCommand::undo()
     }
 
     qDebug() << "UpdateEventCommand::undo() - Restored event:" << eventId_;
-}
-
-
-bool UpdateEventCommand::mergeWith(const QUndoCommand* other)
-{
-    // Can merge if the same event is being updated multiple times
-    const UpdateEventCommand* otherUpdate = dynamic_cast<const UpdateEventCommand*>(other);
-
-    if (!otherUpdate || otherUpdate->eventId_ != eventId_)
-    {
-        return false;
-    }
-
-    // Merge by updating newEvent_ with the latest changes
-    // This allows multiple rapid edits to collapse into a single undo step
-    newEvent_ = otherUpdate->newEvent_;
-
-    qDebug() << "UpdateEventCommand::mergeWith() - Merged updates for event:" << eventId_;
-
-    return true;
 }
 
 

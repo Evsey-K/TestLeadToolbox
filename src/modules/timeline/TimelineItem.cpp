@@ -4,17 +4,19 @@
 #include "TimelineItem.h"
 #include "TimelineModel.h"
 #include "TimelineCoordinateMapper.h"
+#include "TimelineCommands.h"
 #include "LaneAssigner.h"
+#include <QCursor>
 #include <QGraphicsSceneContextMenuEvent>
 #include <QGraphicsSceneMouseEvent>
 #include <QGraphicsSceneHoverEvent>
 #include <QGraphicsScene>
-#include <QCursor>
+#include <QMenu>
+#include <QMessageBox>
 #include <QPainter>
 #include <QPen>
-#include <QMenu>
 #include <QStyleOptionGraphicsItem>
-#include <QMessageBox>
+#include <QUndoStack>
 
 
 // Constants for lane calculation (must match TimelineScene)
@@ -275,28 +277,28 @@ void TimelineItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event)
 
         if (isMultiDragging_)
         {
-            // Multi-drag completed
             isMultiDragging_ = false;
 
-            // Update all dragged items in the model
+            // Collect all event updates for batch command
+            QList<QPair<QString, TimelineEvent>> eventUpdates;
+
             if (scene())
             {
                 QList<QGraphicsItem*> selectedItems = scene()->selectedItems();
 
-                // Block signals to batch updates
-                bool wasBlocked = model_->blockSignals(true);
-
                 for (QGraphicsItem* item : selectedItems)
                 {
                     TimelineItem* timelineItem = qgraphicsitem_cast<TimelineItem*>(item);
+
                     if (timelineItem && !timelineItem->eventId().isEmpty())
                     {
                         // Check if position actually changed
                         QPointF startPos = multiDragStartPositions_.value(item);
+
                         if (timelineItem->pos() != startPos)
                         {
-                            // Get current event data
                             const TimelineEvent* currentEvent = model_->getEvent(timelineItem->eventId());
+
                             if (!currentEvent)
                             {
                                 continue;
@@ -320,33 +322,58 @@ void TimelineItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event)
                             // If lane control is enabled, update the lane
                             if (currentEvent->laneControlEnabled)
                             {
-                                double yPos = itemRect.y() + itemPos.y();
                                 int newLane = timelineItem->calculateLaneFromYPosition();
                                 updatedEvent.manualLane = newLane;
                                 updatedEvent.lane = newLane;
                             }
 
-                            // Update model (signals are blocked, so no scene update yet)
-                            model_->updateEvent(timelineItem->eventId(), updatedEvent);
+                            // Add to batch update list
+                            eventUpdates.append(qMakePair(timelineItem->eventId(), updatedEvent));
                         }
                     }
                 }
 
-                // Re-enable signals and trigger a single lane recalculation
-                model_->blockSignals(wasBlocked);
-
-                // Trigger scene update
-                if (!selectedItems.isEmpty())
+                // Use undo commands for multi-drag
+                if (!eventUpdates.isEmpty() && undoStack_)
                 {
-                    TimelineItem* firstItem = qgraphicsitem_cast<TimelineItem*>(selectedItems.first());
-                    if (firstItem && !firstItem->eventId().isEmpty())
+                    if (eventUpdates.size() == 1)
                     {
-                        const TimelineEvent* evt = model_->getEvent(firstItem->eventId());
-                        if (evt)
+                        // Single event moved
+                        undoStack_->push(new UpdateEventCommand(
+                            model_,
+                            eventUpdates.first().first,
+                            eventUpdates.first().second
+                            ));
+                    }
+                    else
+                    {
+                        // Multiple events moved - group into single undo step
+                        undoStack_->beginMacro(QString("Move %1 Events").arg(eventUpdates.size()));
+
+                        for (const auto& pair : eventUpdates)
                         {
-                            // This will trigger lane recalculation and scene update
-                            model_->updateEvent(firstItem->eventId(), *evt);
+                            undoStack_->push(new UpdateEventCommand(model_, pair.first, pair.second));
                         }
+
+                        undoStack_->endMacro();
+                    }
+                }
+                else if (!eventUpdates.isEmpty())
+                {
+                    // Fallback: update directly if no undo stack
+                    qWarning() << "TimelineItem::mouseReleaseEvent() - No undo stack for multi-drag, updating directly";
+
+                    bool wasBlocked = model_->blockSignals(true);
+                    for (const auto& pair : eventUpdates)
+                    {
+                        model_->updateEvent(pair.first, pair.second);
+                    }
+                    model_->blockSignals(wasBlocked);
+
+                    // Trigger update
+                    if (!eventUpdates.isEmpty())
+                    {
+                        model_->updateEvent(eventUpdates.first().first, eventUpdates.first().second);
                     }
                 }
             }
@@ -434,8 +461,17 @@ void TimelineItem::updateModelFromPosition()
         updatedEvent.lane = newLane;
     }
 
-    // Update model (this will trigger lane recalculation and eventUpdated signal)
-    model_->updateEvent(eventId_, updatedEvent);
+    // Use undo command instead of direct model update
+    if (undoStack_)
+    {
+        undoStack_->push(new UpdateEventCommand(model_, eventId_, updatedEvent));
+    }
+    else
+    {
+        // Fallback: update directly if no undo stack available
+        qWarning() << "TimelineItem::updateModelFromPosition() - No undo stack available, updating directly";
+        model_->updateEvent(eventId_, updatedEvent);
+    }
 }
 
 
@@ -470,6 +506,7 @@ void TimelineItem::updateModelFromSize()
 
     // Get current event data
     const TimelineEvent* currentEvent = model_->getEvent(eventId_);
+
     if (!currentEvent)
     {
         return;
@@ -480,7 +517,7 @@ void TimelineItem::updateModelFromSize()
     double rightX = leftX + rect_.width();
 
     QDate newStartDate = mapper_->xToDate(leftX);
-    QDate newEndDate = mapper_->xToDate(rightX).addDays(-1);  // ← CRITICAL: Subtract 1 day because rightX represents start of next day
+    QDate newEndDate = mapper_->xToDate(rightX).addDays(-1);    // Subtract 1 day because rightX represents start of next day
 
     // Ensure at least 1-day duration
     if (newEndDate < newStartDate)
@@ -493,8 +530,17 @@ void TimelineItem::updateModelFromSize()
     updatedEvent.startDate = newStartDate;
     updatedEvent.endDate = newEndDate;
 
-    // Update model
-    model_->updateEvent(eventId_, updatedEvent);
+    // Use undo command instead of direct model update
+    if (undoStack_)
+    {
+        undoStack_->push(new UpdateEventCommand(model_, eventId_, updatedEvent));
+    }
+    else
+    {
+        // Fallback: update directly if no undo stack available
+        qWarning() << "TimelineItem::updateModelFromSize() - No undo stack available, updating directly";
+        model_->updateEvent(eventId_, updatedEvent);
+    }
 }
 
 

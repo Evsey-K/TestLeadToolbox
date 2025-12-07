@@ -86,7 +86,12 @@ private:
  * @class UpdateEventCommand
  * @brief Undoable command for modifying a timeline event
  *
- * Stores both old and new event states for undo/redo.
+ * Supports undo/redo for event modifications including:
+ * - Manual edits via Edit dialog
+ * - Drag-and-drop moves
+ * - Edge resize operations
+ *
+ * Can merge consecutive updates to the same event.
  */
 class UpdateEventCommand : public QUndoCommand
 {
@@ -96,6 +101,7 @@ public:
      * @param model Timeline model to modify
      * @param eventId Event ID to update
      * @param newEvent New event data
+     * @param commandText Custom command text (optional, defaults to "Edit Event: {title}")
      * @param parent Parent command for command grouping
      */
     UpdateEventCommand(TimelineModel* model,
@@ -103,27 +109,9 @@ public:
                        const TimelineEvent& newEvent,
                        QUndoCommand* parent = nullptr);
 
-    /**
-     * @brief Execute the update operation (redo)
-     */
-    void redo() override;
 
-    /**
-     * @brief Reverse the update operation (undo)
-     */
-    void undo() override;
-
-    /**
-     * @brief Merge with another update command if possible
-     * @param other Command to potentially merge with
-     * @return true if merged successfully
-     */
-    bool mergeWith(const QUndoCommand* other) override;
-
-    /**
-     * @brief Command ID for merging
-     */
-    int id() const override { return 1; }
+    void redo() override;                                   ///< @brief Execute the update operation (redo)
+    void undo() override;                                   ///< @brief Reverse the update operation (undo)
 
 private:
     TimelineModel* model_;          ///< Model to modify (not owned)
