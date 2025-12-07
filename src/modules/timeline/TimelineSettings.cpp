@@ -277,6 +277,26 @@ QSet<TimelineEventType> TimelineSettings::sidePanelFilterTypes() const
                 types.insert(static_cast<TimelineEventType>(typeInt));
             }
         }
+
+        // *** FIX: Auto-include newly added event types for backward compatibility ***
+        // Define all known event types
+        QSet<TimelineEventType> allKnownTypes = {
+            TimelineEventType_Meeting,
+            TimelineEventType_Action,
+            TimelineEventType_TestEvent,
+            TimelineEventType_Reminder,
+            TimelineEventType_JiraTicket
+        };
+
+        // Add any missing types (ensures new types appear by default)
+        for (TimelineEventType knownType : allKnownTypes)
+        {
+            if (!types.contains(knownType))
+            {
+                types.insert(knownType);
+                qDebug() << "Auto-adding new event type to filter:" << static_cast<int>(knownType);
+            }
+        }
     }
 
     return types;
