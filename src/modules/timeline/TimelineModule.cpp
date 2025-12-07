@@ -85,6 +85,24 @@ TimelineModule::~TimelineModule()
 }
 
 
+void TimelineModule::save()
+{
+    onSaveClicked();
+}
+
+
+void TimelineModule::saveAs()
+{
+    onSaveAsClicked();
+}
+
+
+void TimelineModule::load()
+{
+    onLoadClicked();
+}
+
+
 void TimelineModule::setupUi()
 {
     auto mainLayout = new QVBoxLayout(this);

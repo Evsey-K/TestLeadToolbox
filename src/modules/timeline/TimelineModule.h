@@ -45,30 +45,28 @@ class TimelineModule : public QWidget {
     Q_OBJECT
 
 public:
-    /**
-     * @brief Constructs a TimelineModule instance
-     * @param parent Optional parent widget
-     */
-    explicit TimelineModule(QWidget* parent = nullptr);
-
-    /**
-     * @brief Destructor
-     */
-    ~TimelineModule();
+    explicit TimelineModule(QWidget* parent = nullptr);     ///< @brief Constructs a TimelineModule instance
+    ~TimelineModule();                                      ///< @brief Destructor
 
     TimelineModel* model() const { return model_; }         ///< @brief Get access to the model (useful for testing or external integration)
-
     QUndoStack* undoStack() const { return undoStack_; }    ///<
+
+public slots:
+    // File menu
+    void save();                                                ///< @brief Public slot to trigger save operation (exposed for MainWindow)
+    void saveAs();                                              ///< @brief Public slot to trigger save-as operation (exposed for MainWindow)
+    void load();                                                ///< @brief Public slot to trigger load operation (exposed for MainWindow)
 
 protected:
     void resizeEvent(QResizeEvent* event) override;
 
 private slots:
-    void onAddEventClicked();                                   ///< @brief Handle Add Event button click
-    void onVersionSettingsClicked();                            ///< @brief Handle Version Settings button click
+    // Toolbar
     void onSaveClicked();                                       ///< @brief Handle Save button click
     void onSaveAsClicked();                                     ///< @brief Handle Save As button click - always prompts for new location
     void onLoadClicked();                                       ///< @brief Handle Load button click
+    void onVersionSettingsClicked();                            ///< @brief Handle Version Settings button click
+    void onAddEventClicked();                                   ///< @brief Handle Add Event button click
 
     void onEventSelectedInPanel(const QString& eventId);        ///< @brief Handle event selection from side panel
 
@@ -84,13 +82,9 @@ private slots:
     void onDeleteActionTriggered();                             ///< @brief Handle toolbar delete button click
 
     void onShowArchivedEvents();
-
     void updateDeleteActionState();                             ///< @brief Update delete button enabled state based on selection
-
     void onToggleSidePanelClicked();                            ///< @brief Handle side panel toggle button click
-
     void onLegendToggled(bool checked);
-
     void onSplitterMoved(int pos, int index);
 
 private:
@@ -99,6 +93,8 @@ private:
     void setupAutoSave();
     void loadTimelineData();
     void setupUndoStack();
+    bool saveToFile(const QString& filePath);                           ///< @brief Save timeline to specified file path
+    void setCurrentFilePath(const QString& filePath);                   ///< @brief Set current file path and update auto-save state
 
     QToolBar* createToolbar();                                          ///< @brief Create toolbar with all actions
 
@@ -117,9 +113,6 @@ private:
     bool deleteBatchEvents(const QStringList& eventIds);                ///< @brief Delete multiple events with single confirmation dialog
 
     QStringList getAllSelectedEventIds() const;                         ///< @brief Get all currently selected event IDs from both scene and side panel
-
-    bool saveToFile(const QString& filePath);                           ///< @brief Save timeline to specified file path
-    void setCurrentFilePath(const QString& filePath);                   ///< @brief Set current file path and update auto-save state
 
     TimelineModel* model_;
     TimelineCoordinateMapper* mapper_;

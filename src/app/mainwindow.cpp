@@ -75,8 +75,7 @@ void MainWindow::setupFileMenu()
     saveAction->setShortcut(QKeySequence::Save);
     connect(saveAction, &QAction::triggered, [this]() {
         if (timelineModule_) {
-            // Trigger the save action in TimelineModule
-            // You'll need to expose onSaveClicked() as a public slot or add a save() method
+            timelineModule_->save();
         }
     });
 
@@ -85,7 +84,16 @@ void MainWindow::setupFileMenu()
     saveAsAction->setShortcut(QKeySequence::SaveAs);
     connect(saveAsAction, &QAction::triggered, [this]() {
         if (timelineModule_) {
-            // Trigger the save as action in TimelineModule
+            timelineModule_->saveAs();
+        }
+    });
+
+    // Load
+    auto loadAction = fileMenu_->addAction("&Load...");
+    loadAction->setShortcut(QKeySequence::Open);
+    connect(loadAction, &QAction::triggered, [this]() {
+        if (timelineModule_) {
+            timelineModule_->load();
         }
     });
 
