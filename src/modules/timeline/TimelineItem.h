@@ -1,5 +1,6 @@
 // TimelineItem.h
 
+
 #pragma once
 #include <QGraphicsObject>
 #include <QBrush>
@@ -8,23 +9,24 @@
 #include <QRectF>
 #include <QMap>
 
+
 class TimelineModel;
 class TimelineCoordinateMapper;
+class QGraphicsSceneMouseEvent;
+class QGraphicsSceneHoverEvent;
+class QMenu;
+
 
 /**
  * @class TimelineItem
- * @brief Represents a single draggable and resizable event item on the timeline
+ * @brief A custom graphics item representing a timeline event
  *
- * This item:
- * - Displays an event as a colored rectangle
- * - Can be dragged horizontally to change dates
- * - Can be resized by dragging edges (for multi-day events)
- * - Updates the model when dragging or resizing completes
- * - Supports selection highlighting
- * - Shows appropriate cursors for resize handles
- * - Supports multi-item drag operations
- *
- * NOTE: Inherits from QGraphicsObject (not QGraphicsRectItem) to support signals/slots
+ * Supports:
+ * - Dragging horizontally to change dates
+ * - Dragging vertically when lane control is enabled to change lane
+ * - Multi-item selection and dragging
+ * - Resizing via edge handles
+ * - Context menu for edit/delete actions
  */
 class TimelineItem : public QGraphicsObject
 {
@@ -39,15 +41,8 @@ public:
      */
     explicit TimelineItem(const QRectF& rect, QGraphicsItem* parent = nullptr);
 
-    /**
-     * @brief Required by QGraphicsItem - returns bounding rectangle
-     */
-    QRectF boundingRect() const override;
-
-    /**
-     * @brief Required by QGraphicsItem - paints the item
-     */
-    void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget = nullptr) override;
+    QRectF boundingRect() const override;                                                                           ///< @brief Required by QGraphicsItem - returns bounding rectangle
+    void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget = nullptr) override;      ///< @brief Required by QGraphicsItem - paints the item
 
     // Rectangle management (replacing QGraphicsRectItem methods)
     void setRect(const QRectF& rect);
@@ -81,31 +76,31 @@ protected:
     void contextMenuEvent(QGraphicsSceneContextMenuEvent* event) override;              ///< @brief Show context menu
 
 private:
-    void updateModelFromPosition();     ///< @brief Update the model with new dates based on current position
-    void updateModelFromSize();         ///< @brief Update the model with new dates based on current size (after resize)
+    void updateModelFromPosition();             ///< @brief Update the model with new dates based on current position
+    void updateModelFromSize();                 ///< @brief Update the model with new dates based on current size (after resize)
+    int calculateLaneFromYPosition() const;     ///< @brief Calculate lane number from current Y position
 
     enum ResizeHandle { None, LeftEdge, RightEdge };            ///< @brief Detect which edge/corner is under mouse cursor
     ResizeHandle getResizeHandle(const QPointF& pos) const;     ///< @brief Get resize handle at given position
     void updateCursor(ResizeHandle handle);                     ///< @brief Update cursor based on resize handle
 
-    QString eventId_;                                       ///< ID of the event this item represents
     TimelineModel* model_ = nullptr;                        ///< Model reference (not owned)
     TimelineCoordinateMapper* mapper_ = nullptr;            ///< Coordinate mapper (not owned)
-    QPointF dragStartPos_;                                  ///< Position when drag started
-    QRectF resizeStartRect_;                                ///< Rectangle when resize started
+
     bool isDragging_ = false;                               ///< Whether currently being dragged
+    bool isMultiDragging_ = false;                          ///< Whether performing multi-item drag
     bool isResizing_ = false;                               ///< Whether currently being resized
     bool resizable_ = true;                                 ///< Whether item can be resized
-    ResizeHandle activeHandle_ = None;                      ///< Currently active resize handle
 
-    // Multi-drag support
-    bool isMultiDragging_ = false;                          ///< Whether performing multi-item drag
-    QMap<QGraphicsItem*, QPointF> multiDragStartPositions_; ///< Starting positions of all selected items
-
-    // Rectangle geometry and styling
     QRectF rect_;                                           ///< Item's rectangle
     QBrush brush_;                                          ///< Fill brush
     QPen pen_;                                              ///< Border pen
+    QString eventId_;                                       ///< ID of the event this item represents
+
+    QPointF dragStartPos_;                                  ///< Position when drag started
+    QRectF resizeStartRect_;                                ///< Rectangle when resize started
+    ResizeHandle activeHandle_ = None;                      ///< Currently active resize handle
+    QMap<QGraphicsItem*, QPointF> multiDragStartPositions_; ///< Starting positions of all selected items
 
     static constexpr double RESIZE_HANDLE_WIDTH = 8.0;      ///< Width of resize hit area
 };
