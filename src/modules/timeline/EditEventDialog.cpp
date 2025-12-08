@@ -243,19 +243,31 @@ QWidget* EditEventDialog::createTestEventFields()
     QWidget* widget = new QWidget();
     QFormLayout* layout = new QFormLayout(widget);
 
-    // Start Date
+    // Start Date/Time
+    QHBoxLayout* startLayout = new QHBoxLayout();
+    startLayout->setSpacing(5);
+    startLayout->setContentsMargins(0, 0, 0, 0);
     testStartDate_ = new QDateEdit(QDate::currentDate());
     testStartDate_->setCalendarPopup(true);
     testStartDate_->setMinimumDate(versionStart_);
     testStartDate_->setMaximumDate(versionEnd_);
-    layout->addRow("Start Date:", testStartDate_);
+    testStartTime_ = new QTimeEdit(QTime(8, 0));
+    startLayout->addWidget(testStartDate_);
+    startLayout->addWidget(testStartTime_);
+    layout->addRow("Start:", startLayout);
 
-    // End Date
+    // End Date/Time
+    QHBoxLayout* endLayout = new QHBoxLayout();
+    endLayout->setSpacing(5);
+    endLayout->setContentsMargins(0, 0, 0, 0);
     testEndDate_ = new QDateEdit(QDate::currentDate().addDays(1));
     testEndDate_->setCalendarPopup(true);
     testEndDate_->setMinimumDate(versionStart_);
     testEndDate_->setMaximumDate(versionEnd_);
-    layout->addRow("End Date:", testEndDate_);
+    testEndTime_ = new QTimeEdit(QTime(17, 0));
+    endLayout->addWidget(testEndDate_);
+    endLayout->addWidget(testEndTime_);
+    layout->addRow("End:", endLayout);
 
     // Test Category
     testCategoryCombo_ = new QComboBox();
@@ -305,10 +317,17 @@ QWidget* EditEventDialog::createReminderFields()
     QFormLayout* layout = new QFormLayout(widget);
 
     // Reminder Date/Time
-    reminderDateTime_ = new QDateTimeEdit(QDateTime::currentDateTime().addDays(1));
-    reminderDateTime_->setCalendarPopup(true);
-    reminderDateTime_->setDisplayFormat("yyyy-MM-dd HH:mm");
-    layout->addRow("Reminder:", reminderDateTime_);
+    QHBoxLayout* reminderLayout = new QHBoxLayout();
+    reminderLayout->setSpacing(5);
+    reminderLayout->setContentsMargins(0, 0, 0, 0);
+    reminderDate_ = new QDateEdit(QDateTime::currentDateTime().addDays(1).date());
+    reminderDate_->setCalendarPopup(true);
+    reminderDate_->setMinimumDate(versionStart_);
+    reminderDate_->setMaximumDate(versionEnd_);
+    reminderTime_ = new QTimeEdit(QDateTime::currentDateTime().time());
+    reminderLayout->addWidget(reminderDate_);
+    reminderLayout->addWidget(reminderTime_);
+    layout->addRow("Reminder:", reminderLayout);
 
     // Recurring Rule
     recurringRuleCombo_ = new QComboBox();
@@ -344,19 +363,31 @@ QWidget* EditEventDialog::createJiraTicketFields()
     jiraStatusCombo_->addItems({"To Do", "In Progress", "Done"});
     layout->addRow("Status:", jiraStatusCombo_);
 
-    // Start Date
+    // Start Date/Time
+    QHBoxLayout* startLayout = new QHBoxLayout();
+    startLayout->setSpacing(5);
+    startLayout->setContentsMargins(0, 0, 0, 0);
     jiraStartDate_ = new QDateEdit(QDate::currentDate());
     jiraStartDate_->setCalendarPopup(true);
     jiraStartDate_->setMinimumDate(versionStart_);
     jiraStartDate_->setMaximumDate(versionEnd_);
-    layout->addRow("Start Date:", jiraStartDate_);
+    jiraStartTime_ = new QTimeEdit(QTime(9, 0));
+    startLayout->addWidget(jiraStartDate_);
+    startLayout->addWidget(jiraStartTime_);
+    layout->addRow("Start:", startLayout);
 
-    // Due Date
+    // Due Date/Time
+    QHBoxLayout* dueLayout = new QHBoxLayout();
+    dueLayout->setSpacing(5);
+    dueLayout->setContentsMargins(0, 0, 0, 0);
     jiraDueDate_ = new QDateEdit(QDate::currentDate().addDays(14));
     jiraDueDate_->setCalendarPopup(true);
     jiraDueDate_->setMinimumDate(versionStart_);
     jiraDueDate_->setMaximumDate(versionEnd_);
-    layout->addRow("Due Date:", jiraDueDate_);
+    jiraDueTime_ = new QTimeEdit(QTime(17, 0));
+    dueLayout->addWidget(jiraDueDate_);
+    dueLayout->addWidget(jiraDueTime_);
+    layout->addRow("Due:", dueLayout);
 
     return widget;
 }
@@ -416,8 +447,10 @@ void EditEventDialog::populateFromEvent(const TimelineEvent& event)
 
     case TimelineEventType_TestEvent:
         testStartDate_->setDate(event.startDate);
+        testStartTime_->setTime(event.startTime);
         testEndDate_->setDate(event.endDate);
-        // Set category
+        testEndTime_->setTime(event.endTime);
+        // Set category combo
         for (int i = 0; i < testCategoryCombo_->count(); ++i)
         {
             if (testCategoryCombo_->itemText(i) == event.testCategory)
@@ -426,9 +459,8 @@ void EditEventDialog::populateFromEvent(const TimelineEvent& event)
                 break;
             }
         }
-        // Set checklist items
-        for (auto it = event.preparationChecklist.begin();
-             it != event.preparationChecklist.end(); ++it)
+        // Populate checklist
+        for (auto it = event.preparationChecklist.begin(); it != event.preparationChecklist.end(); ++it)
         {
             if (checklistItems_.contains(it.key()))
             {
@@ -439,7 +471,10 @@ void EditEventDialog::populateFromEvent(const TimelineEvent& event)
 
     case TimelineEventType_Reminder:
         if (event.reminderDateTime.isValid())
-            reminderDateTime_->setDateTime(event.reminderDateTime);
+        {
+            reminderDate_->setDate(event.reminderDateTime.date());
+            reminderTime_->setTime(event.reminderDateTime.time());
+        }
         // Set recurring rule
         for (int i = 0; i < recurringRuleCombo_->count(); ++i)
         {
@@ -454,7 +489,11 @@ void EditEventDialog::populateFromEvent(const TimelineEvent& event)
     case TimelineEventType_JiraTicket:
         jiraKeyEdit_->setText(event.jiraKey);
         jiraSummaryEdit_->setText(event.jiraSummary);
-        // Set Jira type
+        jiraStartDate_->setDate(event.startDate);
+        jiraStartTime_->setTime(event.startTime);
+        jiraDueDate_->setDate(event.endDate);
+        jiraDueTime_->setTime(event.endTime);
+        // Set type combo
         for (int i = 0; i < jiraTypeCombo_->count(); ++i)
         {
             if (jiraTypeCombo_->itemText(i) == event.jiraType)
@@ -463,7 +502,7 @@ void EditEventDialog::populateFromEvent(const TimelineEvent& event)
                 break;
             }
         }
-        // Set Jira status
+        // Set status combo
         for (int i = 0; i < jiraStatusCombo_->count(); ++i)
         {
             if (jiraStatusCombo_->itemText(i) == event.jiraStatus)
@@ -472,13 +511,8 @@ void EditEventDialog::populateFromEvent(const TimelineEvent& event)
                 break;
             }
         }
-        jiraStartDate_->setDate(event.startDate);
-        jiraDueDate_->setDate(event.endDate);
         break;
     }
-
-    // Show appropriate fields for the type
-    showFieldsForType(event.type);
 }
 
 
@@ -704,13 +738,17 @@ void EditEventDialog::populateTypeSpecificFields(TimelineEvent& event) const
         event.startTime = actionStartTime_->time();
         event.dueDateTime = QDateTime(actionDueDate_->date(), actionDueTime_->time());
         event.status = statusCombo_->currentText();
+        // Set endDate to due date for timeline rendering
         event.endDate = event.dueDateTime.date();
         break;
 
     case TimelineEventType_TestEvent:
         event.startDate = testStartDate_->date();
+        event.startTime = testStartTime_->time();
         event.endDate = testEndDate_->date();
+        event.endTime = testEndTime_->time();
         event.testCategory = testCategoryCombo_->currentText();
+        // Collect checklist items
         for (auto it = checklistItems_.begin(); it != checklistItems_.end(); ++it)
         {
             event.preparationChecklist[it.key()] = it.value()->isChecked();
@@ -718,8 +756,9 @@ void EditEventDialog::populateTypeSpecificFields(TimelineEvent& event) const
         break;
 
     case TimelineEventType_Reminder:
-        event.reminderDateTime = reminderDateTime_->dateTime();
+        event.reminderDateTime = QDateTime(reminderDate_->date(), reminderTime_->time());
         event.recurringRule = recurringRuleCombo_->currentText();
+        // Set startDate and endDate to reminder date for timeline rendering
         event.startDate = event.reminderDateTime.date();
         event.endDate = event.reminderDateTime.date();
         break;
@@ -730,7 +769,9 @@ void EditEventDialog::populateTypeSpecificFields(TimelineEvent& event) const
         event.jiraType = jiraTypeCombo_->currentText();
         event.jiraStatus = jiraStatusCombo_->currentText();
         event.startDate = jiraStartDate_->date();
+        event.startTime = jiraStartTime_->time();
         event.endDate = jiraDueDate_->date();
+        event.endTime = jiraDueTime_->time();
         break;
     }
 }

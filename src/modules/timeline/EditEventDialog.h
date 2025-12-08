@@ -26,12 +26,14 @@
 
 /**
  * @class EditEventDialog
- * @brief Dialog for editing existing timeline events
+ * @brief Dynamic dialog for editing timeline events with type-specific fields
  *
- * Extends AddEventDialog functionality with:
- * - Pre-population of fields from existing event
- * - Type-change support with field preservation where possible
+ * Features:
+ * - Pre-populated with existing event data
+ * - Type-specific fields shown dynamically based on event type
+ * - Validation rules enforced per event type
  * - Delete button for removing events
+ * - Clean MVC-style architecture
  */
 class EditEventDialog : public QDialog
 {
@@ -46,6 +48,7 @@ public:
     ~EditEventDialog();
 
     TimelineEvent getEvent() const;                                 ///< @brief Get the updated event from user inputs
+    bool isDeleted() const { return deleted_; }                     ///< @brief Check if event was deleted
 
 signals:
     void deleteRequested();                                         ///< @brief Emitted when user requests to delete the event
@@ -97,12 +100,15 @@ private:
 
     // UI Components - Test Event
     QDateEdit* testStartDate_;
+    QTimeEdit* testStartTime_;
     QDateEdit* testEndDate_;
+    QTimeEdit* testEndTime_;
     QComboBox* testCategoryCombo_;
     QMap<QString, QCheckBox*> checklistItems_;
 
     // UI Components - Reminder
-    QDateTimeEdit* reminderDateTime_;
+    QDateEdit* reminderDate_;
+    QTimeEdit* reminderTime_;
     QComboBox* recurringRuleCombo_;
 
     // UI Components - Jira Ticket
@@ -111,7 +117,9 @@ private:
     QComboBox* jiraTypeCombo_;
     QComboBox* jiraStatusCombo_;
     QDateEdit* jiraStartDate_;
+    QTimeEdit* jiraStartTime_;
     QDateEdit* jiraDueDate_;
+    QTimeEdit* jiraDueTime_;
 
     // Configuration
     QString eventId_;
@@ -120,8 +128,11 @@ private:
     QDate versionEnd_;
     TimelineEventType originalType_;
 
-    // =Lane Control Fields
+    // Lane Control Fields
     QCheckBox* laneControlCheckbox_;
     QSpinBox* manualLaneSpinner_;
     QLabel* laneControlWarningLabel_;
+
+    // State
+    bool deleted_ = false;
 };

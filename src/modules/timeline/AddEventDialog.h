@@ -91,12 +91,15 @@ private:
 
     // UI Components - Test Event
     QDateEdit* testStartDate_;
+    QTimeEdit* testStartTime_;
     QDateEdit* testEndDate_;
+    QTimeEdit* testEndTime_;
     QComboBox* testCategoryCombo_;
     QMap<QString, QCheckBox*> checklistItems_;
 
     // UI Components - Reminder
-    QDateTimeEdit* reminderDateTime_;
+    QDateEdit* reminderDate_;
+    QTimeEdit* reminderTime_;
     QComboBox* recurringRuleCombo_;
 
     // UI Components - Jira Ticket
@@ -105,7 +108,9 @@ private:
     QComboBox* jiraTypeCombo_;
     QComboBox* jiraStatusCombo_;
     QDateEdit* jiraStartDate_;
+    QTimeEdit* jiraStartTime_;
     QDateEdit* jiraDueDate_;
+    QTimeEdit* jiraDueTime_;
 
     // Configuration
     QDate versionStart_;
