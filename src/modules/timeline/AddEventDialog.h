@@ -107,6 +107,8 @@ private:
     // UI Components - Reminder
     QDateEdit* reminderDate_;
     QTimeEdit* reminderTime_;
+    QDateEdit* reminderEndDate_;
+    QTimeEdit* reminderEndTime_;
     QCheckBox* reminderAllDayCheckbox_;
     QComboBox* recurringRuleCombo_;
 

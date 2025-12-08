@@ -331,18 +331,31 @@ QWidget* EditEventDialog::createReminderFields()
     QWidget* widget = new QWidget();
     QFormLayout* layout = new QFormLayout(widget);
 
-    // Reminder Date/Time
-    QHBoxLayout* reminderLayout = new QHBoxLayout();
-    reminderLayout->setSpacing(5);
-    reminderLayout->setContentsMargins(0, 0, 0, 0);
+    // Start Date/Time
+    QHBoxLayout* startLayout = new QHBoxLayout();
+    startLayout->setSpacing(5);
+    startLayout->setContentsMargins(0, 0, 0, 0);
     reminderDate_ = new QDateEdit(QDateTime::currentDateTime().addDays(1).date());
     reminderDate_->setCalendarPopup(true);
     reminderDate_->setMinimumDate(versionStart_);
     reminderDate_->setMaximumDate(versionEnd_);
     reminderTime_ = new QTimeEdit(QDateTime::currentDateTime().time());
-    reminderLayout->addWidget(reminderDate_);
-    reminderLayout->addWidget(reminderTime_);
-    layout->addRow("Reminder:", reminderLayout);
+    startLayout->addWidget(reminderDate_);
+    startLayout->addWidget(reminderTime_);
+    layout->addRow("Start:", startLayout);
+
+    // End Date/Time
+    QHBoxLayout* endLayout = new QHBoxLayout();
+    endLayout->setSpacing(5);
+    endLayout->setContentsMargins(0, 0, 0, 0);
+    reminderEndDate_ = new QDateEdit(QDateTime::currentDateTime().addDays(1).date());
+    reminderEndDate_->setCalendarPopup(true);
+    reminderEndDate_->setMinimumDate(versionStart_);
+    reminderEndDate_->setMaximumDate(versionEnd_);
+    reminderEndTime_ = new QTimeEdit(QDateTime::currentDateTime().time());
+    endLayout->addWidget(reminderEndDate_);
+    endLayout->addWidget(reminderEndTime_);
+    layout->addRow("End:", endLayout);
 
     // All-Day Event Checkbox
     reminderAllDayCheckbox_ = new QCheckBox("All-day event");
@@ -352,6 +365,12 @@ QWidget* EditEventDialog::createReminderFields()
     recurringRuleCombo_ = new QComboBox();
     recurringRuleCombo_->addItems({"None", "Daily", "Weekly", "Monthly"});
     layout->addRow("Recurrence:", recurringRuleCombo_);
+
+    // Connect date change handler
+    connect(reminderDate_, &QDateEdit::dateChanged, [this](const QDate& date) {
+        if (reminderEndDate_->date() < date)
+            reminderEndDate_->setDate(date);
+    });
 
     // Connect signals
     connect(reminderAllDayCheckbox_, &QCheckBox::toggled, this, &EditEventDialog::onReminderAllDayChanged);
@@ -502,21 +521,33 @@ void EditEventDialog::populateFromEvent(const TimelineEvent& event)
         break;
 
     case TimelineEventType_Reminder:
-        if (event.reminderDateTime.isValid())
+    {
+        // Populate Start Date/Time from reminderDateTime
+        reminderDate_->setDate(event.reminderDateTime.date());
+        reminderTime_->setTime(event.reminderDateTime.time());
+
+        // Populate End Date/Time
+        reminderEndDate_->setDate(event.endDate);
+
+        // Set end time from event.endTime if available, otherwise default
+        if (event.endTime.isValid())
         {
-            reminderDate_->setDate(event.reminderDateTime.date());
-            reminderTime_->setTime(event.reminderDateTime.time());
+            reminderEndTime_->setTime(event.endTime);
         }
-        // Set recurring rule
-        for (int i = 0; i < recurringRuleCombo_->count(); ++i)
+        else
         {
-            if (recurringRuleCombo_->itemText(i) == event.recurringRule)
-            {
-                recurringRuleCombo_->setCurrentIndex(i);
-                break;
-            }
+            reminderEndTime_->setTime(QTime(23, 59));
         }
+
+        // Populate recurring rule
+        recurringRuleCombo_->setCurrentText(event.recurringRule);
+
+        // Set all-day checkbox based on time
+        bool isAllDay = (event.reminderDateTime.time() == QTime(9, 0) ||
+                         event.reminderDateTime.time() == QTime(0, 0));
+        reminderAllDayCheckbox_->setChecked(isAllDay);
         break;
+    }
 
     case TimelineEventType_JiraTicket:
         jiraKeyEdit_->setText(event.jiraKey);
@@ -881,6 +912,7 @@ void EditEventDialog::onTestAllDayChanged(bool checked)
 void EditEventDialog::onReminderAllDayChanged(bool checked)
 {
     reminderTime_->setEnabled(!checked);
+    reminderEndTime_->setEnabled(!checked);
 }
 
 
