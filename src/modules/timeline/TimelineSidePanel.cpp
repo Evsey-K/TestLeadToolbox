@@ -1100,17 +1100,31 @@ void TimelineSidePanel::adjustWidthToFitTabs()
 void TimelineSidePanel::displayEventDetails(const QString& eventId)
 {
     const TimelineEvent* event = model_->getEvent(eventId);
+
     if (!event)
     {
         clearEventDetails();
+
         return;
     }
 
-    // === COMMON FIELDS (All Event Types) ===
+    // Common Fields (All Event Types)
     ui->titleValueLabel->setText(event->title);
     ui->typeValueLabel->setText(eventTypeToString(event->type));
     ui->priorityValueLabel->setText(QString::number(event->priority));
     ui->laneValueLabel->setText(QString::number(event->lane));
+
+    // Lane Control Field
+    if (event->laneControlEnabled)
+    {
+        ui->laneControlValueLabel->setText("Manual");
+        ui->laneControlValueLabel->setStyleSheet("color: #2E7D32; font-weight: bold;");
+    }
+    else
+    {
+        ui->laneControlValueLabel->setText("Automatic");
+        ui->laneControlValueLabel->setStyleSheet("color: gray;");
+    }
 
     // Clear previous type-specific content
     clearTypeSpecificFields();
@@ -1118,13 +1132,13 @@ void TimelineSidePanel::displayEventDetails(const QString& eventId)
     // Build details text starting with description, then type-specific info
     QString detailsText;
 
-    // === DESCRIPTION FIRST (Common to all types) ===
+    // Description First (Common to all types)
     if (!event->description.isEmpty())
     {
         detailsText = QString("<b>Description:</b><br>%1").arg(event->description);
     }
 
-    // === TYPE-SPECIFIC FIELDS ===
+    // Type-Specific Fields
     QString typeSpecificDetails;
 
     switch (event->type)
@@ -1514,6 +1528,7 @@ void TimelineSidePanel::clearEventDetails()
     ui->typeValueLabel->clear();
     ui->priorityValueLabel->clear();
     ui->laneValueLabel->clear();
+    ui->laneControlValueLabel->clear();
     ui->detailsTextEdit->clear();
 
     ui->eventDetailsGroupBox->setVisible(false);

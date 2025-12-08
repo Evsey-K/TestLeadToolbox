@@ -69,6 +69,53 @@ void TimelineItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* opti
         painter->setBrush(Qt::NoBrush);
         painter->drawRect(rect_);
     }
+
+    // Draw lane control icon in bottom-right corner
+    if (model_ && !eventId_.isEmpty())
+    {
+        const TimelineEvent* event = model_->getEvent(eventId_);
+        if (event && event->laneControlEnabled)
+        {
+            // Icon parameters
+            constexpr double ICON_SIZE = 12.0;
+            constexpr double ICON_MARGIN = 2.0;
+
+            // Position in bottom-right corner
+            QRectF iconRect(
+                rect_.right() - ICON_SIZE - ICON_MARGIN,
+                rect_.bottom() - ICON_SIZE - ICON_MARGIN,
+                ICON_SIZE,
+                ICON_SIZE
+                );
+
+            // Draw icon background (white circle)
+            painter->setPen(Qt::NoPen);
+            painter->setBrush(QColor(255, 255, 255, 200));  // Semi-transparent white
+            painter->drawEllipse(iconRect);
+
+            // Draw lock icon (simplified)
+            painter->setPen(QPen(QColor(76, 175, 80), 1.5));  // Green color
+            painter->setBrush(Qt::NoBrush);
+
+            // Lock body (rectangle)
+            QRectF lockBody(
+                iconRect.center().x() - 3,
+                iconRect.center().y(),
+                6,
+                4
+                );
+            painter->drawRect(lockBody);
+
+            // Lock shackle (arc)
+            QRectF shackleRect(
+                iconRect.center().x() - 2,
+                iconRect.center().y() - 4,
+                4,
+                4
+                );
+            painter->drawArc(shackleRect, 0 * 16, 180 * 16);  // Top half circle
+        }
+    }
 }
 
 

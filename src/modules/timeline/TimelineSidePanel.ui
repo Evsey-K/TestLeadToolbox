@@ -213,6 +213,20 @@
            </property>
           </widget>
          </item>
+		 <item row="4" column="0">
+		  <widget class="QLabel" name="laneControlLabel">
+		   <property name="text">
+			<string>Lane Control:</string>
+		   </property>
+		  </widget>
+		 </item>
+		 <item row="4" column="1">
+		  <widget class="QLabel" name="laneControlValueLabel">
+		   <property name="text">
+			<string/>
+		   </property>
+		  </widget>
+		 </item>
         </layout>
        </item>
        <item>
