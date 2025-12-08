@@ -101,7 +101,6 @@ void EditEventDialog::setupUi()
         "at the same time, you'll receive a conflict warning.</i>");
     laneControlWarningLabel_->setWordWrap(true);
     laneControlWarningLabel_->setStyleSheet("QLabel { color: #666; }");
-    laneControlWarningLabel_->setVisible(false);
     laneControlLayout->addWidget(laneControlWarningLabel_);
 
     mainLayout->addWidget(laneControlGroup);
@@ -109,7 +108,6 @@ void EditEventDialog::setupUi()
     // Connect lane control checkbox
     connect(laneControlCheckbox_, &QCheckBox::toggled, [this](bool checked) {
         manualLaneSpinner_->setEnabled(checked);
-        laneControlWarningLabel_->setVisible(checked);
     });
 
     mainLayout->addWidget(commonGroup);
