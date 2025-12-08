@@ -200,7 +200,6 @@ void TimelineItem::mousePressEvent(QGraphicsSceneMouseEvent* event)
     if (event->button() != Qt::LeftButton)
     {
         QGraphicsObject::mousePressEvent(event);
-
         return;
     }
 
@@ -212,22 +211,28 @@ void TimelineItem::mousePressEvent(QGraphicsSceneMouseEvent* event)
     if (resizable_)
     {
         ResizeHandle handle = getResizeHandle(event->pos());
-
         if (handle != None)
         {
             isResizing_ = true;
             activeHandle_ = handle;
             event->accept();
-
             return;
         }
+    }
+
+    // If Ctrl or Shift is pressed, selection is already handled by TimelineView
+    // Don't start dragging in this case
+    Qt::KeyboardModifiers modifiers = event->modifiers();
+    if (modifiers & (Qt::ControlModifier | Qt::ShiftModifier))
+    {
+        event->accept();
+        return;
     }
 
     // Check if this item is already selected and there are multiple selections
     if (isSelected() && scene())
     {
         QList<QGraphicsItem*> selectedItems = scene()->selectedItems();
-
         if (selectedItems.size() > 1)
         {
             // Multi-drag mode: record all selected item positions
@@ -247,12 +252,7 @@ void TimelineItem::mousePressEvent(QGraphicsSceneMouseEvent* event)
     }
     else
     {
-        // Item not selected or no multi-selection
-        // Emit clicked signal to allow selection management
-        if (!eventId_.isEmpty())
-        {
-            emit clicked(eventId_);
-        }
+        // This case should rarely happen now since TimelineView handles selection
         isDragging_ = true;
     }
 

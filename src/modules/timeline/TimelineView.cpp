@@ -5,9 +5,11 @@
 #include "TimelineScene.h"
 #include "TimelineModel.h"
 #include "TimelineCoordinateMapper.h"
+#include "TimelineItem.h"
 #include <QWheelEvent>
 #include <QMouseEvent>
 #include <QScrollBar>
+#include <QGraphicsItem>
 
 
 TimelineView::TimelineView(TimelineModel* model,
@@ -16,6 +18,7 @@ TimelineView::TimelineView(TimelineModel* model,
     : QGraphicsView(parent)
     , mapper_(mapper)
     , isPanning_(false)
+    , potentialClick_(false)
 {
     // Create the scene with model and mapper
     scene_ = new TimelineScene(model, mapper, this);
@@ -95,6 +98,7 @@ void TimelineView::wheelEvent(QWheelEvent* event)
     }
 }
 
+
 void TimelineView::mousePressEvent(QMouseEvent* event)
 {
     if (event->button() == Qt::RightButton)
@@ -107,9 +111,108 @@ void TimelineView::mousePressEvent(QMouseEvent* event)
         return;
     }
 
-    // For left-click, use default behavior (rubber band selection)
+    // Track mouse press position for click detection
+    mousePressPos_ = event->pos();
+    potentialClick_ = true;
+
+    // Map to scene coordinates
+    QPointF scenePos = mapToScene(event->pos());
+
+    // Check if clicking on an item
+    QGraphicsItem* clickedItem = scene_->itemAt(scenePos, transform());
+    TimelineItem* timelineItem = qgraphicsitem_cast<TimelineItem*>(clickedItem);
+
+    // Handle Ctrl+click for multi-selection
+    if (timelineItem && (event->modifiers() & Qt::ControlModifier))
+    {
+        // Toggle selection state immediately
+        timelineItem->setSelected(!timelineItem->isSelected());
+
+        // Accept event to prevent further processing
+        event->accept();
+        return;
+    }
+
+    // Handle Shift+click for range selection
+    if (timelineItem && (event->modifiers() & Qt::ShiftModifier))
+    {
+        // Get all timeline items
+        QList<QGraphicsItem*> allItems = scene_->items();
+
+        // Find the last selected item
+        TimelineItem* lastSelected = nullptr;
+        for (QGraphicsItem* item : allItems)
+        {
+            TimelineItem* tItem = qgraphicsitem_cast<TimelineItem*>(item);
+            if (tItem && tItem->isSelected() && tItem != timelineItem)
+            {
+                lastSelected = tItem;
+                break; // Take the first one we find
+            }
+        }
+
+        if (lastSelected)
+        {
+            // Select all items between lastSelected and timelineItem
+            bool inRange = false;
+            for (QGraphicsItem* item : allItems)
+            {
+                TimelineItem* tItem = qgraphicsitem_cast<TimelineItem*>(item);
+                if (!tItem)
+                    continue;
+
+                // Check if this is one of our boundary items
+                if (tItem == lastSelected || tItem == timelineItem)
+                {
+                    tItem->setSelected(true);
+                    if (inRange)
+                    {
+                        // We've hit the second boundary, we're done
+                        break;
+                    }
+                    else
+                    {
+                        // We've hit the first boundary, start selecting
+                        inRange = true;
+                    }
+                }
+                else if (inRange)
+                {
+                    // We're between the boundaries, select this item
+                    tItem->setSelected(true);
+                }
+            }
+        }
+        else
+        {
+            // No previously selected item, just select this one
+            timelineItem->setSelected(true);
+        }
+
+        event->accept();
+        return;
+    }
+
+    // Handle normal click on item (not Ctrl or Shift)
+    if (timelineItem && !(event->modifiers() & (Qt::ControlModifier | Qt::ShiftModifier)))
+    {
+        // If clicking on an unselected item, clear selection and select only this one
+        if (!timelineItem->isSelected())
+        {
+            scene_->clearSelection();
+            timelineItem->setSelected(true);
+        }
+        // If clicking on already selected item, keep selection (for dragging multiple items)
+
+        // Now allow the event to propagate for dragging
+        QGraphicsView::mousePressEvent(event);
+        return;
+    }
+
+    // For clicks on empty space, use default behavior (rubber band selection)
     QGraphicsView::mousePressEvent(event);
 }
+
 
 void TimelineView::mouseMoveEvent(QMouseEvent* event)
 {
@@ -127,9 +230,23 @@ void TimelineView::mouseMoveEvent(QMouseEvent* event)
         return;
     }
 
+    // Check if mouse has moved significantly from press position
+    if (potentialClick_)
+    {
+        QPoint delta = event->pos() - mousePressPos_;
+        int distance = delta.manhattanLength();
+
+        // If moved more than 3 pixels, it's a drag, not a click
+        if (distance > 3)
+        {
+            potentialClick_ = false;
+        }
+    }
+
     // For left-click, use default behavior (rubber band selection)
     QGraphicsView::mouseMoveEvent(event);
 }
+
 
 void TimelineView::mouseReleaseEvent(QMouseEvent* event)
 {
@@ -141,6 +258,9 @@ void TimelineView::mouseReleaseEvent(QMouseEvent* event)
         event->accept();
         return;
     }
+
+    // Reset click tracking
+    potentialClick_ = false;
 
     // For left-click, use default behavior (rubber band selection)
     QGraphicsView::mouseReleaseEvent(event);

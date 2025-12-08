@@ -36,35 +36,19 @@ public:
                           TimelineCoordinateMapper* mapper,
                           QWidget* parent = nullptr);
 
-    /**
-     * @brief Get the timeline scene
-     */
-    TimelineScene* timelineScene() const { return scene_; }
+    TimelineScene* timelineScene() const { return scene_; }                 ///< @brief Get the timeline scene
 
 protected:
-    /**
-     * @brief Override to implement horizontal zoom on mouse wheel
-     */
-    void wheelEvent(QWheelEvent* event) override;
-
-    /**
-     * @brief Override to handle right-click panning start
-     */
-    void mousePressEvent(QMouseEvent* event) override;
-
-    /**
-     * @brief Override to handle right-click panning movement
-     */
-    void mouseMoveEvent(QMouseEvent* event) override;
-
-    /**
-     * @brief Override to handle right-click panning end
-     */
-    void mouseReleaseEvent(QMouseEvent* event) override;
+    void wheelEvent(QWheelEvent* event) override;                           ///< @brief Override to implement horizontal zoom on mouse wheel
+    void mousePressEvent(QMouseEvent* event) override;                      ///< @brief Override to handle right-click panning start
+    void mouseMoveEvent(QMouseEvent* event) override;                       ///< @brief Override to handle right-click panning movement
+    void mouseReleaseEvent(QMouseEvent* event) override;                    ///< @brief Override to handle right-click panning end
 
 private:
     TimelineScene* scene_;
     TimelineCoordinateMapper* mapper_;
     bool isPanning_;
     QPoint lastPanPoint_;
+    QPoint mousePressPos_;
+    bool potentialClick_;
 };
