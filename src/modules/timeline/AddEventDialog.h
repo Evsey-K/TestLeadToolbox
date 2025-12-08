@@ -49,7 +49,11 @@ public:
 private slots:
     void onTypeChanged(int index);                                  ///< @brief Handle event type selection change
     void validateAndAccept();                                       ///< @brief Validate and accept the dialog
-    void onStartDateChanged(const QDate& date);                     ///< @brief Update end date minimum when start date changes
+    void onMeetingAllDayChanged(bool checked);                      ///< @brief Handle meeting all-day checkbox
+    void onActionAllDayChanged(bool checked);                       ///< @brief Handle action all-day checkbox
+    void onTestAllDayChanged(bool checked);                         ///< @brief Handle test event all-day checkbox
+    void onReminderAllDayChanged(bool checked);                     ///< @brief Handle reminder all-day checkbox
+    void onJiraAllDayChanged(bool checked);                         ///< @brief Handle Jira all-day checkbox
 
 private:
     void setupUi();                                                 ///< @brief Setup UI components and connections
@@ -79,6 +83,7 @@ private:
     QTimeEdit* meetingStartTime_;
     QDateEdit* meetingEndDate_;
     QTimeEdit* meetingEndTime_;
+    QCheckBox* meetingAllDayCheckbox_;
     QLineEdit* locationEdit_;
     QTextEdit* participantsEdit_;
 
@@ -87,6 +92,7 @@ private:
     QTimeEdit* actionStartTime_;
     QDateEdit* actionDueDate_;
     QTimeEdit* actionDueTime_;
+    QCheckBox* actionAllDayCheckbox_;
     QComboBox* statusCombo_;
 
     // UI Components - Test Event
@@ -94,12 +100,14 @@ private:
     QTimeEdit* testStartTime_;
     QDateEdit* testEndDate_;
     QTimeEdit* testEndTime_;
+    QCheckBox* testAllDayCheckbox_;
     QComboBox* testCategoryCombo_;
     QMap<QString, QCheckBox*> checklistItems_;
 
     // UI Components - Reminder
     QDateEdit* reminderDate_;
     QTimeEdit* reminderTime_;
+    QCheckBox* reminderAllDayCheckbox_;
     QComboBox* recurringRuleCombo_;
 
     // UI Components - Jira Ticket
@@ -111,6 +119,7 @@ private:
     QTimeEdit* jiraStartTime_;
     QDateEdit* jiraDueDate_;
     QTimeEdit* jiraDueTime_;
+    QCheckBox* jiraAllDayCheckbox_;
 
     // Configuration
     QDate versionStart_;

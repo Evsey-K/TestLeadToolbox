@@ -58,11 +58,17 @@ private slots:
     void validateAndAccept();                                       ///< @brief Validate and accept the dialog
     void onDeleteClicked();                                         ///< @brief Handle delete button click
 
+    void onMeetingAllDayChanged(bool checked);
+    void onActionAllDayChanged(bool checked);
+    void onTestAllDayChanged(bool checked);
+    void onReminderAllDayChanged(bool checked);
+    void onJiraAllDayChanged(bool checked);
+
 private:
     void setupUi();                                                 ///< @brief Setup UI components and connections
     void createFieldGroups();                                       ///< @brief Create field group widgets
-    void populateFromEvent(const TimelineEvent& event);             ///< @brief Populate dialog fields from existing event
     void showFieldsForType(TimelineEventType type);                 ///< @brief Show appropriate field group for event type
+    void populateFromEvent(const TimelineEvent& event);             ///< @brief Populate dialog fields from existing event
     bool validateCommonFields();                                    ///< @brief Validate common fields
     bool validateTypeSpecificFields();                              ///< @brief Validate type-specific fields
     void populateCommonFields(TimelineEvent& event) const;          /// <@brief Populate event from common fields
@@ -88,6 +94,7 @@ private:
     QTimeEdit* meetingStartTime_;
     QDateEdit* meetingEndDate_;
     QTimeEdit* meetingEndTime_;
+    QCheckBox* meetingAllDayCheckbox_;
     QLineEdit* locationEdit_;
     QTextEdit* participantsEdit_;
 
@@ -96,6 +103,7 @@ private:
     QTimeEdit* actionStartTime_;
     QDateEdit* actionDueDate_;
     QTimeEdit* actionDueTime_;
+    QCheckBox* actionAllDayCheckbox_;
     QComboBox* statusCombo_;
 
     // UI Components - Test Event
@@ -103,12 +111,14 @@ private:
     QTimeEdit* testStartTime_;
     QDateEdit* testEndDate_;
     QTimeEdit* testEndTime_;
+    QCheckBox* testAllDayCheckbox_;
     QComboBox* testCategoryCombo_;
     QMap<QString, QCheckBox*> checklistItems_;
 
     // UI Components - Reminder
     QDateEdit* reminderDate_;
     QTimeEdit* reminderTime_;
+    QCheckBox* reminderAllDayCheckbox_;
     QComboBox* recurringRuleCombo_;
 
     // UI Components - Jira Ticket
@@ -120,6 +130,7 @@ private:
     QTimeEdit* jiraStartTime_;
     QDateEdit* jiraDueDate_;
     QTimeEdit* jiraDueTime_;
+    QCheckBox* jiraAllDayCheckbox_;
 
     // Configuration
     QString eventId_;

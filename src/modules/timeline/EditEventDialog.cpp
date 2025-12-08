@@ -150,7 +150,7 @@ QWidget* EditEventDialog::createMeetingFields()
     QWidget* widget = new QWidget();
     QFormLayout* layout = new QFormLayout(widget);
 
-    // Match spacing to other event types
+    layout->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
     layout->setVerticalSpacing(6);
     layout->setHorizontalSpacing(10);
 
@@ -180,6 +180,10 @@ QWidget* EditEventDialog::createMeetingFields()
     endLayout->addWidget(meetingEndTime_);
     layout->addRow("End:", endLayout);
 
+    // All-Day Event Checkbox
+    meetingAllDayCheckbox_ = new QCheckBox("All-day event");
+    layout->addRow("", meetingAllDayCheckbox_);
+
     // Location
     locationEdit_ = new QLineEdit();
     locationEdit_->setPlaceholderText("Physical location or virtual link");
@@ -197,6 +201,7 @@ QWidget* EditEventDialog::createMeetingFields()
         if (meetingEndDate_->date() < date)
             meetingEndDate_->setDate(date);
     });
+    connect(meetingAllDayCheckbox_, &QCheckBox::toggled, this, &EditEventDialog::onMeetingAllDayChanged);
 
     return widget;
 }
@@ -229,10 +234,17 @@ QWidget* EditEventDialog::createActionFields()
     dueLayout->addWidget(actionDueTime_);
     layout->addRow("Due:", dueLayout);
 
+    // All-Day Event Checkbox
+    actionAllDayCheckbox_ = new QCheckBox("All-day event");
+    layout->addRow("", actionAllDayCheckbox_);
+
     // Status
     statusCombo_ = new QComboBox();
     statusCombo_->addItems({"Not Started", "In Progress", "Blocked", "Completed"});
     layout->addRow("Status:", statusCombo_);
+
+    // Connect signals
+    connect(actionAllDayCheckbox_, &QCheckBox::toggled, this, &EditEventDialog::onActionAllDayChanged);
 
     return widget;
 }
@@ -268,6 +280,10 @@ QWidget* EditEventDialog::createTestEventFields()
     endLayout->addWidget(testEndDate_);
     endLayout->addWidget(testEndTime_);
     layout->addRow("End:", endLayout);
+
+    // All-Day Event Checkbox
+    testAllDayCheckbox_ = new QCheckBox("All-day event");
+    layout->addRow("", testAllDayCheckbox_);
 
     // Test Category
     testCategoryCombo_ = new QComboBox();
@@ -306,6 +322,7 @@ QWidget* EditEventDialog::createTestEventFields()
         if (testEndDate_->date() < date)
             testEndDate_->setDate(date);
     });
+    connect(testAllDayCheckbox_, &QCheckBox::toggled, this, &EditEventDialog::onTestAllDayChanged);
 
     return widget;
 }
@@ -329,10 +346,17 @@ QWidget* EditEventDialog::createReminderFields()
     reminderLayout->addWidget(reminderTime_);
     layout->addRow("Reminder:", reminderLayout);
 
+    // All-Day Event Checkbox
+    reminderAllDayCheckbox_ = new QCheckBox("All-day event");
+    layout->addRow("", reminderAllDayCheckbox_);
+
     // Recurring Rule
     recurringRuleCombo_ = new QComboBox();
     recurringRuleCombo_->addItems({"None", "Daily", "Weekly", "Monthly"});
     layout->addRow("Recurrence:", recurringRuleCombo_);
+
+    // Connect signals
+    connect(reminderAllDayCheckbox_, &QCheckBox::toggled, this, &EditEventDialog::onReminderAllDayChanged);
 
     return widget;
 }
@@ -388,6 +412,17 @@ QWidget* EditEventDialog::createJiraTicketFields()
     dueLayout->addWidget(jiraDueDate_);
     dueLayout->addWidget(jiraDueTime_);
     layout->addRow("Due:", dueLayout);
+
+    // All-Day Event Checkbox
+    jiraAllDayCheckbox_ = new QCheckBox("All-day event");
+    layout->addRow("", jiraAllDayCheckbox_);
+
+    // Connect signals
+    connect(jiraStartDate_, &QDateEdit::dateChanged, [this](const QDate& date) {
+        if (jiraDueDate_->date() < date)
+            jiraDueDate_->setDate(date);
+    });
+    connect(jiraAllDayCheckbox_, &QCheckBox::toggled, this, &EditEventDialog::onJiraAllDayChanged);
 
     return widget;
 }
@@ -727,16 +762,36 @@ void EditEventDialog::populateTypeSpecificFields(TimelineEvent& event) const
     case TimelineEventType_Meeting:
         event.startDate = meetingStartDate_->date();
         event.endDate = meetingEndDate_->date();
-        event.startTime = meetingStartTime_->time();
-        event.endTime = meetingEndTime_->time();
+
+        if (!meetingAllDayCheckbox_->isChecked())
+        {
+            event.startTime = meetingStartTime_->time();
+            event.endTime = meetingEndTime_->time();
+        }
+        else
+        {
+            event.startTime = QTime(0, 0);
+            event.endTime = QTime(23, 59);
+        }
+
         event.location = locationEdit_->text().trimmed();
         event.participants = participantsEdit_->toPlainText().trimmed();
         break;
 
     case TimelineEventType_Action:
         event.startDate = actionStartDate_->date();
-        event.startTime = actionStartTime_->time();
-        event.dueDateTime = QDateTime(actionDueDate_->date(), actionDueTime_->time());
+
+        if (!actionAllDayCheckbox_->isChecked())
+        {
+            event.startTime = actionStartTime_->time();
+            event.dueDateTime = QDateTime(actionDueDate_->date(), actionDueTime_->time());
+        }
+        else
+        {
+            event.startTime = QTime(0, 0);
+            event.dueDateTime = QDateTime(actionDueDate_->date(), QTime(23, 59));
+        }
+
         event.status = statusCombo_->currentText();
         // Set endDate to due date for timeline rendering
         event.endDate = event.dueDateTime.date();
@@ -744,10 +799,21 @@ void EditEventDialog::populateTypeSpecificFields(TimelineEvent& event) const
 
     case TimelineEventType_TestEvent:
         event.startDate = testStartDate_->date();
-        event.startTime = testStartTime_->time();
         event.endDate = testEndDate_->date();
-        event.endTime = testEndTime_->time();
+
+        if (!testAllDayCheckbox_->isChecked())
+        {
+            event.startTime = testStartTime_->time();
+            event.endTime = testEndTime_->time();
+        }
+        else
+        {
+            event.startTime = QTime(0, 0);
+            event.endTime = QTime(23, 59);
+        }
+
         event.testCategory = testCategoryCombo_->currentText();
+
         // Collect checklist items
         for (auto it = checklistItems_.begin(); it != checklistItems_.end(); ++it)
         {
@@ -756,7 +822,15 @@ void EditEventDialog::populateTypeSpecificFields(TimelineEvent& event) const
         break;
 
     case TimelineEventType_Reminder:
-        event.reminderDateTime = QDateTime(reminderDate_->date(), reminderTime_->time());
+        if (!reminderAllDayCheckbox_->isChecked())
+        {
+            event.reminderDateTime = QDateTime(reminderDate_->date(), reminderTime_->time());
+        }
+        else
+        {
+            event.reminderDateTime = QDateTime(reminderDate_->date(), QTime(9, 0)); // Default to 9 AM
+        }
+
         event.recurringRule = recurringRuleCombo_->currentText();
         // Set startDate and endDate to reminder date for timeline rendering
         event.startDate = event.reminderDateTime.date();
@@ -769,9 +843,52 @@ void EditEventDialog::populateTypeSpecificFields(TimelineEvent& event) const
         event.jiraType = jiraTypeCombo_->currentText();
         event.jiraStatus = jiraStatusCombo_->currentText();
         event.startDate = jiraStartDate_->date();
-        event.startTime = jiraStartTime_->time();
         event.endDate = jiraDueDate_->date();
-        event.endTime = jiraDueTime_->time();
+
+        if (!jiraAllDayCheckbox_->isChecked())
+        {
+            event.startTime = jiraStartTime_->time();
+            event.endTime = jiraDueTime_->time();
+        }
+        else
+        {
+            event.startTime = QTime(0, 0);
+            event.endTime = QTime(23, 59);
+        }
         break;
     }
+}
+
+
+void EditEventDialog::onMeetingAllDayChanged(bool checked)
+{
+    meetingStartTime_->setEnabled(!checked);
+    meetingEndTime_->setEnabled(!checked);
+}
+
+
+void EditEventDialog::onActionAllDayChanged(bool checked)
+{
+    actionStartTime_->setEnabled(!checked);
+    actionDueTime_->setEnabled(!checked);
+}
+
+
+void EditEventDialog::onTestAllDayChanged(bool checked)
+{
+    testStartTime_->setEnabled(!checked);
+    testEndTime_->setEnabled(!checked);
+}
+
+
+void EditEventDialog::onReminderAllDayChanged(bool checked)
+{
+    reminderTime_->setEnabled(!checked);
+}
+
+
+void EditEventDialog::onJiraAllDayChanged(bool checked)
+{
+    jiraStartTime_->setEnabled(!checked);
+    jiraDueTime_->setEnabled(!checked);
 }
