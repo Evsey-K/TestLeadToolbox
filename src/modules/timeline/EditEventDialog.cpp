@@ -444,7 +444,6 @@ void EditEventDialog::populateFromEvent(const TimelineEvent& event)
     laneControlCheckbox_->setChecked(event.laneControlEnabled);
     manualLaneSpinner_->setValue(event.manualLane);
     manualLaneSpinner_->setEnabled(event.laneControlEnabled);
-    laneControlWarningLabel_->setVisible(event.laneControlEnabled);
     descriptionEdit_->setPlainText(event.description);
 
     // Set type-specific fields
