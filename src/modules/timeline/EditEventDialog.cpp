@@ -219,10 +219,15 @@ QWidget* EditEventDialog::createActionFields()
     layout->addRow("Start:", startLayout);
 
     // Due Date/Time
-    actionDueDateTime_ = new QDateTimeEdit(QDateTime::currentDateTime().addDays(7));
-    actionDueDateTime_->setCalendarPopup(true);
-    actionDueDateTime_->setDisplayFormat("yyyy-MM-dd HH:mm");
-    layout->addRow("Due:", actionDueDateTime_);
+    QHBoxLayout* dueLayout = new QHBoxLayout();
+    actionDueDate_ = new QDateEdit(QDate::currentDate().addDays(7));
+    actionDueDate_->setCalendarPopup(true);
+    actionDueDate_->setMinimumDate(versionStart_);
+    actionDueDate_->setMaximumDate(versionEnd_);
+    actionDueTime_ = new QTimeEdit(QTime::currentTime());
+    dueLayout->addWidget(actionDueDate_);
+    dueLayout->addWidget(actionDueTime_);
+    layout->addRow("Due:", dueLayout);
 
     // Status
     statusCombo_ = new QComboBox();
@@ -394,7 +399,10 @@ void EditEventDialog::populateFromEvent(const TimelineEvent& event)
         actionStartDate_->setDate(event.startDate);
         actionStartTime_->setTime(event.startTime);
         if (event.dueDateTime.isValid())
-            actionDueDateTime_->setDateTime(event.dueDateTime);
+        {
+            actionDueDate_->setDate(event.dueDateTime.date());
+            actionDueTime_->setTime(event.dueDateTime.time());
+        }
         // Set status combo
         for (int i = 0; i < statusCombo_->count(); ++i)
         {
@@ -572,13 +580,18 @@ bool EditEventDialog::validateTypeSpecificFields()
         break;
 
     case TimelineEventType_Action:
-        if (actionDueDateTime_->dateTime() < QDateTime(actionStartDate_->date(), actionStartTime_->time()))
+    {
+        QDateTime startDateTime(actionStartDate_->date(), actionStartTime_->time());
+        QDateTime dueDateTime(actionDueDate_->date(), actionDueTime_->time());
+
+        if (dueDateTime < startDateTime)
         {
             QMessageBox::warning(this, "Validation Error",
                                  "Due date/time must be after start date/time.");
             return false;
         }
         break;
+    }
 
     case TimelineEventType_TestEvent:
         if (testEndDate_->date() < testStartDate_->date())
@@ -689,7 +702,7 @@ void EditEventDialog::populateTypeSpecificFields(TimelineEvent& event) const
     case TimelineEventType_Action:
         event.startDate = actionStartDate_->date();
         event.startTime = actionStartTime_->time();
-        event.dueDateTime = actionDueDateTime_->dateTime();
+        event.dueDateTime = QDateTime(actionDueDate_->date(), actionDueTime_->time());
         event.status = statusCombo_->currentText();
         event.endDate = event.dueDateTime.date();
         break;

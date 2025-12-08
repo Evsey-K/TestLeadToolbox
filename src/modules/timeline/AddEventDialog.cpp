@@ -1,6 +1,8 @@
 // AddEventDialog.cpp - Complete Implementation with Dynamic Fields
 
+
 #include "AddEventDialog.h"
+
 
 AddEventDialog::AddEventDialog(const QDate& versionStart,
                                const QDate& versionEnd,
@@ -17,10 +19,12 @@ AddEventDialog::AddEventDialog(const QDate& versionStart,
     onTypeChanged(0);
 }
 
+
 AddEventDialog::~AddEventDialog()
 {
     // Qt parent-child hierarchy handles cleanup
 }
+
 
 void AddEventDialog::setupUi()
 {
@@ -113,6 +117,7 @@ void AddEventDialog::setupUi()
     connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
 }
 
+
 void AddEventDialog::createFieldGroups()
 {
     fieldStack_->addWidget(createMeetingFields());          // Index 0
@@ -121,6 +126,7 @@ void AddEventDialog::createFieldGroups()
     fieldStack_->addWidget(createReminderFields());         // Index 3
     fieldStack_->addWidget(createJiraTicketFields());       // Index 4
 }
+
 
 QWidget* AddEventDialog::createMeetingFields()
 {
@@ -196,10 +202,15 @@ QWidget* AddEventDialog::createActionFields()
     layout->addRow("Start:", startLayout);
 
     // Due Date/Time
-    actionDueDateTime_ = new QDateTimeEdit(QDateTime::currentDateTime().addDays(7));
-    actionDueDateTime_->setCalendarPopup(true);
-    actionDueDateTime_->setDisplayFormat("yyyy-MM-dd HH:mm");
-    layout->addRow("Due:", actionDueDateTime_);
+    QHBoxLayout* dueLayout = new QHBoxLayout();
+    actionDueDate_ = new QDateEdit(QDate::currentDate().addDays(7));
+    actionDueDate_->setCalendarPopup(true);
+    actionDueDate_->setMinimumDate(versionStart_);
+    actionDueDate_->setMaximumDate(versionEnd_);
+    actionDueTime_ = new QTimeEdit(QTime::currentTime());
+    dueLayout->addWidget(actionDueDate_);
+    dueLayout->addWidget(actionDueTime_);
+    layout->addRow("Due:", dueLayout);
 
     // Status
     statusCombo_ = new QComboBox();
@@ -404,13 +415,18 @@ bool AddEventDialog::validateTypeSpecificFields()
         break;
 
     case TimelineEventType_Action:
-        if (actionDueDateTime_->dateTime() < QDateTime(actionStartDate_->date(), actionStartTime_->time()))
+    {
+        QDateTime startDateTime(actionStartDate_->date(), actionStartTime_->time());
+        QDateTime dueDateTime(actionDueDate_->date(), actionDueTime_->time());
+
+        if (dueDateTime < startDateTime)
         {
             QMessageBox::warning(this, "Validation Error",
                                  "Due date/time must be after start date/time.");
             return false;
         }
         break;
+    }
 
     case TimelineEventType_TestEvent:
         if (testEndDate_->date() < testStartDate_->date())
@@ -515,7 +531,7 @@ void AddEventDialog::populateTypeSpecificFields(TimelineEvent& event) const
     case TimelineEventType_Action:
         event.startDate = actionStartDate_->date();
         event.startTime = actionStartTime_->time();
-        event.dueDateTime = actionDueDateTime_->dateTime();
+        event.dueDateTime = QDateTime(actionDueDate_->date(), actionDueTime_->time());
         event.status = statusCombo_->currentText();
         // Set endDate to due date for timeline rendering
         event.endDate = event.dueDateTime.date();

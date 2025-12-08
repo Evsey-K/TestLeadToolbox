@@ -44,11 +44,7 @@ public:
                             QWidget* parent = nullptr);
     ~AddEventDialog();
 
-    /**
-     * @brief Get the constructed event from user inputs
-     * @return TimelineEvent with all fields populated based on type
-     */
-    TimelineEvent getEvent() const;
+    TimelineEvent getEvent() const;                                 ///< @brief Get the constructed event from user inputs
 
 private slots:
     void onTypeChanged(int index);                                  ///< @brief Handle event type selection change
@@ -89,7 +85,8 @@ private:
     // UI Components - Action
     QDateEdit* actionStartDate_;
     QTimeEdit* actionStartTime_;
-    QDateTimeEdit* actionDueDateTime_;
+    QDateEdit* actionDueDate_;
+    QTimeEdit* actionDueTime_;
     QComboBox* statusCombo_;
 
     // UI Components - Test Event

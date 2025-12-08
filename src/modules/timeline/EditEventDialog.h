@@ -20,19 +20,18 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QMessageBox>
-#include <QPushButton>
 #include <QLabel>
+#include <QPushButton>
 
 
 /**
  * @class EditEventDialog
- * @brief Dynamic dialog for editing existing timeline events with type-specific fields
+ * @brief Dialog for editing existing timeline events
  *
- * Features:
- * - Pre-populates all fields from existing event
- * - Allows changing event type (with warning if type-specific data will be lost)
- * - Delete button for removing the event
- * - Same validation as AddEventDialog
+ * Extends AddEventDialog functionality with:
+ * - Pre-population of fields from existing event
+ * - Type-change support with field preservation where possible
+ * - Delete button for removing events
  */
 class EditEventDialog : public QDialog
 {
@@ -46,74 +45,25 @@ public:
                              QWidget* parent = nullptr);
     ~EditEventDialog();
 
-    /**
-     * @brief Get the updated event from user inputs
-     * @return TimelineEvent with all fields populated based on type
-     */
-    TimelineEvent getEvent() const;
+    TimelineEvent getEvent() const;                                 ///< @brief Get the updated event from user inputs
 
 signals:
-    /**
-     * @brief Emitted when user requests to delete the event
-     */
-    void deleteRequested();
+    void deleteRequested();                                         ///< @brief Emitted when user requests to delete the event
 
 private slots:
-    /**
-     * @brief Handle event type selection change
-     */
-    void onTypeChanged(int index);
-
-    /**
-     * @brief Validate and accept the dialog
-     */
-    void validateAndAccept();
-
-    /**
-     * @brief Handle delete button click
-     */
-    void onDeleteClicked();
+    void onTypeChanged(int index);                                  ///< @brief Handle event type selection change
+    void validateAndAccept();                                       ///< @brief Validate and accept the dialog
+    void onDeleteClicked();                                         ///< @brief Handle delete button click
 
 private:
-    /**
-     * @brief Setup UI components and connections
-     */
-    void setupUi();
-
-    /**
-     * @brief Create field group widgets
-     */
-    void createFieldGroups();
-
-    /**
-     * @brief Populate dialog fields from existing event
-     */
-    void populateFromEvent(const TimelineEvent& event);
-
-    /**
-     * @brief Show appropriate field group for event type
-     */
-    void showFieldsForType(TimelineEventType type);
-
-    /**
-     * @brief Validate common fields
-     */
-    bool validateCommonFields();
-
-    /**
-     * @brief Validate type-specific fields
-     */
-    bool validateTypeSpecificFields();
-
-    /**
-     * @brief Populate event from common fields
-     */
-    void populateCommonFields(TimelineEvent& event) const;
-
-    /**
-     * @brief Populate event from type-specific fields
-     */
-    void populateTypeSpecificFields(TimelineEvent& event) const;
+    void setupUi();                                                 ///< @brief Setup UI components and connections
+    void createFieldGroups();                                       ///< @brief Create field group widgets
+    void populateFromEvent(const TimelineEvent& event);             ///< @brief Populate dialog fields from existing event
+    void showFieldsForType(TimelineEventType type);                 ///< @brief Show appropriate field group for event type
+    bool validateCommonFields();                                    ///< @brief Validate common fields
+    bool validateTypeSpecificFields();                              ///< @brief Validate type-specific fields
+    void populateCommonFields(TimelineEvent& event) const;          /// <@brief Populate event from common fields
+    void populateTypeSpecificFields(TimelineEvent& event) const;    ///< @brief Populate event from type-specific fields
 
     // Helper methods for creating field groups
     QWidget* createMeetingFields();
@@ -141,7 +91,8 @@ private:
     // UI Components - Action
     QDateEdit* actionStartDate_;
     QTimeEdit* actionStartTime_;
-    QDateTimeEdit* actionDueDateTime_;
+    QDateEdit* actionDueDate_;
+    QTimeEdit* actionDueTime_;
     QComboBox* statusCombo_;
 
     // UI Components - Test Event
