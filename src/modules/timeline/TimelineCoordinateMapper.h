@@ -3,6 +3,8 @@
 
 #pragma once
 #include <QDate>
+#include <QTime>
+#include <QDateTime>
 #include <QPointF>
 #include <QRectF>
 
@@ -12,7 +14,8 @@
  * @brief Utility class for converting between dates and scene coordinates
  *
  * This class handles the mathematical mapping between calendar dates and
- * pixel positions on the timeline canvas. It supports dynamic zoom levels.
+ * pixel positions on the timeline canvas. It supports dynamic zoom levels,
+ * including fine-grained zoom for hour and half-hour precision.
  */
 class TimelineCoordinateMapper
 {
@@ -28,12 +31,14 @@ public:
 
     // Date to coordinate conversion
     double dateToX(const QDate& date) const;
+    double dateTimeToX(const QDateTime& dateTime) const;
     QPointF dateToPoint(const QDate& date, double yPos = 0.0) const;
     QRectF dateRangeToRect(const QDate& start, const QDate& end, double yPos, double height) const;
 
 
     // Coordinate to date conversion
     QDate xToDate(double xCoord) const;
+    QDateTime xToDateTime(double xCoord) const;
     int daysBetween(const QDate& start, const QDate& end) const;
 
 
@@ -56,7 +61,7 @@ public:
     // Constants
     static constexpr double DEFAULT_PIXELS_PER_DAY = 20.0;
     static constexpr double MIN_PIXELS_PER_DAY = 2.0;
-    static constexpr double MAX_PIXELS_PER_DAY = 200.0;
+    static constexpr double MAX_PIXELS_PER_DAY = 500.0;
 
 
 private:

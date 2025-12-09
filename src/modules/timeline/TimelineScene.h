@@ -86,5 +86,5 @@ private:
     // Lane-based layout constants
     static constexpr double ITEM_HEIGHT = 30.0;         ///< Default height of timeline bars
     static constexpr double LANE_SPACING = 5.0;         ///< Vertical spacing between lanes
-    static constexpr double DATE_SCALE_OFFSET = 70.0;   ///< Y offset for events (below date scale)
+    static constexpr double DATE_SCALE_OFFSET = 80.0;   ///< Y offset for events (below date scale)
 };

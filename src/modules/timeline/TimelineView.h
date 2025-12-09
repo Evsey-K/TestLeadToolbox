@@ -38,6 +38,8 @@ public:
 
     TimelineScene* timelineScene() const { return scene_; }                 ///< @brief Get the timeline scene
 
+    double currentZoomLevel() const;                                        ///< @brief Get the current zoom level (pixels per day)
+
 protected:
     void wheelEvent(QWheelEvent* event) override;                           ///< @brief Override to implement horizontal zoom on mouse wheel
     void mousePressEvent(QMouseEvent* event) override;                      ///< @brief Override to handle right-click panning start

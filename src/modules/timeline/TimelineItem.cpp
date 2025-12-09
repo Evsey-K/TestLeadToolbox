@@ -55,6 +55,10 @@ QRectF TimelineItem::boundingRect() const
 
 void TimelineItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* /*widget*/)
 {
+    // Enable high-quality rendering for crisp visuals at all zoom levels
+    painter->setRenderHint(QPainter::Antialiasing, true);
+    painter->setRenderHint(QPainter::TextAntialiasing, true);
+
     painter->setBrush(brush_);
     painter->setPen(pen_);
 
@@ -70,50 +74,107 @@ void TimelineItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* opti
         painter->drawRect(rect_);
     }
 
-    // Draw lane control icon in bottom-right corner
+    // Draw event title with adaptive text rendering based on item width
     if (model_ && !eventId_.isEmpty())
     {
         const TimelineEvent* event = model_->getEvent(eventId_);
+        if (event)
+        {
+            double itemWidth = rect_.width();
+
+            // Only show text if item is wide enough (minimum 30 pixels)
+            if (itemWidth > 30.0)
+            {
+                // Set up text rendering with white color for contrast
+                painter->setPen(Qt::white);
+
+                // Adjust font size based on item width for optimal readability
+                QFont textFont = painter->font();
+
+                if (itemWidth < 60.0)
+                {
+                    // Very narrow items: small font
+                    textFont.setPointSize(8);
+                }
+                else if (itemWidth < 120.0)
+                {
+                    // Medium items: normal font
+                    textFont.setPointSize(9);
+                }
+                else
+                {
+                    // Wide items: larger bold font
+                    textFont.setPointSize(10);
+                    textFont.setBold(true);
+                }
+
+                painter->setFont(textFont);
+
+                // Calculate text rectangle with padding
+                QRectF textRect = rect_.adjusted(5, 2, -5, -2);
+
+                // Elide text if it doesn't fit within the available width
+                QFontMetrics metrics(textFont);
+                QString displayText = event->title;
+
+                if (metrics.horizontalAdvance(displayText) > textRect.width())
+                {
+                    displayText = metrics.elidedText(displayText, Qt::ElideRight,
+                                                     static_cast<int>(textRect.width()));
+                }
+
+                // Draw text centered vertically, aligned left
+                painter->drawText(textRect, Qt::AlignLeft | Qt::AlignVCenter, displayText);
+            }
+        }
+
+        // Draw lane control icon in bottom-right corner if enabled
         if (event && event->laneControlEnabled)
         {
-            // Icon parameters
-            constexpr double ICON_SIZE = 12.0;
-            constexpr double ICON_MARGIN = 2.0;
+            double itemWidth = rect_.width();
 
-            // Position in bottom-right corner
-            QRectF iconRect(
-                rect_.right() - ICON_SIZE - ICON_MARGIN,
-                rect_.bottom() - ICON_SIZE - ICON_MARGIN,
-                ICON_SIZE,
-                ICON_SIZE
-                );
+            // Only show icon if item is wide enough (minimum 50 pixels)
+            if (itemWidth > 50.0)
+            {
+                // Icon parameters
+                constexpr double ICON_SIZE = 12.0;
+                constexpr double ICON_MARGIN = 2.0;
 
-            // Draw icon background (white circle)
-            painter->setPen(Qt::NoPen);
-            painter->setBrush(QColor(255, 255, 255, 200));  // Semi-transparent white
-            painter->drawEllipse(iconRect);
+                // Position in bottom-right corner
+                QRectF iconRect(
+                    rect_.right() - ICON_SIZE - ICON_MARGIN,
+                    rect_.bottom() - ICON_SIZE - ICON_MARGIN,
+                    ICON_SIZE,
+                    ICON_SIZE
+                    );
 
-            // Draw lock icon (simplified)
-            painter->setPen(QPen(QColor(76, 175, 80), 1.5));  // Green color
-            painter->setBrush(Qt::NoBrush);
+                // Draw icon background (semi-transparent white circle)
+                painter->setPen(Qt::NoPen);
+                painter->setBrush(QColor(255, 255, 255, 180));
+                painter->drawEllipse(iconRect);
 
-            // Lock body (rectangle)
-            QRectF lockBody(
-                iconRect.center().x() - 3,
-                iconRect.center().y(),
-                6,
-                4
-                );
-            painter->drawRect(lockBody);
+                // Draw lock icon symbol (simplified)
+                painter->setPen(QPen(QColor(76, 175, 80), 1.5));  // Green color
+                painter->setBrush(Qt::NoBrush);
 
-            // Lock shackle (arc)
-            QRectF shackleRect(
-                iconRect.center().x() - 2,
-                iconRect.center().y() - 4,
-                4,
-                4
-                );
-            painter->drawArc(shackleRect, 0 * 16, 180 * 16);  // Top half circle
+                // Lock body (rectangle)
+                QRectF lockBody(
+                    iconRect.center().x() - 3,
+                    iconRect.center().y(),
+                    6,
+                    4
+                    );
+                painter->drawRect(lockBody);
+
+                // Lock shackle (arc)
+                QRectF shackleRect(
+                    iconRect.center().x() - 2,
+                    iconRect.center().y() - 4,
+                    4,
+                    4
+                    );
+                painter->drawArc(shackleRect, 0 * 16, 180 * 16);  // Top half circle
+            }
         }
     }
 }

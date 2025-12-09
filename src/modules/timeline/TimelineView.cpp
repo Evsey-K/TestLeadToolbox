@@ -24,20 +24,15 @@ TimelineView::TimelineView(TimelineModel* model,
     scene_ = new TimelineScene(model, mapper, this);
     setScene(scene_);
 
-    // Enable anti-aliasing for smooth rendering
-    setRenderHint(QPainter::Antialiasing, true);
-
-    // Disable vertical scroll bar
-    setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-
-    // Enable horizontal scroll bar
-    setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-
-    // Enable rubber band selection for left-click drag
-    setDragMode(QGraphicsView::RubberBandDrag);
-
-    // Set background color
-    setBackgroundBrush(QBrush(QColor(250, 250, 250)));
+    setRenderHint(QPainter::Antialiasing, true);                ///< Enable anti-aliasing for smooth rendering
+    setRenderHint(QPainter::TextAntialiasing, true);            ///< Enable text anti-aliasing for crisp text
+    setRenderHint(QPainter::SmoothPixmapTransform, true);       ///< Enable smooth pixmap transforms
+    setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);          ///< Enable vertical scroll bar as needed
+    setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);        ///< Enable horizontal scroll bar
+    setDragMode(QGraphicsView::RubberBandDrag);                 ///< Enable rubber band selection for left-click drag
+    setBackgroundBrush(QBrush(QColor(250, 250, 250)));          ///< Set background color
+    setViewportUpdateMode(QGraphicsView::SmartViewportUpdate);  ///< Optimize view updates
+    setCacheMode(QGraphicsView::CacheBackground);               ///< Set optimal cache mode
 }
 
 
@@ -49,36 +44,34 @@ void TimelineView::wheelEvent(QWheelEvent* event)
         // Define zoom factor
         const double zoomFactor = 1.15;
 
-        // Get the mouse position in widget coordinates
-        QPointF widgetPos = event->position();
+        // Get the mouse position in scene coordinates BEFORE zoom
+        QPointF scenePosBefore = mapToScene(event->position().toPoint());
 
-        // Convert to scene coordinates before zoom
-        QPointF scenePosBefore = mapToScene(widgetPos.toPoint());
-
-        // Determine zoom direction and apply zoom
+        // Determine zoom direction and apply zoom to mapper only
+        // NO view transform scaling - this keeps rendering at native resolution
         if (event->angleDelta().y() > 0)
         {
             // Zoom in
             mapper_->zoom(zoomFactor);
-            scale(zoomFactor, 1.0);
         }
         else
         {
             // Zoom out
             mapper_->zoom(1.0 / zoomFactor);
-            scale(1.0 / zoomFactor, 1.0);
         }
 
-        // Rebuild scene with new scale
+        // Rebuild scene with new scale (updates all item positions and sizes at native resolution)
         scene_->rebuildFromModel();
 
-        // Convert same widget position to scene coordinates after zoom
-        QPointF scenePosAfter = mapToScene(widgetPos.toPoint());
+        // Get the mouse position in scene coordinates AFTER zoom
+        QPointF scenePosAfter = mapToScene(event->position().toPoint());
 
-        // Calculate the difference and adjust the scroll bars
+        // Calculate the difference and adjust view to keep mouse position stable
         QPointF delta = scenePosAfter - scenePosBefore;
-        horizontalScrollBar()->setValue(horizontalScrollBar()->value() + delta.x());
-        verticalScrollBar()->setValue(verticalScrollBar()->value() + delta.y());
+
+        // Translate the view to compensate for coordinate changes
+        horizontalScrollBar()->setValue(horizontalScrollBar()->value() + static_cast<int>(delta.x()));
+        verticalScrollBar()->setValue(verticalScrollBar()->value() + static_cast<int>(delta.y()));
 
         event->accept();
     }
