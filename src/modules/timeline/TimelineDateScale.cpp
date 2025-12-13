@@ -82,7 +82,7 @@ void TimelineDateScale::drawMonthTicks(QPainter* painter)
     QDate monthStart(currentDate.year(), currentDate.month(), 1);
 
     // Use cosmetic pen (width 0) for crisp lines at any zoom
-    painter->setPen(QPen(QColor(60, 60, 60), 0));  // Width 0 = cosmetic
+    painter->setPen(QPen(Qt::black, 0));  // Width 0 = cosmetic
     QFont labelFont = painter->font();
     labelFont.setPointSize(10);
     labelFont.setBold(true);
@@ -115,7 +115,7 @@ void TimelineDateScale::drawWeekTicks(QPainter* painter)
         currentDate = currentDate.addDays(1);
     }
 
-    painter->setPen(QPen(QColor(100, 100, 100), 0));  // Cosmetic pen
+    painter->setPen(QPen(Qt::black, 0));  // Cosmetic pen
 
     while (currentDate <= endDate)
     {
@@ -136,7 +136,7 @@ void TimelineDateScale::drawDayTicks(QPainter* painter)
     QDate currentDate = paddedStart_;
     QDate endDate = paddedEnd_;
 
-    painter->setPen(QPen(QColor(150, 150, 150), 0));  // Cosmetic pen
+    painter->setPen(QPen(Qt::black, 0));  // Cosmetic pen
     QFont dayFont = painter->font();
     dayFont.setPointSize(8);
     painter->setFont(dayFont);
@@ -168,7 +168,7 @@ void TimelineDateScale::drawHourTicks(QPainter* painter)
     QDate currentDate = paddedStart_;
     QDate endDate = paddedEnd_;
 
-    painter->setPen(QPen(QColor(180, 180, 180), 0));  // Cosmetic pen
+    painter->setPen(QPen(Qt::black, 0));  // Cosmetic pen
     QFont hourFont = painter->font();
     hourFont.setPointSize(7);
     painter->setFont(hourFont);
@@ -207,7 +207,7 @@ void TimelineDateScale::drawHalfHourTicks(QPainter* painter)
     QDate currentDate = paddedStart_;
     QDate endDate = paddedEnd_;
 
-    painter->setPen(QPen(QColor(200, 200, 200), 0));  // Cosmetic pen
+    painter->setPen(QPen(Qt::black, 0));  // Cosmetic pen
 
     while (currentDate <= endDate)
     {

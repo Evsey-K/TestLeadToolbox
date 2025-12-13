@@ -67,7 +67,7 @@ QRectF TimelineCoordinateMapper::dateRangeToRect(const QDate& start, const QDate
 QDate TimelineCoordinateMapper::xToDate(double xCoord) const
 {
     // Convert pixel position back to days offset
-    int daysOffset = static_cast<int>(std::floor(xCoord / pixelsPerDay_));
+    int daysOffset = static_cast<int>(std::round(xCoord / pixelsPerDay_));
 
     // Add offset to version start
     return versionStart_.addDays(daysOffset);
