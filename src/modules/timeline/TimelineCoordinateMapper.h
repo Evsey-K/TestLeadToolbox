@@ -42,6 +42,12 @@ public:
     int daysBetween(const QDate& start, const QDate& end) const;
 
 
+    // Zoom-aware snapping methods
+    double snapXToNearestTick(double xCoord) const;         ///< @brief Snap X coordinate to nearest tick based on zoom level
+    QDate xToDateSnapped(double xCoord) const;              ///< @brief Convert X to date with zoom-aware snapping
+    QDateTime xToDateTimeSnapped(double xCoord) const;      ///< @brief Convert X to datetime with zoom-aware snapping
+
+
     // Zoom/scale management
     void setPixelsPerDay(double ppd);
     double pixelsPerday() const { return pixelsPerDay_; }
@@ -61,7 +67,7 @@ public:
     // Constants
     static constexpr double DEFAULT_PIXELS_PER_DAY = 20.0;
     static constexpr double MIN_PIXELS_PER_DAY = 2.0;
-    static constexpr double MAX_PIXELS_PER_DAY = 500.0;
+    static constexpr double MAX_PIXELS_PER_DAY = 2000.0;
 
 
 private:

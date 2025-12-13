@@ -62,6 +62,8 @@ public:
     void setUndoStack(QUndoStack* undoStack) { undoStack_ = undoStack; }                ///<
     void setResizable(bool resizable) { resizable_ = resizable; }                       ///< @brief Enable or disable resize functionality
     bool isResizable() const { return resizable_; }                                     ///< @brief Check if item is resizable
+    void setSkipNextUpdate(bool skip) { skipNextUpdate_ = skip; }                       ///<
+    bool shouldSkipNextUpdate() const { return skipNextUpdate_; }                       ///<
 
 signals:
     void editRequested(const QString& eventId);
@@ -78,9 +80,9 @@ protected:
     void contextMenuEvent(QGraphicsSceneContextMenuEvent* event) override;              ///< @brief Show context menu
 
 private:
-    void updateModelFromPosition();             ///< @brief Update the model with new dates based on current position
-    void updateModelFromSize();                 ///< @brief Update the model with new dates based on current size (after resize)
-    int calculateLaneFromYPosition() const;     ///< @brief Calculate lane number from current Y position
+    void updateModelFromPosition();                 ///< @brief Update the model with new dates based on current position
+    void updateModelFromSize();                     ///< @brief Update the model with new dates based on current size (after resize)
+    int calculateLaneFromYPosition() const;         ///< @brief Calculate lane number from current Y position
 
     enum ResizeHandle { None, LeftEdge, RightEdge };            ///< @brief Detect which edge/corner is under mouse cursor
     ResizeHandle getResizeHandle(const QPointF& pos) const;     ///< @brief Get resize handle at given position
@@ -94,6 +96,7 @@ private:
     bool isMultiDragging_ = false;                          ///< Whether performing multi-item drag
     bool isResizing_ = false;                               ///< Whether currently being resized
     bool resizable_ = true;                                 ///< Whether item can be resized
+    bool skipNextUpdate_ = false;                           ///<
 
     QRectF rect_;                                           ///< Item's rectangle
     QBrush brush_;                                          ///< Fill brush

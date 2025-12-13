@@ -292,22 +292,26 @@ bool TimelineDateScale::shouldShowWeekTicks() const
 
 bool TimelineDateScale::shouldShowHourTicks() const
 {
-    // Show hour ticks when deeply zoomed (about 2+ pixels per hour)
-    return mapper_->pixelsPerday() >= 50.0;
+    // Show hour ticks when there's at least 8 pixels per hour
+    // At 192 ppd: 192/24 = 8 pixels per hour (user-friendly spacing)
+    return mapper_->pixelsPerday() >= 192.0;
 }
 
 
 bool TimelineDateScale::shouldShowHalfHourTicks() const
 {
-    // Show half-hour ticks when very deeply zoomed (about 4+ pixels per hour)
-    return mapper_->pixelsPerday() >= 100.0;
+    // Show half-hour ticks when there's at least 20 pixels per half-hour
+    // At 960 ppd: 960/24 = 40 pixels per hour = 20 pixels per half-hour
+    // This provides comfortable spacing for snapping interactions
+    return mapper_->pixelsPerday() >= 960.0;
 }
 
 
 bool TimelineDateScale::shouldShowHourLabels() const
 {
-    // Show hour labels when there's enough space
-    return mapper_->pixelsPerday() >= 80.0;
+    // Show hour labels when there's enough space (at least 16 pixels per hour)
+    // At 384 ppd: 384/24 = 16 pixels per hour
+    return mapper_->pixelsPerday() >= 384.0;
 }
 
 

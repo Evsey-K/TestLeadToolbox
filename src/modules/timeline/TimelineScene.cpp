@@ -167,10 +167,26 @@ void TimelineScene::onEventUpdated(const QString& eventId)
 
     if (item)
     {
-        updateItemFromEvent(item, eventId);
+        qDebug() << "=== SCENE ON EVENT UPDATED ===" << eventId;
+        qDebug() << "Should skip next update?" << item->shouldSkipNextUpdate();
+
+        // Check if item wants to skip this update
+        if (item->shouldSkipNextUpdate())
+        {
+            qDebug() << "SKIPPING REBUILD";
+            item->setSkipNextUpdate(false);
+            // Don't rebuild - item is already in correct position
+        }
+        else
+        {
+            qDebug() << "REBUILDING FROM MODEL";
+            qDebug() << "Rect before rebuild:" << item->rect().left() << "to" << item->rect().right();
+            // Normal update - rebuild from model
+            updateItemFromEvent(item, eventId);
+            qDebug() << "Rect after rebuild:" << item->rect().left() << "to" << item->rect().right();
+        }
 
         // Emit drag completed signal when event is updated
-        // (This will be triggered after TimelineItem updates the model)
         emit itemDragCompleted(eventId);
     }
 }

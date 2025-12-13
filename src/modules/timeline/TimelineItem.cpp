@@ -18,6 +18,8 @@
 #include <QStyleOptionGraphicsItem>
 #include <QUndoStack>
 
+#include <QDebug>
+
 
 // Constants for lane calculation (must match TimelineScene)
 constexpr double ITEM_HEIGHT = 30.0;
@@ -30,6 +32,7 @@ TimelineItem::TimelineItem(const QRectF& rect, QGraphicsItem* parent)
     , rect_(rect)
     , brush_(Qt::blue)
     , pen_(Qt::black, 1)
+    , skipNextUpdate_(false)
 {
     // Enable the item to be movable by the user with mouse dragging
     setFlag(QGraphicsItem::ItemIsMovable);
@@ -182,6 +185,8 @@ void TimelineItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* opti
 
 void TimelineItem::setRect(const QRectF& rect)
 {
+    qDebug() << "⚠️ setRect called - FROM" << rect_.left() << "-" << rect_.right()
+        << "TO" << rect.left() << "-" << rect.right();
     prepareGeometryChange();
     rect_ = rect;
     update();
@@ -381,9 +386,29 @@ void TimelineItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event)
             isResizing_ = false;
             activeHandle_ = None;
 
-            // Update model with new dates from resized rectangle
             if (rect_ != resizeStartRect_)
             {
+                // Snap the rectangle visually first
+                double rawLeftX = rect_.left();
+                double rawRightX = rect_.right();
+
+                double snappedLeftX = mapper_->snapXToNearestTick(rawLeftX);
+                double snappedRightX = mapper_->snapXToNearestTick(rawRightX);
+
+                double minWidth = 10.0;
+                if (snappedRightX - snappedLeftX < minWidth)
+                {
+                    snappedRightX = snappedLeftX + minWidth;
+                }
+
+                QRectF snappedRect = rect_;
+                snappedRect.setLeft(snappedLeftX);
+                snappedRect.setRight(snappedRightX);
+
+                setRect(snappedRect);
+
+                // DON'T set skipNextUpdate here
+                // Let updateModelFromSize handle it AFTER the undo command
                 updateModelFromSize();
             }
 
@@ -519,6 +544,7 @@ void TimelineItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event)
 }
 
 
+
 void TimelineItem::updateModelFromPosition()
 {
     if (!model_ || !mapper_ || eventId_.isEmpty())
@@ -628,14 +654,56 @@ void TimelineItem::updateModelFromSize()
         return;
     }
 
-    // Calculate new dates based on resized rectangle
-    double leftX = rect_.x() + pos().x();
-    double rightX = leftX + rect_.width();
+    // Calculate edge positions (these are already in scene coordinates since pos() is 0)
+    double leftX = rect_.left();
+    double rightX = rect_.right();
 
-    QDate newStartDate = mapper_->xToDate(leftX);
-    QDate newEndDate = mapper_->xToDate(rightX).addDays(-1);    // Subtract 1 day because rightX represents start of next day
+    qDebug() << "=== UPDATE MODEL FROM SIZE ===";
+    qDebug() << "Input rect coords:" << leftX << "to" << rightX;
 
-    // Ensure at least 1-day duration
+    // Apply zoom-aware snapping to both edges
+    double snappedLeftX = mapper_->snapXToNearestTick(leftX);
+    double snappedRightX = mapper_->snapXToNearestTick(rightX);
+
+    qDebug() << "Re-snapped coords:" << snappedLeftX << "to" << snappedRightX;
+    qDebug() << "Pixels per day:" << mapper_->pixelsPerday();
+
+    // Convert snapped X coordinates to dates
+    QDate newStartDate;
+    QDate newEndDate;
+
+    double pixelsPerDay = mapper_->pixelsPerday();
+
+    if (pixelsPerDay >= 192.0)
+    {
+        // Hour/half-hour precision - use DateTime to preserve snapped hour position
+        QDateTime startDateTime = mapper_->xToDateTime(snappedLeftX);
+        QDateTime endDateTime = mapper_->xToDateTime(snappedRightX);
+
+        newStartDate = startDateTime.date();
+
+        // If at midnight (00:00), the event ends on the PREVIOUS day
+        // If at any other hour, the event ends on THAT day
+        if (endDateTime.time() == QTime(0, 0, 0))
+        {
+            newEndDate = endDateTime.date().addDays(-1);
+        }
+        else
+        {
+            newEndDate = endDateTime.date();  // Don't subtract!
+        }
+    }
+    else
+    {
+        // Day/week/month precision - use standard date conversion
+        newStartDate = mapper_->xToDate(snappedLeftX);
+
+        // Right edge represents start of next day, so subtract 1
+        QDate rightEdgeDate = mapper_->xToDate(snappedRightX);
+        newEndDate = rightEdgeDate.addDays(-1);
+    }
+
+    // Ensure at least 1-day minimum duration
     if (newEndDate < newStartDate)
     {
         newEndDate = newStartDate;
@@ -649,14 +717,19 @@ void TimelineItem::updateModelFromSize()
     // Use undo command instead of direct model update
     if (undoStack_)
     {
+        // Set skip flag BEFORE pushing (so it's active when redo() executes)
+        skipNextUpdate_ = true;
         undoStack_->push(new UpdateEventCommand(model_, eventId_, updatedEvent));
+        // The flag will be cleared by the scene after handling the signal from redo()
     }
     else
     {
-        // Fallback: update directly if no undo stack available
+        skipNextUpdate_ = true;
         qWarning() << "TimelineItem::updateModelFromSize() - No undo stack available, updating directly";
         model_->updateEvent(eventId_, updatedEvent);
     }
+
+    qDebug() << "Final dates:" << newStartDate << "to" << newEndDate;
 }
 
 
@@ -737,3 +810,5 @@ TimelineItem::ResizeHandle TimelineItem::getResizeHandle(const QPointF& pos) con
 
     return None;
 }
+
+
