@@ -32,13 +32,18 @@ void TimelineDateScale::paint(QPainter* painter, const QStyleOptionGraphicsItem*
     Q_UNUSED(option);
     Q_UNUSED(widget);
 
-    // Draw background for date scale area
-    painter->fillRect(QRectF(0, 0, boundingRect().width(), SCALE_HEIGHT),
-                      QColor(245, 245, 248));
+    // Calculate the padded range coordinates
+    double startX = mapper_->dateToX(paddedStart_);
+    double endX = mapper_->dateToX(paddedEnd_);
+    double width = endX - startX;
+
+    // Draw background for date scale area across full padded range
+    painter->fillRect(QRectF(startX, 0, width, SCALE_HEIGHT),
+                      QColor(180, 180, 180));
 
     // Draw separator line
     painter->setPen(QPen(QColor(200, 200, 200), 2));
-    painter->drawLine(QPointF(0, SCALE_HEIGHT), QPointF(boundingRect().width(), SCALE_HEIGHT));
+    painter->drawLine(QPointF(startX, SCALE_HEIGHT), QPointF(endX, SCALE_HEIGHT));
 
     // Draw grid lines first (behind ticks and labels)
     drawGridLines(painter);

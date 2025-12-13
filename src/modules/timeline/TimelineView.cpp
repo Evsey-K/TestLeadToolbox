@@ -44,11 +44,16 @@ void TimelineView::wheelEvent(QWheelEvent* event)
         // Define zoom factor
         const double zoomFactor = 1.15;
 
-        // Get the mouse position in scene coordinates BEFORE zoom
-        QPointF scenePosBefore = mapToScene(event->position().toPoint());
+        // Get the center of the viewport in widget coordinates
+        QPointF viewportCenter(viewport()->width() / 2.0, viewport()->height() / 2.0);
+
+        // Map viewport center to scene coordinates BEFORE zoom
+        QPointF scenePosBefore = mapToScene(viewportCenter.toPoint());
+
+        // Convert scene position toDateTime (preserve the DATETIME at high zoom, not just date)
+        QDateTime centerDateTime = mapper_->xToDateTime(scenePosBefore.x());
 
         // Determine zoom direction and apply zoom to mapper only
-        // NO view transform scaling - this keeps rendering at native resolution
         if (event->angleDelta().y() > 0)
         {
             // Zoom in
@@ -63,15 +68,11 @@ void TimelineView::wheelEvent(QWheelEvent* event)
         // Rebuild scene with new scale (updates all item positions and sizes at native resolution)
         scene_->rebuildFromModel();
 
-        // Get the mouse position in scene coordinates AFTER zoom
-        QPointF scenePosAfter = mapToScene(event->position().toPoint());
+        // Convert the SAME datetime back to new scene coordinates (after zoom and rebuild)
+        double newSceneX = mapper_->dateTimeToX(centerDateTime);
 
-        // Calculate the difference and adjust view to keep mouse position stable
-        QPointF delta = scenePosAfter - scenePosBefore;
-
-        // Translate the view to compensate for coordinate changes
-        horizontalScrollBar()->setValue(horizontalScrollBar()->value() + static_cast<int>(delta.x()));
-        verticalScrollBar()->setValue(verticalScrollBar()->value() + static_cast<int>(delta.y()));
+        // Use centerOn to directly center on the target point
+        centerOn(newSceneX, scenePosBefore.y());
 
         event->accept();
     }
