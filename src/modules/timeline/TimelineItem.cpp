@@ -630,8 +630,102 @@ void TimelineItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event)
 
             qDebug() << "║ Total event updates:" << eventUpdates.size();
 
+            // **NEW: Check for lane conflicts BEFORE applying updates**
+            QStringList conflictingEvents;
+            for (const auto& pair : eventUpdates)
+            {
+                const TimelineEvent& updatedEvent = pair.second;
+
+                // Only check conflicts for lane-controlled events
+                if (updatedEvent.laneControlEnabled)
+                {
+                    // Check against OTHER lane-controlled events (excluding events in this batch)
+                    bool hasConflict = false;
+
+                    for (const auto& otherPair : eventUpdates)
+                    {
+                        // Skip if checking against itself
+                        if (otherPair.first == pair.first)
+                            continue;
+
+                        const TimelineEvent& otherEvent = otherPair.second;
+
+                        // Check if both are lane-controlled and in the same lane
+                        if (otherEvent.laneControlEnabled &&
+                            otherEvent.manualLane == updatedEvent.manualLane)
+                        {
+                            // Check for time overlap
+                            if (updatedEvent.startDate <= otherEvent.endDate &&
+                                updatedEvent.endDate >= otherEvent.startDate)
+                            {
+                                hasConflict = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    // Also check against events NOT in this batch
+                    if (!hasConflict)
+                    {
+                        hasConflict = model_->hasLaneConflict(
+                            updatedEvent.startDate,
+                            updatedEvent.endDate,
+                            updatedEvent.manualLane,
+                            pair.first  // Exclude this event
+                            );
+                    }
+
+                    if (hasConflict)
+                    {
+                        conflictingEvents.append(pair.first);
+                    }
+                }
+            }
+
+            // **NEW: If conflicts detected, revert ALL positions and abort**
+            if (!conflictingEvents.isEmpty())
+            {
+                qDebug() << "║ ERROR: Lane conflicts detected for" << conflictingEvents.size() << "events";
+                qDebug() << "║ Reverting all positions...";
+
+                // Restore ALL items to their original positions
+                for (auto it = multiDragStartPositions_.constBegin();
+                     it != multiDragStartPositions_.constEnd(); ++it)
+                {
+                    TimelineItem* timelineItem = qgraphicsitem_cast<TimelineItem*>(it.key());
+                    if (timelineItem)
+                    {
+                        timelineItem->setPos(it.value());
+                        qDebug() << "║   Restored" << timelineItem->eventId() << "to" << it.value();
+                    }
+                }
+
+                // Show warning to user
+                QString message;
+                if (conflictingEvents.size() == 1)
+                {
+                    message = QString("Cannot place events here: One or more events would overlap with "
+                                      "existing manually-controlled events in the same lane.\n\n"
+                                      "All events have been returned to their original positions.");
+                }
+                else
+                {
+                    message = QString("Cannot place events here: %1 events would overlap with "
+                                      "existing manually-controlled events in the same lanes.\n\n"
+                                      "All events have been returned to their original positions.")
+                                  .arg(conflictingEvents.size());
+                }
+
+                QMessageBox::warning(nullptr, "Lane Conflicts", message);
+
+                multiDragStartPositions_.clear();
+                qDebug() << "╚═══════════════════════════════════════════════════════════";
+                event->accept();
+                return;  // ABORT - don't update the model
+            }
+
+            // No conflicts - proceed with updates
             // Use undo commands for multi-drag
-            // The model's assignLanesToEvents() will handle collision detection
             if (!eventUpdates.isEmpty() && undoStack_)
             {
                 qDebug() << "║ Pushing batch update command to undo stack...";
@@ -768,6 +862,9 @@ void TimelineItem::updateModelFromPosition()
         return;
     }
 
+    // **NEW: Store original event state for potential rollback**
+    TimelineEvent originalEvent = *currentEvent;
+
     // Calculate new start date based on CURRENT (already snapped) X position
     // The position has already been snapped in mouseReleaseEvent, so use it directly
     double xPos = rect_.x() + pos().x();
@@ -835,17 +932,35 @@ void TimelineItem::updateModelFromPosition()
 
         if (hasConflict)
         {
-            qDebug() << "┃   WARNING: Lane conflict detected!";
+            qDebug() << "┃   ERROR: Lane conflict detected - REVERTING POSITION";
 
-            // Show warning but allow the update (user can fix it later)
+            // Restore the item's visual position to where it started
+            setPos(dragStartPos_);
+
+            // **NEW: Also ensure model state is unchanged (in case it was modified)**
+            // This is a safety measure - the model shouldn't have been updated yet,
+            // but this ensures consistency
+            if (originalEvent.startDate != currentEvent->startDate ||
+                originalEvent.endDate != currentEvent->endDate ||
+                originalEvent.lane != currentEvent->lane)
+            {
+                qDebug() << "┃   Restoring original model state as safety measure";
+                model_->updateEvent(eventId_, originalEvent);
+            }
+
+            // Show warning to user
             QMessageBox::warning(
                 nullptr,
                 "Lane Conflict",
-                QString("Warning: Another manually-controlled event already occupies lane %1 "
+                QString("Cannot place event here: Another manually-controlled event already occupies lane %1 "
                         "during this time period.\n\n"
-                        "This may cause visual overlap. Consider adjusting the lane assignment.")
+                        "The event has been returned to its original position.")
                     .arg(newLane)
                 );
+
+            qDebug() << "┃   Position restored to dragStartPos_:" << dragStartPos_;
+            qDebug() << "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
+            return;  // ABORT - do not update the model
         }
 
         updatedEvent.manualLane = newLane;
