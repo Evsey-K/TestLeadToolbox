@@ -197,29 +197,25 @@ QVariant TimelineItem::itemChange(GraphicsItemChange change, const QVariant& val
 {
     if (change == ItemPositionChange && scene())
     {
-        // Get the event to check if lane control is enabled
-        const TimelineEvent* event = nullptr;
+        // Check if lane control is enabled for this event
+        bool laneControlEnabled = false;
 
         if (model_ && !eventId_.isEmpty())
         {
-            event = model_->getEvent(eventId_);
-        }
+            const TimelineEvent* event = model_->getEvent(eventId_);
 
-        bool laneControlEnabled = (event && event->laneControlEnabled);
+            if (event)
+            {
+                laneControlEnabled = event->laneControlEnabled;
+            }
+        }
 
         if (isMultiDragging_)
         {
-            // Multi-drag: move all selected items together
+            // Multi-drag: move all selected items by the same delta
             QPointF newPos = value.toPointF();
             QPointF delta = newPos - dragStartPos_;
 
-            // Constrain movement based on lane control
-            if (!laneControlEnabled)
-            {
-                delta.setY(0); // Preserve Y if lane control is disabled
-            }
-
-            // Move all other selected items by the same delta
             for (auto it = multiDragStartPositions_.constBegin();
                  it != multiDragStartPositions_.constEnd(); ++it)
             {
@@ -253,6 +249,7 @@ QVariant TimelineItem::itemChange(GraphicsItemChange change, const QVariant& val
             }
             // If lane control is enabled, allow both X and Y movement
 
+            // NO SNAPPING during drag - return the position as-is for smooth movement
             return newPos;
         }
     }
@@ -445,20 +442,52 @@ void TimelineItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event)
                                 continue;
                             }
 
-                            // Calculate new start date based on current X position
+                            // SNAP THE POSITION BEFORE CALCULATING NEW DATE
                             QPointF itemPos = timelineItem->pos();
                             QRectF itemRect = timelineItem->rect();
-                            double xPos = itemRect.x() + itemPos.x();
-                            QDate newStartDate = mapper_->xToDate(xPos);
+                            double rawXPos = itemRect.x() + itemPos.x();
 
-                            // Calculate duration to preserve event length
-                            int duration = currentEvent->startDate.daysTo(currentEvent->endDate);
-                            QDate newEndDate = newStartDate.addDays(duration);
+                            // Apply snapping to get the final X position
+                            double snappedXPos = mapper_->snapXToNearestTick(rawXPos);
+
+                            // Snap the item visually to match
+                            QPointF snappedPos = itemPos;
+                            snappedPos.setX(snappedPos.x() + (snappedXPos - rawXPos));
+                            timelineItem->setPos(snappedPos);
+
+                            // Calculate new dates based on SNAPPED position
+                            QDateTime newStartDateTime;
+                            QDateTime newEndDateTime;
+
+                            double pixelsPerDay = mapper_->pixelsPerday();
+
+                            if (pixelsPerDay >= 192.0)
+                            {
+                                // Hour/half-hour precision
+                                newStartDateTime = mapper_->xToDateTime(snappedXPos);
+
+                                // Calculate duration to preserve event length
+                                qint64 durationSecs = currentEvent->startDate.secsTo(currentEvent->endDate);
+                                newEndDateTime = newStartDateTime.addSecs(durationSecs);
+                            }
+                            else
+                            {
+                                // Day/week/month precision
+                                QDate newStartDate = mapper_->xToDate(snappedXPos);
+
+                                // Calculate duration to preserve event length
+                                int duration = currentEvent->startDate.daysTo(currentEvent->endDate);
+                                QDate newEndDate = newStartDate.addDays(duration);
+
+                                // Preserve time components
+                                newStartDateTime = QDateTime(newStartDate, currentEvent->startDate.time());
+                                newEndDateTime = QDateTime(newEndDate, currentEvent->endDate.time());
+                            }
 
                             // Create updated event
                             TimelineEvent updatedEvent = *currentEvent;
-                            updatedEvent.startDate = QDateTime(newStartDate, updatedEvent.startDate.time());
-                            updatedEvent.endDate = QDateTime(newEndDate, updatedEvent.endDate.time());
+                            updatedEvent.startDate = newStartDateTime;
+                            updatedEvent.endDate = newEndDateTime;
 
                             // If lane control is enabled, update the lane
                             if (currentEvent->laneControlEnabled)
@@ -480,6 +509,7 @@ void TimelineItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event)
                     if (eventUpdates.size() == 1)
                     {
                         // Single event moved
+                        skipNextUpdate_ = true;
                         undoStack_->push(new UpdateEventCommand(
                             model_,
                             eventUpdates.first().first,
@@ -493,6 +523,18 @@ void TimelineItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event)
 
                         for (const auto& pair : eventUpdates)
                         {
+                            // Set skipNextUpdate for all items
+                            TimelineItem* item = nullptr;
+                            for (QGraphicsItem* gItem : selectedItems)
+                            {
+                                TimelineItem* tItem = qgraphicsitem_cast<TimelineItem*>(gItem);
+                                if (tItem && tItem->eventId() == pair.first)
+                                {
+                                    tItem->setSkipNextUpdate(true);
+                                    break;
+                                }
+                            }
+
                             undoStack_->push(new UpdateEventCommand(model_, pair.first, pair.second));
                         }
 
@@ -526,12 +568,22 @@ void TimelineItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event)
 
         if (isDragging_)
         {
-            // Single drag completed - update model with new dates and lane
+            // Single drag completed - snap position and update model
             isDragging_ = false;
 
             // Check if position actually changed
             if (pos() != dragStartPos_)
             {
+                // SNAP THE POSITION BEFORE UPDATING MODEL
+                double rawXPos = rect_.x() + pos().x();
+                double snappedXPos = mapper_->snapXToNearestTick(rawXPos);
+
+                // Adjust the item's position to match the snapped coordinate
+                QPointF snappedPos = pos();
+                snappedPos.setX(snappedPos.x() + (snappedXPos - rawXPos));
+                setPos(snappedPos);
+
+                // Now update the model with the snapped position
                 updateModelFromPosition();
             }
 
@@ -542,7 +594,6 @@ void TimelineItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event)
 
     QGraphicsObject::mouseReleaseEvent(event);
 }
-
 
 
 void TimelineItem::updateModelFromPosition()
@@ -560,18 +611,42 @@ void TimelineItem::updateModelFromPosition()
         return;
     }
 
-    // Calculate new start date based on current X position
+    // Calculate new start date based on CURRENT (already snapped) X position
+    // The position has already been snapped in mouseReleaseEvent, so use it directly
     double xPos = rect_.x() + pos().x();
-    QDate newStartDate = mapper_->xToDate(xPos);
 
-    // Calculate duration to preserve event length
-    int duration = currentEvent->startDate.daysTo(currentEvent->endDate);
-    QDate newEndDate = newStartDate.addDays(duration);
+    QDateTime newStartDateTime;
+    QDateTime newEndDateTime;
+
+    double pixelsPerDay = mapper_->pixelsPerday();
+
+    if (pixelsPerDay >= 192.0)
+    {
+        // Hour/half-hour precision - use DateTime
+        newStartDateTime = mapper_->xToDateTime(xPos);
+
+        // Calculate duration to preserve event length
+        qint64 durationSecs = currentEvent->startDate.secsTo(currentEvent->endDate);
+        newEndDateTime = newStartDateTime.addSecs(durationSecs);
+    }
+    else
+    {
+        // Day/week/month precision
+        QDate newStartDate = mapper_->xToDate(xPos);
+
+        // Calculate duration to preserve event length
+        int duration = currentEvent->startDate.daysTo(currentEvent->endDate);
+        QDate newEndDate = newStartDate.addDays(duration);
+
+        // Preserve time components
+        newStartDateTime = QDateTime(newStartDate, currentEvent->startDate.time());
+        newEndDateTime = QDateTime(newEndDate, currentEvent->endDate.time());
+    }
 
     // Create updated event
     TimelineEvent updatedEvent = *currentEvent;
-    updatedEvent.startDate = QDateTime(newStartDate, updatedEvent.startDate.time());
-    updatedEvent.endDate = QDateTime(newEndDate, updatedEvent.endDate.time());
+    updatedEvent.startDate = newStartDateTime;
+    updatedEvent.endDate = newEndDateTime;
 
     // If lane control is enabled, update the lane based on Y position
     if (currentEvent->laneControlEnabled)
@@ -580,8 +655,8 @@ void TimelineItem::updateModelFromPosition()
 
         // Check for lane conflicts before updating
         bool hasConflict = model_->hasLaneConflict(
-            QDateTime(newStartDate, updatedEvent.startDate.time()),
-            QDateTime(newEndDate, updatedEvent.endDate.time()),
+            newStartDateTime,
+            newEndDateTime,
             newLane,
             eventId_
             );
@@ -606,6 +681,7 @@ void TimelineItem::updateModelFromPosition()
     // Use undo command instead of direct model update
     if (undoStack_)
     {
+        skipNextUpdate_ = true;
         undoStack_->push(new UpdateEventCommand(model_, eventId_, updatedEvent));
     }
     else
