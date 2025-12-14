@@ -24,7 +24,7 @@
 // Constants for lane calculation (must match TimelineScene)
 constexpr double ITEM_HEIGHT = 30.0;
 constexpr double LANE_SPACING = 5.0;
-constexpr double DATE_SCALE_OFFSET = 40.0;
+constexpr double DATE_SCALE_OFFSET = 80.0;
 
 
 TimelineItem::TimelineItem(const QRectF& rect, QGraphicsItem* parent)
@@ -608,8 +608,12 @@ void TimelineItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event)
                         // If lane control is enabled, update the lane
                         if (currentEvent->laneControlEnabled)
                         {
+                            qDebug() << "║ Lane control enabled - calculating lane from Y position";
+                            qDebug() << "║ Current event lane (before):" << currentEvent->lane;
+
                             int newLane = timelineItem->calculateLaneFromYPosition();
-                            qDebug() << "║   New lane:" << newLane;
+
+                            qDebug() << "║   New lane (after calculation):" << newLane;
                             updatedEvent.manualLane = newLane;
                             updatedEvent.lane = newLane;
                         }
@@ -873,21 +877,60 @@ void TimelineItem::updateModelFromPosition()
 
 int TimelineItem::calculateLaneFromYPosition() const
 {
+    qDebug() << "";
+    qDebug() << "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
+    qDebug() << "┃ CALCULATE LANE FROM Y POSITION - Event ID:" << eventId_;
+    qDebug() << "┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
+
     // Calculate the Y position in scene coordinates
-    double yPos = rect_.y() + pos().y();
+    double rectY = rect_.y();
+    double itemPosY = pos().y();
+    double yPos = rectY + itemPosY;
+
+    qDebug() << "┃ Y Position Components:";
+    qDebug() << "┃   rect_.y():" << rectY;
+    qDebug() << "┃   pos().y():" << itemPosY;
+    qDebug() << "┃   Total yPos (rect_.y + pos.y):" << yPos;
 
     // Remove the date scale offset to get lane-relative Y position
     double laneY = yPos - DATE_SCALE_OFFSET;
 
+    qDebug() << "┃ Lane Calculation:";
+    qDebug() << "┃   DATE_SCALE_OFFSET:" << DATE_SCALE_OFFSET;
+    qDebug() << "┃   laneY (yPos - offset):" << laneY;
+    qDebug() << "┃   ITEM_HEIGHT:" << ITEM_HEIGHT;
+    qDebug() << "┃   LANE_SPACING:" << LANE_SPACING;
+    qDebug() << "┃   (ITEM_HEIGHT + LANE_SPACING):" << (ITEM_HEIGHT + LANE_SPACING);
+
     // Convert Y position to lane number using inverse of LaneAssigner::laneToY
-    // Formula: lane = yPos / (laneHeight + laneSpacing)
-    int lane = static_cast<int>(laneY / (ITEM_HEIGHT + LANE_SPACING));
+    double exactLane = laneY / (ITEM_HEIGHT + LANE_SPACING);
+    int truncatedLane = static_cast<int>(exactLane);
+    int roundedLane = static_cast<int>(std::round(exactLane));
+
+    qDebug() << "┃ Lane Number Calculation:";
+    qDebug() << "┃   exactLane (laneY / (height+spacing)):" << exactLane;
+    qDebug() << "┃   truncatedLane (old method):" << truncatedLane;
+    qDebug() << "┃   roundedLane (new method):" << roundedLane;
+
+    // Use rounded lane
+    int lane = roundedLane;
 
     // Ensure lane is non-negative
     if (lane < 0)
     {
+        qDebug() << "┃   Lane was negative, clamping to 0";
         lane = 0;
     }
+
+    // Show what lane this Y position SHOULD correspond to visually
+    double expectedYForLane = LaneAssigner::laneToY(lane, ITEM_HEIGHT, LANE_SPACING) + DATE_SCALE_OFFSET;
+    qDebug() << "┃ Validation:";
+    qDebug() << "┃   Calculated lane:" << lane;
+    qDebug() << "┃   Expected Y for this lane:" << expectedYForLane;
+    qDebug() << "┃   Actual Y:" << yPos;
+    qDebug() << "┃   Difference:" << (yPos - expectedYForLane);
+
+    qDebug() << "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
 
     return lane;
 }
