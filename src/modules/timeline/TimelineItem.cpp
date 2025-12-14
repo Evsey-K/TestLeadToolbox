@@ -908,20 +908,12 @@ void TimelineItem::updateModelFromSize()
     qDebug() << "┃   scenePos():" << scenePos();
     qDebug() << "┃   rect_:" << rect_;
 
-    qDebug() << "┃ Edge positions (rect local):";
+    qDebug() << "┃ Edge positions (already snapped in mouseReleaseEvent):";
     qDebug() << "┃   leftX:" << leftX;
     qDebug() << "┃   rightX:" << rightX;
+    qDebug() << "┃ Original dates:" << currentEvent->startDate << "to" << currentEvent->endDate;
 
-    qDebug() << "=== UPDATE MODEL FROM SIZE ===";
-    qDebug() << "Input rect coords:" << leftX << "to" << rightX;
-
-    double snappedLeftX = mapper_->snapXToNearestTick(leftX);
-    double snappedRightX = mapper_->snapXToNearestTick(rightX);
-
-    qDebug() << "Re-snapped coords:" << snappedLeftX << "to" << snappedRightX;
-    qDebug() << "Original dates:" << currentEvent->startDate << "to" << currentEvent->endDate;
-
-    // Calculate new dates based on SNAPPED edge positions
+    // Calculate new dates based on edge positions
     QDateTime newStartDateTime;
     QDateTime newEndDateTime;
 
@@ -932,15 +924,19 @@ void TimelineItem::updateModelFromSize()
 
     if (pixelsPerDay >= 192.0)
     {
-        // Hour/half-hour precision - use DateTime
-        newStartDateTime = mapper_->xToDateTime(snappedLeftX);
-        newEndDateTime = mapper_->xToDateTime(snappedRightX);
+        // Hour/half-hour precision - use DateTime directly
+        newStartDateTime = mapper_->xToDateTime(leftX);
+        newEndDateTime = mapper_->xToDateTime(rightX);
     }
     else
     {
         // Day/week/month precision
-        QDate newStartDate = mapper_->xToDate(snappedLeftX);
-        QDate newEndDate = mapper_->xToDate(snappedRightX);
+        QDate newStartDate = mapper_->xToDate(leftX);
+        QDate newEndDate = mapper_->xToDate(rightX);
+
+        // For day-level events, the right edge represents the pixel AFTER the last day
+        // So subtract 1 to get the actual last day included
+        newEndDate = newEndDate.addDays(-1);
 
         // Preserve time components from original event
         newStartDateTime = QDateTime(newStartDate, currentEvent->startDate.time());
