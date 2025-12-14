@@ -212,7 +212,19 @@ QVariant TimelineItem::itemChange(GraphicsItemChange change, const QVariant& val
                         newItemPos.setY(it.value().y());
                     }
 
+                    // Set flag so the item knows it's being moved by multi-drag
+                    if (timelineItem)
+                    {
+                        timelineItem->isBeingMultiDragged_ = true;
+                    }
+
                     item->setPos(newItemPos);
+
+                    // Clear flag after position is set
+                    if (timelineItem)
+                    {
+                        timelineItem->isBeingMultiDragged_ = false;
+                    }
                 }
             }
 
@@ -236,6 +248,13 @@ QVariant TimelineItem::itemChange(GraphicsItemChange change, const QVariant& val
             }
 
             return finalPos;
+        }
+        else if (isBeingMultiDragged_)
+        {
+            // This item is being moved by another item's multi-drag operation
+            // Accept the position as-is without any additional constraints
+            // (The constraints were already applied by the initiating item)
+            return value.toPointF();
         }
         else if (isDragging_ && !isResizing_)
         {

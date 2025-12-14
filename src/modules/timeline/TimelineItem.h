@@ -95,6 +95,7 @@ private:
 
     bool isDragging_ = false;                               ///< Whether currently being dragged
     bool isMultiDragging_ = false;                          ///< Whether performing multi-item drag
+    bool isBeingMultiDragged_ = false;                      ///< Whether being moved by another item's multi-drag
     bool isResizing_ = false;                               ///< Whether currently being resized
     bool resizable_ = true;                                 ///< Whether item can be resized
     bool skipNextUpdate_ = false;                           ///< Whether to skip next model update (used during undo/redo)
