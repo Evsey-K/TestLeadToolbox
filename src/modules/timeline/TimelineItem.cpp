@@ -86,73 +86,42 @@ void TimelineItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* opti
             double itemWidth = rect_.width();
 
             // Only show text if item is wide enough (minimum 30 pixels)
-            if (itemWidth > 30.0)
+            if (itemWidth >= 30.0)
             {
-                // Set up text rendering with white color for contrast
                 painter->setPen(Qt::white);
 
-                // Adjust font size based on item width for optimal readability
-                QFont textFont = painter->font();
-
+                // Adaptive font sizing based on item width
+                QFont font = painter->font();
                 if (itemWidth < 60.0)
                 {
-                    // Very narrow items: small font
-                    textFont.setPointSize(8);
+                    font.setPointSize(7);
                 }
                 else if (itemWidth < 120.0)
                 {
-                    // Medium items: normal font
-                    textFont.setPointSize(9);
+                    font.setPointSize(9);
                 }
                 else
                 {
-                    // Wide items: larger bold font
-                    textFont.setPointSize(10);
-                    textFont.setBold(true);
+                    font.setPointSize(10);
                 }
+                painter->setFont(font);
 
-                painter->setFont(textFont);
+                // Elide text to fit within the rectangle
+                QFontMetrics fm(font);
+                QString elidedText = fm.elidedText(event->title, Qt::ElideRight,
+                                                   static_cast<int>(itemWidth - 10));
 
-                // Calculate text rectangle with padding
-                QRectF textRect = rect_.adjusted(5, 2, -5, -2);
-
-                // Elide text if it doesn't fit within the available width
-                QFontMetrics metrics(textFont);
-                QString displayText = event->title;
-
-                if (metrics.horizontalAdvance(displayText) > textRect.width())
-                {
-                    displayText = metrics.elidedText(displayText, Qt::ElideRight,
-                                                     static_cast<int>(textRect.width()));
-                }
-
-                // Draw text centered vertically, aligned left
-                painter->drawText(textRect, Qt::AlignLeft | Qt::AlignVCenter, displayText);
+                // Draw text centered in the rectangle
+                painter->drawText(rect_.adjusted(5, 0, -5, 0), Qt::AlignVCenter | Qt::AlignLeft, elidedText);
             }
-        }
 
-        // Draw lane control icon in bottom-right corner if enabled
-        if (event && event->laneControlEnabled)
-        {
-            double itemWidth = rect_.width();
-
-            // Only show icon if item is wide enough (minimum 50 pixels)
-            if (itemWidth > 50.0)
+            // Draw lock icon for lane-controlled events (only if item is wide enough)
+            if (event->laneControlEnabled && itemWidth >= 50.0)
             {
-                // Icon parameters
-                constexpr double ICON_SIZE = 12.0;
-                constexpr double ICON_MARGIN = 2.0;
+                // Position icon in top-right corner
+                QRectF iconRect(rect_.right() - 18, rect_.top() + 3, 14, 14);
 
-                // Position in bottom-right corner
-                QRectF iconRect(
-                    rect_.right() - ICON_SIZE - ICON_MARGIN,
-                    rect_.bottom() - ICON_SIZE - ICON_MARGIN,
-                    ICON_SIZE,
-                    ICON_SIZE
-                    );
-
-                // Draw icon background (semi-transparent white circle)
-                painter->setPen(Qt::NoPen);
+                // Draw semi-transparent background circle
                 painter->setBrush(QColor(255, 255, 255, 180));
                 painter->drawEllipse(iconRect);
 
@@ -197,17 +166,17 @@ QVariant TimelineItem::itemChange(GraphicsItemChange change, const QVariant& val
 {
     if (change == ItemPositionChange && scene())
     {
-        // Check if lane control is enabled for this event
-        bool laneControlEnabled = false;
+        static int changeCounter = 0;
+        changeCounter++;
 
-        if (model_ && !eventId_.isEmpty())
+        // Only log every 20th change to avoid spam
+        if (changeCounter % 20 == 0)
         {
-            const TimelineEvent* event = model_->getEvent(eventId_);
-
-            if (event)
-            {
-                laneControlEnabled = event->laneControlEnabled;
-            }
+            qDebug() << "│  ItemPositionChange #" << changeCounter;
+            qDebug() << "│    Current pos:" << pos();
+            qDebug() << "│    Proposed pos:" << value.toPointF();
+            qDebug() << "│    isMultiDragging_:" << isMultiDragging_;
+            qDebug() << "│    isDragging_:" << isDragging_;
         }
 
         if (isMultiDragging_)
@@ -222,18 +191,49 @@ QVariant TimelineItem::itemChange(GraphicsItemChange change, const QVariant& val
                 QGraphicsItem* item = it.key();
                 if (item != this) // Don't move self again
                 {
+                    TimelineItem* timelineItem = qgraphicsitem_cast<TimelineItem*>(item);
+
+                    // Check lane control for EACH item individually
+                    bool itemLaneControlEnabled = false;
+                    if (timelineItem && model_ && !timelineItem->eventId().isEmpty())
+                    {
+                        const TimelineEvent* event = model_->getEvent(timelineItem->eventId());
+                        if (event)
+                        {
+                            itemLaneControlEnabled = event->laneControlEnabled;
+                        }
+                    }
+
                     QPointF newItemPos = it.value() + delta;
 
-                    if (!laneControlEnabled)
+                    if (!itemLaneControlEnabled)
                     {
-                        newItemPos.setY(it.value().y()); // Preserve Y
+                        // If THIS item's lane control is disabled, preserve its Y (horizontal only)
+                        newItemPos.setY(it.value().y());
                     }
+
                     item->setPos(newItemPos);
                 }
             }
 
-            // Return corrected position
+            // Return corrected position for the dragging item (check ITS lane control)
+            bool laneControlEnabled = false;
+            if (model_ && !eventId_.isEmpty())
+            {
+                const TimelineEvent* event = model_->getEvent(eventId_);
+                if (event)
+                {
+                    laneControlEnabled = event->laneControlEnabled;
+                }
+            }
+
             QPointF finalPos = dragStartPos_ + delta;
+
+            if (!laneControlEnabled)
+            {
+                // Preserve Y for the dragging item if lane control disabled
+                finalPos.setY(dragStartPos_.y());
+            }
 
             return finalPos;
         }
@@ -241,6 +241,17 @@ QVariant TimelineItem::itemChange(GraphicsItemChange change, const QVariant& val
         {
             // Single-drag: constrain movement based on lane control
             QPointF newPos = value.toPointF();
+
+            // Check lane control for this item
+            bool laneControlEnabled = false;
+            if (model_ && !eventId_.isEmpty())
+            {
+                const TimelineEvent* event = model_->getEvent(eventId_);
+                if (event)
+                {
+                    laneControlEnabled = event->laneControlEnabled;
+                }
+            }
 
             if (!laneControlEnabled)
             {
@@ -270,6 +281,14 @@ void TimelineItem::mousePressEvent(QGraphicsSceneMouseEvent* event)
     dragStartPos_ = pos();
     resizeStartRect_ = rect_;
 
+    qDebug() << "╔═══════════════════════════════════════════════════════════";
+    qDebug() << "║ MOUSE PRESS EVENT - Event ID:" << eventId_;
+    qDebug() << "╠═══════════════════════════════════════════════════════════";
+    qDebug() << "║ dragStartPos_:" << dragStartPos_;
+    qDebug() << "║ scenePos():" << scenePos();
+    qDebug() << "║ rect_:" << rect_;
+    qDebug() << "║ isSelected():" << isSelected();
+
     // Check if clicking on a resize handle
     if (resizable_)
     {
@@ -279,6 +298,10 @@ void TimelineItem::mousePressEvent(QGraphicsSceneMouseEvent* event)
         {
             isResizing_ = true;
             activeHandle_ = handle;
+
+            qDebug() << "║ MODE: RESIZING - Handle:" << (handle == LeftEdge ? "LEFT" : "RIGHT");
+            qDebug() << "╚═══════════════════════════════════════════════════════════";
+
             event->accept();
             return;
         }
@@ -295,9 +318,17 @@ void TimelineItem::mousePressEvent(QGraphicsSceneMouseEvent* event)
             isMultiDragging_ = true;
             multiDragStartPositions_.clear();
 
+            qDebug() << "║ MODE: MULTI-DRAG - Selected items count:" << selectedItems.size();
+
             for (QGraphicsItem* item : selectedItems)
             {
                 multiDragStartPositions_[item] = item->pos();
+
+                TimelineItem* tItem = qgraphicsitem_cast<TimelineItem*>(item);
+                if (tItem)
+                {
+                    qDebug() << "║   - Item:" << tItem->eventId() << "at position:" << item->pos();
+                }
             }
 
             // Always emit clicked signal to update detail panel
@@ -309,6 +340,9 @@ void TimelineItem::mousePressEvent(QGraphicsSceneMouseEvent* event)
         else
         {
             // Single item selected - emit clicked to update details
+
+            qDebug() << "║ MODE: SINGLE DRAG (already selected)";
+
             if (!eventId_.isEmpty())
             {
                 emit clicked(eventId_);
@@ -320,6 +354,9 @@ void TimelineItem::mousePressEvent(QGraphicsSceneMouseEvent* event)
     {
         // Item not selected or no multi-selection
         // Emit clicked signal to allow selection management
+
+        qDebug() << "║ MODE: SINGLE DRAG (newly selected)";
+
         if (!eventId_.isEmpty())
         {
             emit clicked(eventId_);
@@ -327,12 +364,31 @@ void TimelineItem::mousePressEvent(QGraphicsSceneMouseEvent* event)
         isDragging_ = true;
     }
 
+    qDebug() << "║ isDragging_:" << isDragging_;
+    qDebug() << "║ isMultiDragging_:" << isMultiDragging_;
+    qDebug() << "╚═══════════════════════════════════════════════════════════";
+
     QGraphicsObject::mousePressEvent(event);
 }
 
 
 void TimelineItem::mouseMoveEvent(QGraphicsSceneMouseEvent* event)
 {
+    static int moveCounter = 0;
+    moveCounter++;
+
+    // Only log every 10th move event to avoid spam
+    if (moveCounter % 10 == 0)
+    {
+        qDebug() << "┌─ MOUSE MOVE EVENT #" << moveCounter << "- Event ID:" << eventId_;
+        qDebug() << "│  Current pos():" << pos();
+        qDebug() << "│  scenePos():" << scenePos();
+        qDebug() << "│  isDragging_:" << isDragging_;
+        qDebug() << "│  isMultiDragging_:" << isMultiDragging_;
+        qDebug() << "│  isResizing_:" << isResizing_;
+        qDebug() << "└─";
+    }
+
     if (isResizing_)
     {
         QRectF newRect = rect_;
@@ -376,10 +432,27 @@ void TimelineItem::mouseMoveEvent(QGraphicsSceneMouseEvent* event)
 
 void TimelineItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event)
 {
+    qDebug() << "";
+    qDebug() << "╔═══════════════════════════════════════════════════════════";
+    qDebug() << "║ MOUSE RELEASE EVENT - Event ID:" << eventId_;
+    qDebug() << "╠═══════════════════════════════════════════════════════════";
+    qDebug() << "║ Current pos():" << pos();
+    qDebug() << "║ scenePos():" << scenePos();
+    qDebug() << "║ dragStartPos_:" << dragStartPos_;
+    qDebug() << "║ isDragging_:" << isDragging_;
+    qDebug() << "║ isMultiDragging_:" << isMultiDragging_;
+    qDebug() << "║ isResizing_:" << isResizing_;
+    qDebug() << "║ Position changed:" << (pos() != dragStartPos_);
+
     if (event->button() == Qt::LeftButton)
     {
         if (isResizing_)
         {
+            qDebug() << "║ RESIZE COMPLETE";
+            qDebug() << "║ resizeStartRect_:" << resizeStartRect_;
+            qDebug() << "║ rect_:" << rect_;
+            qDebug() << "║ Size changed:" << (rect_ != resizeStartRect_);
+
             isResizing_ = false;
             activeHandle_ = None;
 
@@ -389,13 +462,24 @@ void TimelineItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event)
                 double rawLeftX = rect_.left();
                 double rawRightX = rect_.right();
 
+                qDebug() << "║ PRE-SNAP (rect local):";
+                qDebug() << "║   rawLeftX:" << rawLeftX;
+                qDebug() << "║   rawRightX:" << rawRightX;
+
                 double snappedLeftX = mapper_->snapXToNearestTick(rawLeftX);
                 double snappedRightX = mapper_->snapXToNearestTick(rawRightX);
+
+                qDebug() << "║ POST-SNAP:";
+                qDebug() << "║   snappedLeftX:" << snappedLeftX;
+                qDebug() << "║   snappedRightX:" << snappedRightX;
+                qDebug() << "║   leftX delta:" << (snappedLeftX - rawLeftX);
+                qDebug() << "║   rightX delta:" << (snappedRightX - rawRightX);
 
                 double minWidth = 10.0;
                 if (snappedRightX - snappedLeftX < minWidth)
                 {
                     snappedRightX = snappedLeftX + minWidth;
+                    qDebug() << "║ Adjusted right edge for minimum width:" << snappedRightX;
                 }
 
                 QRectF snappedRect = rect_;
@@ -404,193 +488,231 @@ void TimelineItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event)
 
                 setRect(snappedRect);
 
+                qDebug() << "║ FINAL snapped rect_:" << rect_;
+                qDebug() << "║ Calling updateModelFromSize()...";
+
                 // DON'T set skipNextUpdate here
                 // Let updateModelFromSize handle it AFTER the undo command
                 updateModelFromSize();
             }
+            else
+            {
+                qDebug() << "║ No size change detected, skipping model update";
+            }
 
+            qDebug() << "╚═══════════════════════════════════════════════════════════";
             event->accept();
             return;
         }
 
         if (isMultiDragging_)
         {
+            qDebug() << "║ MULTI-DRAG COMPLETE";
             isMultiDragging_ = false;
 
             // Collect all event updates for batch command
             QList<QPair<QString, TimelineEvent>> eventUpdates;
 
-            if (scene())
+            qDebug() << "║ Processing" << multiDragStartPositions_.size() << "items...";
+
+            // First, snap all items and collect updates
+            for (auto it = multiDragStartPositions_.constBegin();
+                 it != multiDragStartPositions_.constEnd(); ++it)
             {
-                QList<QGraphicsItem*> selectedItems = scene()->selectedItems();
+                TimelineItem* timelineItem = qgraphicsitem_cast<TimelineItem*>(it.key());
 
-                for (QGraphicsItem* item : selectedItems)
+                if (timelineItem && model_ && mapper_)
                 {
-                    TimelineItem* timelineItem = qgraphicsitem_cast<TimelineItem*>(item);
+                    qDebug() << "║ Item:" << timelineItem->eventId();
+                    qDebug() << "║   Start pos:" << it.value();
+                    qDebug() << "║   Current pos:" << timelineItem->pos();
+                    qDebug() << "║   Position changed:" << (timelineItem->pos() != it.value());
 
-                    if (timelineItem && !timelineItem->eventId().isEmpty())
+                    const TimelineEvent* currentEvent = model_->getEvent(timelineItem->eventId());
+
+                    if (currentEvent)
                     {
-                        // Check if position actually changed
-                        QPointF startPos = multiDragStartPositions_.value(item);
+                        // Calculate the snapped X position
+                        double currentXPos = timelineItem->rect().x() + timelineItem->pos().x();
 
-                        if (timelineItem->pos() != startPos)
+                        qDebug() << "║   PRE-SNAP currentXPos:" << currentXPos;
+
+                        double snappedXPos = mapper_->snapXToNearestTick(currentXPos);
+
+                        qDebug() << "║   POST-SNAP snappedXPos:" << snappedXPos;
+                        qDebug() << "║   Snap delta:" << (snappedXPos - currentXPos);
+
+                        // Snap the visual position
+                        QPointF snappedPos = timelineItem->pos();
+                        snappedPos.setX(snappedXPos - timelineItem->rect().x());
+                        timelineItem->setPos(snappedPos);
+
+                        qDebug() << "║   Final snapped position:" << timelineItem->pos();
+
+                        // Calculate new dates
+                        QDateTime newStartDateTime;
+                        QDateTime newEndDateTime;
+
+                        double pixelsPerDay = mapper_->pixelsPerday();
+
+                        if (pixelsPerDay >= 192.0)
                         {
-                            const TimelineEvent* currentEvent = model_->getEvent(timelineItem->eventId());
+                            // Hour/half-hour precision - use DateTime
+                            newStartDateTime = mapper_->xToDateTime(snappedXPos);
 
-                            if (!currentEvent)
-                            {
-                                continue;
-                            }
-
-                            // SNAP THE POSITION BEFORE CALCULATING NEW DATE
-                            QPointF itemPos = timelineItem->pos();
-                            QRectF itemRect = timelineItem->rect();
-                            double rawXPos = itemRect.x() + itemPos.x();
-
-                            // Apply snapping to get the final X position
-                            double snappedXPos = mapper_->snapXToNearestTick(rawXPos);
-
-                            // Snap the item visually to match
-                            QPointF snappedPos = itemPos;
-                            snappedPos.setX(snappedPos.x() + (snappedXPos - rawXPos));
-                            timelineItem->setPos(snappedPos);
-
-                            // Calculate new dates based on SNAPPED position
-                            QDateTime newStartDateTime;
-                            QDateTime newEndDateTime;
-
-                            double pixelsPerDay = mapper_->pixelsPerday();
-
-                            if (pixelsPerDay >= 192.0)
-                            {
-                                // Hour/half-hour precision
-                                newStartDateTime = mapper_->xToDateTime(snappedXPos);
-
-                                // Calculate duration to preserve event length
-                                qint64 durationSecs = currentEvent->startDate.secsTo(currentEvent->endDate);
-                                newEndDateTime = newStartDateTime.addSecs(durationSecs);
-                            }
-                            else
-                            {
-                                // Day/week/month precision
-                                QDate newStartDate = mapper_->xToDate(snappedXPos);
-
-                                // Calculate duration to preserve event length
-                                int duration = currentEvent->startDate.daysTo(currentEvent->endDate);
-                                QDate newEndDate = newStartDate.addDays(duration);
-
-                                // Preserve time components
-                                newStartDateTime = QDateTime(newStartDate, currentEvent->startDate.time());
-                                newEndDateTime = QDateTime(newEndDate, currentEvent->endDate.time());
-                            }
-
-                            // Create updated event
-                            TimelineEvent updatedEvent = *currentEvent;
-                            updatedEvent.startDate = newStartDateTime;
-                            updatedEvent.endDate = newEndDateTime;
-
-                            // If lane control is enabled, update the lane
-                            if (currentEvent->laneControlEnabled)
-                            {
-                                int newLane = timelineItem->calculateLaneFromYPosition();
-                                updatedEvent.manualLane = newLane;
-                                updatedEvent.lane = newLane;
-                            }
-
-                            // Add to batch update list
-                            eventUpdates.append(qMakePair(timelineItem->eventId(), updatedEvent));
+                            // Calculate duration to preserve event length
+                            qint64 durationSecs = currentEvent->startDate.secsTo(currentEvent->endDate);
+                            newEndDateTime = newStartDateTime.addSecs(durationSecs);
                         }
-                    }
-                }
+                        else
+                        {
+                            // Day/week/month precision
+                            QDate newStartDate = mapper_->xToDate(snappedXPos);
 
-                // Use undo commands for multi-drag
-                if (!eventUpdates.isEmpty() && undoStack_)
-                {
-                    if (eventUpdates.size() == 1)
-                    {
-                        // Single event moved
-                        skipNextUpdate_ = true;
-                        undoStack_->push(new UpdateEventCommand(
-                            model_,
-                            eventUpdates.first().first,
-                            eventUpdates.first().second
-                            ));
+                            // Calculate duration to preserve event length
+                            int duration = currentEvent->startDate.daysTo(currentEvent->endDate);
+                            QDate newEndDate = newStartDate.addDays(duration);
+
+                            // Preserve time components
+                            newStartDateTime = QDateTime(newStartDate, currentEvent->startDate.time());
+                            newEndDateTime = QDateTime(newEndDate, currentEvent->endDate.time());
+                        }
+
+                        qDebug() << "║   New start:" << newStartDateTime;
+                        qDebug() << "║   New end:" << newEndDateTime;
+
+                        // Create updated event
+                        TimelineEvent updatedEvent = *currentEvent;
+                        updatedEvent.startDate = newStartDateTime;
+                        updatedEvent.endDate = newEndDateTime;
+
+                        // If lane control is enabled, update the lane
+                        if (currentEvent->laneControlEnabled)
+                        {
+                            int newLane = timelineItem->calculateLaneFromYPosition();
+                            qDebug() << "║   New lane:" << newLane;
+                            updatedEvent.manualLane = newLane;
+                            updatedEvent.lane = newLane;
+                        }
+
+                        // Add to batch update list
+                        eventUpdates.append(qMakePair(timelineItem->eventId(), updatedEvent));
                     }
                     else
                     {
-                        // Multiple events moved - group into single undo step
-                        undoStack_->beginMacro(QString("Move %1 Events").arg(eventUpdates.size()));
-
-                        for (const auto& pair : eventUpdates)
-                        {
-                            // Set skipNextUpdate for all items
-                            TimelineItem* item = nullptr;
-                            for (QGraphicsItem* gItem : selectedItems)
-                            {
-                                TimelineItem* tItem = qgraphicsitem_cast<TimelineItem*>(gItem);
-                                if (tItem && tItem->eventId() == pair.first)
-                                {
-                                    tItem->setSkipNextUpdate(true);
-                                    break;
-                                }
-                            }
-
-                            undoStack_->push(new UpdateEventCommand(model_, pair.first, pair.second));
-                        }
-
-                        undoStack_->endMacro();
-                    }
-                }
-                else if (!eventUpdates.isEmpty())
-                {
-                    // Fallback: update directly if no undo stack
-                    qWarning() << "TimelineItem::mouseReleaseEvent() - No undo stack for multi-drag, updating directly";
-
-                    bool wasBlocked = model_->blockSignals(true);
-                    for (const auto& pair : eventUpdates)
-                    {
-                        model_->updateEvent(pair.first, pair.second);
-                    }
-                    model_->blockSignals(wasBlocked);
-
-                    // Trigger update
-                    if (!eventUpdates.isEmpty())
-                    {
-                        model_->updateEvent(eventUpdates.first().first, eventUpdates.first().second);
+                        qDebug() << "║   WARNING: Event not found in model!";
                     }
                 }
             }
 
+            qDebug() << "║ Total event updates:" << eventUpdates.size();
+
+            // Use undo commands for multi-drag
+            // The model's assignLanesToEvents() will handle collision detection
+            if (!eventUpdates.isEmpty() && undoStack_)
+            {
+                qDebug() << "║ Pushing batch update command to undo stack...";
+
+                if (eventUpdates.size() == 1)
+                {
+                    // Single event moved
+                    skipNextUpdate_ = true;
+                    undoStack_->push(new UpdateEventCommand(
+                        model_,
+                        eventUpdates.first().first,
+                        eventUpdates.first().second
+                        ));
+                }
+                else
+                {
+                    // Multiple events moved - group into single undo step
+                    undoStack_->beginMacro(QString("Move %1 Events").arg(eventUpdates.size()));
+
+                    for (const auto& pair : eventUpdates)
+                    {
+                        qDebug() << "║   Updating event:" << pair.first;
+
+                        // Set skipNextUpdate for the corresponding item
+                        // Find the item by matching event ID
+                        for (auto it = multiDragStartPositions_.constBegin();
+                             it != multiDragStartPositions_.constEnd(); ++it)
+                        {
+                            TimelineItem* item = qgraphicsitem_cast<TimelineItem*>(it.key());
+                            if (item && item->eventId() == pair.first)
+                            {
+                                item->setSkipNextUpdate(true);
+                                break;
+                            }
+                        }
+
+                        undoStack_->push(new UpdateEventCommand(
+                            model_,
+                            pair.first,
+                            pair.second
+                            ));
+                    }
+
+                    undoStack_->endMacro();
+                    qDebug() << "║ Batch update complete";
+                }
+            }
+
             multiDragStartPositions_.clear();
+            qDebug() << "╚═══════════════════════════════════════════════════════════";
             event->accept();
             return;
         }
 
         if (isDragging_)
         {
-            // Single drag completed - snap position and update model
+            qDebug() << "║ SINGLE-DRAG COMPLETE";
             isDragging_ = false;
 
-            // Check if position actually changed
+            // Snap to nearest tick mark after drag
             if (pos() != dragStartPos_)
             {
-                // SNAP THE POSITION BEFORE UPDATING MODEL
-                double rawXPos = rect_.x() + pos().x();
-                double snappedXPos = mapper_->snapXToNearestTick(rawXPos);
+                qDebug() << "║ Position changed, applying snap...";
 
-                // Adjust the item's position to match the snapped coordinate
+                // Calculate the snapped X position based on VISUAL left edge
+                double currentXPos = rect_.x() + pos().x();
+
+                qDebug() << "║ PRE-SNAP:";
+                qDebug() << "║   rect_.x():" << rect_.x();
+                qDebug() << "║   pos().x():" << pos().x();
+                qDebug() << "║   currentXPos (rect_.x + pos.x):" << currentXPos;
+
+                double snappedXPos = mapper_->snapXToNearestTick(currentXPos);
+
+                qDebug() << "║ POST-SNAP:";
+                qDebug() << "║   snappedXPos:" << snappedXPos;
+                qDebug() << "║   Snap delta:" << (snappedXPos - currentXPos);
+
+                // Update position to snap to grid (visually)
                 QPointF snappedPos = pos();
-                snappedPos.setX(snappedPos.x() + (snappedXPos - rawXPos));
+                snappedPos.setX(snappedXPos - rect_.x());
+
+                qDebug() << "║ Setting snapped position:" << snappedPos;
                 setPos(snappedPos);
 
+                qDebug() << "║ Calling updateModelFromPosition()...";
+
                 // Now update the model with the snapped position
+                // The model's assignLanesToEvents() will handle collision detection
                 updateModelFromPosition();
             }
+            else
+            {
+                qDebug() << "║ No position change detected, skipping model update";
+            }
 
+            qDebug() << "╚═══════════════════════════════════════════════════════════";
             event->accept();
             return;
         }
     }
+
+    qDebug() << "║ No drag or resize detected, passing event through";
+    qDebug() << "╚═══════════════════════════════════════════════════════════";
 
     QGraphicsObject::mouseReleaseEvent(event);
 }
@@ -598,8 +720,18 @@ void TimelineItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event)
 
 void TimelineItem::updateModelFromPosition()
 {
+    qDebug() << "";
+    qDebug() << "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
+    qDebug() << "┃ UPDATE MODEL FROM POSITION - Event ID:" << eventId_;
+    qDebug() << "┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
+
     if (!model_ || !mapper_ || eventId_.isEmpty())
     {
+        qDebug() << "┃ ERROR: Missing dependencies";
+        qDebug() << "┃   model_:" << (model_ != nullptr);
+        qDebug() << "┃   mapper_:" << (mapper_ != nullptr);
+        qDebug() << "┃   eventId_:" << eventId_;
+        qDebug() << "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
         return;
     }
 
@@ -608,6 +740,8 @@ void TimelineItem::updateModelFromPosition()
 
     if (!currentEvent)
     {
+        qDebug() << "┃ ERROR: Event not found in model";
+        qDebug() << "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
         return;
     }
 
@@ -615,10 +749,19 @@ void TimelineItem::updateModelFromPosition()
     // The position has already been snapped in mouseReleaseEvent, so use it directly
     double xPos = rect_.x() + pos().x();
 
+    qDebug() << "┃ Current state:";
+    qDebug() << "┃   pos():" << pos();
+    qDebug() << "┃   scenePos():" << scenePos();
+    qDebug() << "┃   rect_:" << rect_;
+    qDebug() << "┃   xPos (rect_.x + pos.x):" << xPos;
+
     QDateTime newStartDateTime;
     QDateTime newEndDateTime;
 
     double pixelsPerDay = mapper_->pixelsPerday();
+
+    qDebug() << "┃ Date calculations:";
+    qDebug() << "┃   pixelsPerDay:" << pixelsPerDay;
 
     if (pixelsPerDay >= 192.0)
     {
@@ -643,6 +786,10 @@ void TimelineItem::updateModelFromPosition()
         newEndDateTime = QDateTime(newEndDate, currentEvent->endDate.time());
     }
 
+    qDebug() << "┃   newStartDateTime:" << newStartDateTime;
+    qDebug() << "┃   newEndDateTime:" << newEndDateTime;
+    qDebug() << "┃   Duration (days):" << newStartDateTime.daysTo(newEndDateTime);
+
     // Create updated event
     TimelineEvent updatedEvent = *currentEvent;
     updatedEvent.startDate = newStartDateTime;
@@ -652,6 +799,8 @@ void TimelineItem::updateModelFromPosition()
     if (currentEvent->laneControlEnabled)
     {
         int newLane = calculateLaneFromYPosition();
+
+        qDebug() << "┃   newLane:" << newLane;
 
         // Check for lane conflicts before updating
         bool hasConflict = model_->hasLaneConflict(
@@ -663,6 +812,8 @@ void TimelineItem::updateModelFromPosition()
 
         if (hasConflict)
         {
+            qDebug() << "┃   WARNING: Lane conflict detected!";
+
             // Show warning but allow the update (user can fix it later)
             QMessageBox::warning(
                 nullptr,
@@ -678,18 +829,26 @@ void TimelineItem::updateModelFromPosition()
         updatedEvent.lane = newLane;
     }
 
+    qDebug() << "┃ Updating model...";
+    qDebug() << "┃   Old: " << currentEvent->startDate << "to" << currentEvent->endDate << "lane" << currentEvent->lane;
+    qDebug() << "┃   New: " << updatedEvent.startDate << "to" << updatedEvent.endDate << "lane" << updatedEvent.lane;
+
     // Use undo command instead of direct model update
     if (undoStack_)
     {
+        qDebug() << "┃ Using undo stack...";
         skipNextUpdate_ = true;
         undoStack_->push(new UpdateEventCommand(model_, eventId_, updatedEvent));
     }
     else
     {
         // Fallback: update directly if no undo stack available
+        qDebug() << "┃ Direct model update (no undo stack)";
         qWarning() << "TimelineItem::updateModelFromPosition() - No undo stack available, updating directly";
         model_->updateEvent(eventId_, updatedEvent);
     }
+
+    qDebug() << "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
 }
 
 
@@ -717,8 +876,18 @@ int TimelineItem::calculateLaneFromYPosition() const
 
 void TimelineItem::updateModelFromSize()
 {
+    qDebug() << "";
+    qDebug() << "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
+    qDebug() << "┃ UPDATE MODEL FROM SIZE - Event ID:" << eventId_;
+    qDebug() << "┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
+
     if (!model_ || !mapper_ || eventId_.isEmpty())
     {
+        qDebug() << "┃ ERROR: Missing dependencies";
+        qDebug() << "┃   model_:" << (model_ != nullptr);
+        qDebug() << "┃   mapper_:" << (mapper_ != nullptr);
+        qDebug() << "┃   eventId_:" << eventId_;
+        qDebug() << "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
         return;
     }
 
@@ -726,11 +895,22 @@ void TimelineItem::updateModelFromSize()
 
     if (!currentEvent)
     {
+        qDebug() << "┃ ERROR: Event not found in model";
+        qDebug() << "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
         return;
     }
 
     double leftX = rect_.left();
     double rightX = rect_.right();
+
+    qDebug() << "┃ Current state:";
+    qDebug() << "┃   pos():" << pos();
+    qDebug() << "┃   scenePos():" << scenePos();
+    qDebug() << "┃   rect_:" << rect_;
+
+    qDebug() << "┃ Edge positions (rect local):";
+    qDebug() << "┃   leftX:" << leftX;
+    qDebug() << "┃   rightX:" << rightX;
 
     qDebug() << "=== UPDATE MODEL FROM SIZE ===";
     qDebug() << "Input rect coords:" << leftX << "to" << rightX;
@@ -739,67 +919,78 @@ void TimelineItem::updateModelFromSize()
     double snappedRightX = mapper_->snapXToNearestTick(rightX);
 
     qDebug() << "Re-snapped coords:" << snappedLeftX << "to" << snappedRightX;
-    qDebug() << "Pixels per day:" << mapper_->pixelsPerday();
+    qDebug() << "Original dates:" << currentEvent->startDate << "to" << currentEvent->endDate;
 
-    QDateTime startDateTime;
-    QDateTime endDateTime;
+    // Calculate new dates based on SNAPPED edge positions
+    QDateTime newStartDateTime;
+    QDateTime newEndDateTime;
 
     double pixelsPerDay = mapper_->pixelsPerday();
 
+    qDebug() << "┃ Date calculations:";
+    qDebug() << "┃   pixelsPerDay:" << pixelsPerDay;
+
     if (pixelsPerDay >= 192.0)
     {
-        // Hour/half-hour precision - use snapped coordinates
-        startDateTime = mapper_->xToDateTime(snappedLeftX);
-        endDateTime = mapper_->xToDateTime(snappedRightX);
-
-        qDebug() << "Hour/half-hour precision:";
-        qDebug() << "Start DateTime:" << startDateTime;
-        qDebug() << "End DateTime:" << endDateTime;
+        // Hour/half-hour precision - use DateTime
+        newStartDateTime = mapper_->xToDateTime(snappedLeftX);
+        newEndDateTime = mapper_->xToDateTime(snappedRightX);
     }
     else
     {
         // Day/week/month precision
-        QDate startDate = mapper_->xToDate(snappedLeftX);
-        QDate endDate = mapper_->xToDate(snappedRightX);
+        QDate newStartDate = mapper_->xToDate(snappedLeftX);
+        QDate newEndDate = mapper_->xToDate(snappedRightX);
 
-        // For day-level events, the right edge represents the pixel AFTER the last day
-        // So subtract 1 to get the actual last day included
-        endDate = endDate.addDays(-1);
-
-        // Create DateTimes with time preserved from current event
-        startDateTime = QDateTime(startDate, currentEvent->startDate.time());
-        endDateTime = QDateTime(endDate, currentEvent->endDate.time());
-
-        qDebug() << "Day/week/month precision:";
-        qDebug() << "Start Date:" << startDate;
-        qDebug() << "End Date:" << endDate;
+        // Preserve time components from original event
+        newStartDateTime = QDateTime(newStartDate, currentEvent->startDate.time());
+        newEndDateTime = QDateTime(newEndDate, currentEvent->endDate.time());
     }
 
-    // Ensure minimum duration
-    if (endDateTime < startDateTime)
+    qDebug() << "┃   newStartDateTime:" << newStartDateTime;
+    qDebug() << "┃   newEndDateTime:" << newEndDateTime;
+    qDebug() << "┃   Duration (days):" << newStartDateTime.daysTo(newEndDateTime);
+
+    // Check if dates actually changed
+    bool datesChanged = (newStartDateTime != currentEvent->startDate ||
+                         newEndDateTime != currentEvent->endDate);
+
+    qDebug() << "┃ Changes detected:";
+    qDebug() << "┃   datesChanged:" << datesChanged;
+
+    if (!datesChanged)
     {
-        endDateTime = startDateTime;
+        qDebug() << "┃ No changes detected, skipping model update";
+        qDebug() << "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
+        return;
     }
 
     // Create updated event
     TimelineEvent updatedEvent = *currentEvent;
-    updatedEvent.startDate = startDateTime;
-    updatedEvent.endDate = endDateTime;
+    updatedEvent.startDate = newStartDateTime;
+    updatedEvent.endDate = newEndDateTime;
 
-    // Use undo command
+    qDebug() << "┃ Updating model...";
+    qDebug() << "┃   Old: " << currentEvent->startDate << "to" << currentEvent->endDate;
+    qDebug() << "┃   New: " << updatedEvent.startDate << "to" << updatedEvent.endDate;
+
+    // Use undo command instead of direct model update
     if (undoStack_)
     {
+        qDebug() << "┃ Using undo stack...";
         skipNextUpdate_ = true;
         undoStack_->push(new UpdateEventCommand(model_, eventId_, updatedEvent));
     }
     else
     {
-        skipNextUpdate_ = true;
+        // Fallback: update directly if no undo stack available
+        qDebug() << "┃ Direct model update (no undo stack)";
         qWarning() << "TimelineItem::updateModelFromSize() - No undo stack available, updating directly";
         model_->updateEvent(eventId_, updatedEvent);
     }
 
     qDebug() << "Final dates:" << updatedEvent.startDate << "to" << updatedEvent.endDate;
+    qDebug() << "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
 }
 
 
@@ -880,5 +1071,3 @@ TimelineItem::ResizeHandle TimelineItem::getResizeHandle(const QPointF& pos) con
 
     return None;
 }
-
-

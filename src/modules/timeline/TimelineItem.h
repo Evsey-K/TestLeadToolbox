@@ -25,9 +25,10 @@ class QUndoStack;
  * Supports:
  * - Dragging horizontally to change dates
  * - Dragging vertically when lane control is enabled to change lane
- * - Multi-item selection and dragging
+ * - Multi-item selection and dragging with individual lane control per item
  * - Resizing via edge handles
  * - Context menu for edit/delete actions
+ * - Automatic overlap prevention via model's lane assignment system
  */
 class TimelineItem : public QGraphicsObject
 {
@@ -59,11 +60,11 @@ public:
     QString eventId() const { return eventId_; }                                        ///< @brief Get the event ID
     void setModel(TimelineModel* model) { model_ = model; }                             ///< @brief Set the model reference (required for updates)
     void setCoordinateMapper(TimelineCoordinateMapper* mapper) { mapper_ = mapper; }    ///< @brief Set the coordinate mapper (required for date conversion)
-    void setUndoStack(QUndoStack* undoStack) { undoStack_ = undoStack; }                ///<
+    void setUndoStack(QUndoStack* undoStack) { undoStack_ = undoStack; }                ///< @brief Set the undo stack (required for undo/redo support)
     void setResizable(bool resizable) { resizable_ = resizable; }                       ///< @brief Enable or disable resize functionality
     bool isResizable() const { return resizable_; }                                     ///< @brief Check if item is resizable
-    void setSkipNextUpdate(bool skip) { skipNextUpdate_ = skip; }                       ///<
-    bool shouldSkipNextUpdate() const { return skipNextUpdate_; }                       ///<
+    void setSkipNextUpdate(bool skip) { skipNextUpdate_ = skip; }                       ///< @brief Set whether to skip the next model update (used during undo/redo)
+    bool shouldSkipNextUpdate() const { return skipNextUpdate_; }                       ///< @brief Check if next update should be skipped
 
 signals:
     void editRequested(const QString& eventId);
@@ -90,13 +91,13 @@ private:
 
     TimelineModel* model_ = nullptr;                        ///< Model reference (not owned)
     TimelineCoordinateMapper* mapper_ = nullptr;            ///< Coordinate mapper (not owned)
-    QUndoStack* undoStack_ = nullptr;                       ///<
+    QUndoStack* undoStack_ = nullptr;                       ///< Undo stack reference (not owned)
 
     bool isDragging_ = false;                               ///< Whether currently being dragged
     bool isMultiDragging_ = false;                          ///< Whether performing multi-item drag
     bool isResizing_ = false;                               ///< Whether currently being resized
     bool resizable_ = true;                                 ///< Whether item can be resized
-    bool skipNextUpdate_ = false;                           ///<
+    bool skipNextUpdate_ = false;                           ///< Whether to skip next model update (used during undo/redo)
 
     QRectF rect_;                                           ///< Item's rectangle
     QBrush brush_;                                          ///< Fill brush

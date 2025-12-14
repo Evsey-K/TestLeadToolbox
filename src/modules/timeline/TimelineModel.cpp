@@ -214,9 +214,17 @@ QString TimelineModel::generateEventId() const
 
 void TimelineModel::assignLanesToEvents()
 {
+    qDebug() << "";
+    qDebug() << "╔══════════════════════════════════════════════════════════";
+    qDebug() << "║ ASSIGN LANES TO EVENTS";
+    qDebug() << "╠══════════════════════════════════════════════════════════";
+    qDebug() << "║ Total events:" << events_.size();
+
     if (events_.isEmpty())
     {
         maxLane_ = 0;
+        qDebug() << "║ No events to assign";
+        qDebug() << "╚══════════════════════════════════════════════════════════";
         return;
     }
 
@@ -227,6 +235,18 @@ void TimelineModel::assignLanesToEvents()
     for (int i = 0; i < events_.size(); ++i)
     {
         TimelineEvent& event = events_[i];
+
+        qDebug() << "║";
+        qDebug() << "║ Event:" << event.title;
+        qDebug() << "║   ID:" << event.id;
+        qDebug() << "║   Dates:" << event.startDate.date().toString("yyyy-MM-dd")
+                 << "to" << event.endDate.date().toString("yyyy-MM-dd");
+        qDebug() << "║   Current Lane:" << event.lane;
+        qDebug() << "║   Lane Control Enabled:" << event.laneControlEnabled;
+        if (event.laneControlEnabled)
+        {
+            qDebug() << "║   Manual Lane:" << event.manualLane;
+        }
 
         // Use date portion for lane assignment
         LaneAssigner::EventData data(
@@ -239,31 +259,44 @@ void TimelineModel::assignLanesToEvents()
         if (event.laneControlEnabled)
         {
             data.lane = event.manualLane;
-            event.lane = event.manualLane;
             manualEvents.append(data);
+            qDebug() << "║   → Added to MANUAL events (will NOT be auto-reassigned)";
         }
         else
         {
             autoEvents.append(data);
+            qDebug() << "║   → Added to AUTO events (WILL be reassigned)";
         }
     }
+
+    qDebug() << "║";
+    qDebug() << "╠══════════════════════════════════════════════════════════";
+    qDebug() << "║ Summary:";
+    qDebug() << "║   Auto events:" << autoEvents.size();
+    qDebug() << "║   Manual events:" << manualEvents.size();
+    qDebug() << "╠══════════════════════════════════════════════════════════";
 
     // Assign lanes to auto events, respecting manual events
     if (!autoEvents.isEmpty())
     {
+        qDebug() << "║ Running lane assignment for auto events...";
+
         int maxLaneUsed = LaneAssigner::assignLanesWithReserved(autoEvents, manualEvents);
 
+        qDebug() << "║ Lane assignment complete:";
         // Apply assigned lanes back to events
         for (const auto& data : autoEvents)
         {
             if (data.userData)
             {
                 TimelineEvent* event = static_cast<TimelineEvent*>(data.userData);
+                qDebug() << "║   Event" << event->title << "assigned to lane" << data.lane;
                 event->lane = data.lane;
             }
         }
 
         maxLane_ = maxLaneUsed;
+        qDebug() << "║ Max lane used:" << maxLane_;
     }
     else
     {
@@ -276,7 +309,11 @@ void TimelineModel::assignLanesToEvents()
                 maxLane_ = data.lane;
             }
         }
+        qDebug() << "║ No auto events - max lane from manual events:" << maxLane_;
     }
+
+    qDebug() << "╚══════════════════════════════════════════════════════════";
+    qDebug() << "";
 
     emit lanesRecalculated();
 }

@@ -1,12 +1,10 @@
 // LaneAssigner.h
 
-
 #pragma once
 #include <QDate>
 #include <QVector>
 #include <QMap>
 #include <algorithm>
-
 
 /**
  * @class LaneAssigner
@@ -18,6 +16,11 @@
  * 2. For each event, finds the lowest available lane
  * 3. Tracks when each lane becomes free
  * 4. Assigns events to lanes ensuring no date-range overlaps in same lane
+ *
+ * NOTE ON BOUNDARY BEHAVIOR:
+ * If Event A ends on Date X and Event B starts on Date X, they are considered
+ * NON-OVERLAPPING and CAN share the same lane. This is by design - a date
+ * boundary means the first event has ended and the second event begins.
  *
  * Usage:
  * @code
@@ -75,7 +78,6 @@ public:
                       return a.startDate < b.startDate;
                   });
 
-
         // Step 2: Track when each lane becomes available
         // Key = lane number, Value = date when lane becomes free
         QMap<int, QDate> laneEndDates;
@@ -100,7 +102,6 @@ public:
         return maxLane;
     }
 
-
     /**
      * @brief Calculates the vertical Y position for a given lane
      * @param lane Lane number (0-based)
@@ -113,7 +114,6 @@ public:
         return lane * (laneHeight + laneSpacing);
     }
 
-
     /**
      * @brief Calculates total scene height needed for given lane count
      * @param maxLane Highest lane number used (0-based)
@@ -125,7 +125,6 @@ public:
     {
         return (maxLane + 1) * (laneHeight + laneSpacing) + 50;     // +50 for padding
     }
-
 
     /**
      * @brief Assigns lanes to events while respecting reserved lanes from manually-controlled events
@@ -169,6 +168,8 @@ public:
                     if (reserved.lane == assignedLane)
                     {
                         // Check for date overlap
+                        // Two events overlap if one ends on or after the other starts
+                        // AND one starts on or before the other ends
                         if (event.startDate <= reserved.endDate &&
                             event.endDate >= reserved.startDate)
                         {
@@ -178,33 +179,41 @@ public:
                     }
                 }
 
-                // Also check automatic lane tracking
+                // CRITICAL FIX: Also check automatic lane tracking
                 if (laneAvailable)
                 {
-                    if (!laneFreeDate.contains(assignedLane) ||
-                        laneFreeDate[assignedLane] < event.startDate)
+                    // Check if this lane is occupied by a previous automatic event
+                    if (laneFreeDate.contains(assignedLane))
                     {
-                        // Lane is available
-                        break;
+                        // Lane is only available if it ends BEFORE the new event starts
+                        // If lane ends on Jan 28 and event starts on Jan 28, they overlap!
+                        if (laneFreeDate[assignedLane] >= event.startDate)
+                        {
+                            // Lane is still occupied
+                            laneAvailable = false;
+                        }
                     }
                 }
 
-                // Try next lane
-                ++assignedLane;
+                if (laneAvailable)
+                {
+                    // Lane is free - assign it
+                    event.lane = assignedLane;
+                    laneFreeDate[assignedLane] = event.endDate;
+                    break;
+                }
+                else
+                {
+                    // Try next lane
+                    assignedLane++;
+                }
             }
-
-            // Assign this event to the found lane
-            event.lane = assignedLane;
-
-            // Mark this lane as occupied until event.endDate
-            laneFreeDate[assignedLane] = event.endDate;
         }
 
-        // Return maximum lane used
+        // Find maximum lane across both auto and manual events
         int maxLane = findMaxLane(events);
-        int maxReserved = findMaxLane(reservedEvents);
-
-        return std::max(maxLane, maxReserved);
+        int maxReservedLane = findMaxLane(reservedEvents);
+        return qMax(maxLane, maxReservedLane);
     }
 
 private:
@@ -223,8 +232,9 @@ private:
         {
             QDate laneEndDate = laneEndDates[lane];
 
-            // Lane is available if it ends before our event starts
-            if (laneEndDate < eventStartDate)
+            // Lane is available if it ends BEFORE or ON the day the new event starts
+            // This allows Event A (ends Jan 5) and Event B (starts Jan 6) to share a lane
+            if (laneEndDate <= eventStartDate)
             {
                 return lane;
             }
@@ -236,7 +246,6 @@ private:
         // No existing lane is available, return new lane
         return lane;
     }
-
 
     /**
      * @brief Helper to find maximum lane in a vector
@@ -254,5 +263,3 @@ private:
         return maxLane;
     }
 };
-
-

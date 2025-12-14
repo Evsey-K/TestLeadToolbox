@@ -305,6 +305,10 @@ void TimelineScene::updateItemFromEvent(TimelineItem* item, const QString& event
                                            ITEM_HEIGHT);
     }
 
+    // CRITICAL: Reset item position to (0,0) before setting rect
+    // The rect coordinates are absolute scene coordinates, not relative to item position
+    item->setPos(0, 0);
+
     // Update item geometry
     item->setRect(newRect);
 
