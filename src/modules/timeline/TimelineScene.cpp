@@ -229,12 +229,24 @@ TimelineItem* TimelineScene::createItemForEvent(const QString& eventId)
     // Calculate Y position based on lane (offset by date scale height)
     double yPos = DATE_SCALE_OFFSET + LaneAssigner::laneToY(event->lane, ITEM_HEIGHT, LANE_SPACING);
 
-    // Calculate rectangle using coordinate mapper
-    QRectF rect = mapper_->dateRangeToRect(event->startDate.date(),
-                                           event->endDate.date(),
-                                           yPos,
-                                           ITEM_HEIGHT);
-
+    // Calculate rectangle using appropriate method based on zoom level
+    QRectF rect;
+    if (mapper_->pixelsPerday() >= 192.0)
+    {
+        // Hour precision - use DateTime rendering (no extra day added)
+        rect = mapper_->dateTimeRangeToRect(event->startDate,
+                                            event->endDate,
+                                            yPos,
+                                            ITEM_HEIGHT);
+    }
+    else
+    {
+        // Day precision - use Date rendering (adds +1 day to end for visual inclusion)
+        rect = mapper_->dateRangeToRect(event->startDate.date(),
+                                        event->endDate.date(),
+                                        yPos,
+                                        ITEM_HEIGHT);
+    }
 
     // Create the item
     TimelineItem* item = new TimelineItem(rect);
@@ -274,20 +286,37 @@ void TimelineScene::updateItemFromEvent(TimelineItem* item, const QString& event
     // Calculate Y position based on lane (offset by date scale height)
     double yPos = DATE_SCALE_OFFSET + LaneAssigner::laneToY(event->lane, ITEM_HEIGHT, LANE_SPACING);
 
-    // Recalculate position and size
-    QRectF newRect = mapper_->dateRangeToRect(event->startDate.date(),
-                                              event->endDate.date(),
-                                              yPos,
-                                              ITEM_HEIGHT);
+    // Recalculate position and size using appropriate method based on zoom level
+    QRectF newRect;
+    if (mapper_->pixelsPerday() >= 192.0)
+    {
+        // Hour precision - use DateTime rendering (no extra day added)
+        newRect = mapper_->dateTimeRangeToRect(event->startDate,
+                                               event->endDate,
+                                               yPos,
+                                               ITEM_HEIGHT);
+    }
+    else
+    {
+        // Day precision - use Date rendering (adds +1 day to end for visual inclusion)
+        newRect = mapper_->dateRangeToRect(event->startDate.date(),
+                                           event->endDate.date(),
+                                           yPos,
+                                           ITEM_HEIGHT);
+    }
 
+    // Update item geometry
     item->setRect(newRect);
-    item->setPos(0, 0);     // Reset position since rect includes the position
-    item->setBrush(QBrush(event->color));
+
+    // Update tooltip
     item->setToolTip(QString("%1\n%2 to %3\nLane: %4")
                          .arg(event->title)
                          .arg(event->startDate.toString(Qt::ISODate))
                          .arg(event->endDate.toString(Qt::ISODate))
                          .arg(event->lane));
+
+    // Update visual properties
+    item->setBrush(QBrush(event->color));
 }
 
 

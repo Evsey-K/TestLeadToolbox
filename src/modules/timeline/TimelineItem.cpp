@@ -672,25 +672,34 @@ void TimelineItem::updateModelFromSize()
 
     if (pixelsPerDay >= 192.0)
     {
-        // Hour/half-hour precision - use SNAPPED coordinates to get DateTimes
+        // Hour/half-hour precision - use snapped coordinates
         startDateTime = mapper_->xToDateTime(snappedLeftX);
-        endDateTime = mapper_->xToDateTime(snappedRightX);  // Use snapped coordinate!
+        endDateTime = mapper_->xToDateTime(snappedRightX);
 
+        qDebug() << "Hour/half-hour precision:";
         qDebug() << "Start DateTime:" << startDateTime;
         qDebug() << "End DateTime:" << endDateTime;
     }
     else
     {
-        // Day/week/month precision - use standard date conversion
+        // Day/week/month precision
         QDate startDate = mapper_->xToDate(snappedLeftX);
-        QDate endDate = mapper_->xToDate(snappedRightX).addDays(-1);
+        QDate endDate = mapper_->xToDate(snappedRightX);
+
+        // For day-level events, the right edge represents the pixel AFTER the last day
+        // So subtract 1 to get the actual last day included
+        endDate = endDate.addDays(-1);
 
         // Create DateTimes with time preserved from current event
         startDateTime = QDateTime(startDate, currentEvent->startDate.time());
         endDateTime = QDateTime(endDate, currentEvent->endDate.time());
+
+        qDebug() << "Day/week/month precision:";
+        qDebug() << "Start Date:" << startDate;
+        qDebug() << "End Date:" << endDate;
     }
 
-    // Ensure at least 1-hour minimum duration at high zoom
+    // Ensure minimum duration
     if (endDateTime < startDateTime)
     {
         endDateTime = startDateTime;
@@ -701,7 +710,7 @@ void TimelineItem::updateModelFromSize()
     updatedEvent.startDate = startDateTime;
     updatedEvent.endDate = endDateTime;
 
-    // Use undo command instead of direct model update
+    // Use undo command
     if (undoStack_)
     {
         skipNextUpdate_ = true;

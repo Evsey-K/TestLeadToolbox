@@ -34,6 +34,7 @@ public:
     double dateTimeToX(const QDateTime& dateTime) const;
     QPointF dateToPoint(const QDate& date, double yPos = 0.0) const;
     QRectF dateRangeToRect(const QDate& start, const QDate& end, double yPos, double height) const;
+    QRectF dateTimeRangeToRect(const QDateTime& start, const QDateTime& end, double yPos, double height) const;
 
 
     // Coordinate to date conversion

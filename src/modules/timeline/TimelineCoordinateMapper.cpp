@@ -64,6 +64,16 @@ QRectF TimelineCoordinateMapper::dateRangeToRect(const QDate& start, const QDate
 }
 
 
+QRectF TimelineCoordinateMapper::dateTimeRangeToRect(const QDateTime& start, const QDateTime& end, double yPos, double height) const
+{
+    double x1 = dateTimeToX(start);
+    double x2 = dateTimeToX(end);
+    double width = x2 - x1;
+
+    return QRectF(x1, yPos, width, height);
+}
+
+
 QDate TimelineCoordinateMapper::xToDate(double xCoord) const
 {
     // Convert pixel position back to days offset
@@ -81,8 +91,16 @@ QDateTime TimelineCoordinateMapper::xToDateTime(double xCoord) const
     int wholeDays = static_cast<int>(std::floor(daysOffset));
     double fractionalDay = daysOffset - wholeDays;
 
-    // Calculate time from fractional day
-    int totalSeconds = static_cast<int>(fractionalDay * 86400.0);
+    // Calculate time from fractional day - ROUND instead of truncate
+    int totalSeconds = static_cast<int>(std::round(fractionalDay * 86400.0));
+
+    // Handle edge case where rounding pushes us to the next day
+    if (totalSeconds >= 86400)
+    {
+        wholeDays++;
+        totalSeconds = 0;
+    }
+
     int hours = totalSeconds / 3600;
     int minutes = (totalSeconds % 3600) / 60;
     int seconds = totalSeconds % 60;
