@@ -230,8 +230,8 @@ TimelineItem* TimelineScene::createItemForEvent(const QString& eventId)
     double yPos = DATE_SCALE_OFFSET + LaneAssigner::laneToY(event->lane, ITEM_HEIGHT, LANE_SPACING);
 
     // Calculate rectangle using coordinate mapper
-    QRectF rect = mapper_->dateRangeToRect(event->startDate,
-                                           event->endDate,
+    QRectF rect = mapper_->dateRangeToRect(event->startDate.date(),
+                                           event->endDate.date(),
                                            yPos,
                                            ITEM_HEIGHT);
 
@@ -275,8 +275,8 @@ void TimelineScene::updateItemFromEvent(TimelineItem* item, const QString& event
     double yPos = DATE_SCALE_OFFSET + LaneAssigner::laneToY(event->lane, ITEM_HEIGHT, LANE_SPACING);
 
     // Recalculate position and size
-    QRectF newRect = mapper_->dateRangeToRect(event->startDate,
-                                              event->endDate,
+    QRectF newRect = mapper_->dateRangeToRect(event->startDate.date(),
+                                              event->endDate.date(),
                                               yPos,
                                               ITEM_HEIGHT);
 

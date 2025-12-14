@@ -1,10 +1,8 @@
 // TimelineModel.cpp
 
-
 #include "TimelineModel.h"
 #include "LaneAssigner.h"
 #include <QUuid>
-
 
 TimelineModel::TimelineModel(QObject* parent)
     : QObject(parent)
@@ -13,7 +11,6 @@ TimelineModel::TimelineModel(QObject* parent)
 {
     // Default to a 3-month version cycle starting today
 }
-
 
 void TimelineModel::setVersionDates(const QDate& start, const QDate& end)
 {
@@ -28,14 +25,13 @@ void TimelineModel::setVersionDates(const QDate& start, const QDate& end)
     emit versionDatesChanged(start, end);
 }
 
-
 QString TimelineModel::addEvent(const TimelineEvent& event)
 {
     // Validate event dates are within Version range
-    if(event.startDate < versionStart_ || event.endDate > versionEnd_)
+    if(event.startDate.date() < versionStart_ || event.endDate.date() > versionEnd_)
     {
         qWarning() << "Event dates outside version range:"
-                   << "Event:" << event.startDate << "to" << event.endDate
+                   << "Event:" << event.startDate.date() << "to" << event.endDate.date()
                    << "Version:" << versionStart_ << "to" << versionEnd_;
     }
 
@@ -50,8 +46,7 @@ QString TimelineModel::addEvent(const TimelineEvent& event)
     if (getEvent(newEvent.id) != nullptr)
     {
         qWarning() << "Event with ID" << newEvent.id << "already exists";
-
-        return QString(); // Return empty QString on failure
+        return QString();
     }
 
     // Assign color based on type if not set
@@ -63,16 +58,14 @@ QString TimelineModel::addEvent(const TimelineEvent& event)
     // Add to internal storage
     events_.append(newEvent);
 
-    // Recalculate lanes after adding new event (Sprint 2 enhancement)
+    // Recalculate lanes after adding new event
     assignLanesToEvents();
 
     // Emit signal
     emit eventAdded(newEvent.id);
 
-    // Return the event ID
     return newEvent.id;
 }
-
 
 bool TimelineModel::removeEvent(const QString& eventId)
 {
@@ -81,15 +74,13 @@ bool TimelineModel::removeEvent(const QString& eventId)
         if(events_[i].id == eventId)
         {
             events_.removeAt(i);
-            assignLanesToEvents();          // Recalculate lanes after removal
+            assignLanesToEvents();
             emit eventRemoved(eventId);
-
             return true;
         }
     }
     return false;
 }
-
 
 bool TimelineModel::updateEvent(const QString& eventId, const TimelineEvent& updatedEvent)
 {
@@ -102,15 +93,13 @@ bool TimelineModel::updateEvent(const QString& eventId, const TimelineEvent& upd
             updated.id = eventId;
             events_[i] = updated;
 
-            assignLanesToEvents();          // Recalculate lanes after update
+            assignLanesToEvents();
             emit eventUpdated(eventId);
-
             return true;
         }
     }
     return false;
 }
-
 
 TimelineEvent* TimelineModel::getEvent(const QString& eventId)
 {
@@ -124,7 +113,6 @@ TimelineEvent* TimelineModel::getEvent(const QString& eventId)
     return nullptr;
 }
 
-
 const TimelineEvent* TimelineModel::getEvent(const QString& eventId) const
 {
     for(int i = 0; i < events_.size(); ++i)
@@ -137,15 +125,14 @@ const TimelineEvent* TimelineModel::getEvent(const QString& eventId) const
     return nullptr;
 }
 
-
 QVector<TimelineEvent> TimelineModel::getEventsInRange(const QDate& start, const QDate& end) const
 {
     QVector<TimelineEvent> result;
 
     for(const auto& event : events_)
     {
-        // Check if event overlaps with the range
-        if(event.startDate <= end && event.startDate >= start)
+        // Check if event overlaps with the range (using date portion)
+        if(event.startDate.date() <= end && event.endDate.date() >= start)
         {
             result.append(event);
         }
@@ -153,12 +140,10 @@ QVector<TimelineEvent> TimelineModel::getEventsInRange(const QDate& start, const
     return result;
 }
 
-
 QVector<TimelineEvent> TimelineModel::getAllEvents() const
 {
     return events_;
 }
-
 
 QVector<TimelineEvent> TimelineModel::getEventsForToday() const
 {
@@ -176,7 +161,6 @@ QVector<TimelineEvent> TimelineModel::getEventsForToday() const
     return result;
 }
 
-
 QVector<TimelineEvent> TimelineModel::getEventsLookahead(int days) const
 {
     QDate today = QDate::currentDate();
@@ -187,7 +171,7 @@ QVector<TimelineEvent> TimelineModel::getEventsLookahead(int days) const
     for (const auto& event : events_)
     {
         // Include events that start within the lookahead window
-        if (event.startDate >= today && event.startDate <= endDate)
+        if (event.startDate.date() >= today && event.startDate.date() <= endDate)
         {
             result.append(event);
         }
@@ -195,7 +179,6 @@ QVector<TimelineEvent> TimelineModel::getEventsLookahead(int days) const
 
     return result;
 }
-
 
 void TimelineModel::clear()
 {
@@ -205,33 +188,29 @@ void TimelineModel::clear()
     emit eventsCleared();
 }
 
-
 QColor TimelineModel::colorForType(TimelineEventType type)
 {
     switch (type)
     {
     case TimelineEventType_Meeting:
-        return QColor(30, 144, 255);        // Dodger Blue (#1E90FF) - Calm, standard for scheduling
+        return QColor(30, 144, 255);        // Dodger Blue
     case TimelineEventType_Action:
-        return QColor(220, 20, 60);         // Crimson (#DC143C) - Strong signal for urgency
+        return QColor(220, 20, 60);         // Crimson
     case TimelineEventType_TestEvent:
-        return QColor(138, 43, 226);        // Blue Violet (#8A2BE2) - Technical/specialized
+        return QColor(138, 43, 226);        // Blue Violet
     case TimelineEventType_Reminder:
-        return QColor(255, 215, 0);         // Gold (#FFD700) - Visibility and attention
+        return QColor(255, 215, 0);         // Gold
     case TimelineEventType_JiraTicket:
-        return QColor(50, 205, 50);         // Lime Green (#32CD32) - Progress/tasks/neutral work item
+        return QColor(50, 205, 50);         // Lime Green
     default:
-        return QColor(128, 128, 128);       // Gray fallback for unknown types
+        return QColor(128, 128, 128);       // Gray fallback
     }
 }
 
-
 QString TimelineModel::generateEventId() const
 {
-    // Use QUuid for guarenteed uniqueness
     return QUuid::createUuid().toString(QUuid::WithoutBraces);
 }
-
 
 void TimelineModel::assignLanesToEvents()
 {
@@ -249,16 +228,16 @@ void TimelineModel::assignLanesToEvents()
     {
         TimelineEvent& event = events_[i];
 
+        // Use date portion for lane assignment
         LaneAssigner::EventData data(
             event.id,
-            event.startDate,
-            event.endDate,
+            event.startDate.date(),
+            event.endDate.date(),
             &event
             );
 
         if (event.laneControlEnabled)
         {
-            // For manual events, set the lane to the user-specified value
             data.lane = event.manualLane;
             event.lane = event.manualLane;
             manualEvents.append(data);
@@ -284,7 +263,6 @@ void TimelineModel::assignLanesToEvents()
             }
         }
 
-        // Update maxLane
         maxLane_ = maxLaneUsed;
     }
     else
@@ -303,57 +281,38 @@ void TimelineModel::assignLanesToEvents()
     emit lanesRecalculated();
 }
 
-
 bool TimelineModel::archiveEvent(const QString& eventId)
 {
-    // Find event in active list
     for (int i = 0; i < events_.size(); ++i)
     {
         if (events_[i].id == eventId)
         {
-            // Mark as archived
             events_[i].archived = true;
-
-            // Move to archived list
             archivedEvents_.append(events_[i]);
             events_.removeAt(i);
-
-            // Recalculate lanes after removal
             assignLanesToEvents();
-
             emit eventArchived(eventId);
             qDebug() << "Event archived:" << eventId;
-
             return true;
         }
     }
 
     qWarning() << "Cannot archive event - not found:" << eventId;
-
     return false;
 }
 
-
 bool TimelineModel::restoreEvent(const QString& eventId)
 {
-    // Find event in archived list
     for (int i = 0; i < archivedEvents_.size(); ++i)
     {
         if (archivedEvents_[i].id == eventId)
         {
-            // Unmark archived flag
             archivedEvents_[i].archived = false;
-
-            // Move back to active list
             events_.append(archivedEvents_[i]);
             archivedEvents_.removeAt(i);
-
-            // Recalculate lanes after adding
             assignLanesToEvents();
-
             emit eventRestored(eventId);
             qDebug() << "Event restored:" << eventId;
-
             return true;
         }
     }
@@ -362,19 +321,15 @@ bool TimelineModel::restoreEvent(const QString& eventId)
     return false;
 }
 
-
 bool TimelineModel::permanentlyDeleteArchivedEvent(const QString& eventId)
 {
-    // Find event in archived list
     for (int i = 0; i < archivedEvents_.size(); ++i)
     {
         if (archivedEvents_[i].id == eventId)
         {
             archivedEvents_.removeAt(i);
-
             emit eventRemoved(eventId);
             qDebug() << "Archived event permanently deleted:" << eventId;
-
             return true;
         }
     }
@@ -382,7 +337,6 @@ bool TimelineModel::permanentlyDeleteArchivedEvent(const QString& eventId)
     qWarning() << "Cannot permanently delete event - not found in archive:" << eventId;
     return false;
 }
-
 
 const TimelineEvent* TimelineModel::getArchivedEvent(const QString& eventId) const
 {
@@ -393,18 +347,15 @@ const TimelineEvent* TimelineModel::getArchivedEvent(const QString& eventId) con
             return &archivedEvents_[i];
         }
     }
-
     return nullptr;
 }
-
 
 QVector<TimelineEvent> TimelineModel::getAllArchivedEvents() const
 {
     return archivedEvents_;
 }
 
-
-bool TimelineModel::hasLaneConflict(const QDate& startDate, const QDate& endDate,
+bool TimelineModel::hasLaneConflict(const QDateTime& startDateTime, const QDateTime& endDateTime,
                                     int manualLane, const QString& excludeEventId) const
 {
     // Check if any existing lane-controlled event occupies this lane and overlaps in time
@@ -428,9 +379,8 @@ bool TimelineModel::hasLaneConflict(const QDate& startDate, const QDate& endDate
             continue;
         }
 
-        // Check for date overlap
-        // Events overlap if: startA <= endB AND endA >= startB
-        if (startDate <= event.endDate && endDate >= event.startDate)
+        // Check for DateTime overlap
+        if (startDateTime <= event.endDate && endDateTime >= event.startDate)
         {
             return true;  // Conflict found
         }
@@ -438,19 +388,3 @@ bool TimelineModel::hasLaneConflict(const QDate& startDate, const QDate& endDate
 
     return false;  // No conflict
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

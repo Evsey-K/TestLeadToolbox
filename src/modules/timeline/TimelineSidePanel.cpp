@@ -1424,7 +1424,7 @@ QString TimelineSidePanel::buildJiraTicketDetails(const TimelineEvent& event)
 
     // Calculate time remaining
     QDate today = QDate::currentDate();
-    int daysRemaining = today.daysTo(event.endDate);
+    int daysRemaining = today.daysTo(event.endDate.date());
 
     if (daysRemaining > 0)
     {

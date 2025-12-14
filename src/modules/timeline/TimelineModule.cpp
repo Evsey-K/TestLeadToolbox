@@ -810,8 +810,8 @@ bool TimelineModule::deleteEvent(const QString& eventId)
     }
 
     QString eventTitle = event->title;
-    QDate startDate = event->startDate;
-    QDate endDate = event->endDate;
+    QDate startDate = event->startDate.date();
+    QDate endDate = event->endDate.date();
 
     // NEW: Check soft delete preference
     bool useSoftDelete = TimelineSettings::instance().useSoftDelete();

@@ -457,8 +457,8 @@ void TimelineItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event)
 
                             // Create updated event
                             TimelineEvent updatedEvent = *currentEvent;
-                            updatedEvent.startDate = newStartDate;
-                            updatedEvent.endDate = newEndDate;
+                            updatedEvent.startDate = QDateTime(newStartDate, updatedEvent.startDate.time());
+                            updatedEvent.endDate = QDateTime(newEndDate, updatedEvent.endDate.time());
 
                             // If lane control is enabled, update the lane
                             if (currentEvent->laneControlEnabled)
@@ -570,8 +570,8 @@ void TimelineItem::updateModelFromPosition()
 
     // Create updated event
     TimelineEvent updatedEvent = *currentEvent;
-    updatedEvent.startDate = newStartDate;
-    updatedEvent.endDate = newEndDate;
+    updatedEvent.startDate = QDateTime(newStartDate, updatedEvent.startDate.time());
+    updatedEvent.endDate = QDateTime(newEndDate, updatedEvent.endDate.time());
 
     // If lane control is enabled, update the lane based on Y position
     if (currentEvent->laneControlEnabled)
@@ -580,10 +580,10 @@ void TimelineItem::updateModelFromPosition()
 
         // Check for lane conflicts before updating
         bool hasConflict = model_->hasLaneConflict(
-            newStartDate,
-            newEndDate,
+            QDateTime(newStartDate, updatedEvent.startDate.time()),
+            QDateTime(newEndDate, updatedEvent.endDate.time()),
             newLane,
-            eventId_ // Exclude self from conflict check
+            eventId_
             );
 
         if (hasConflict)
@@ -646,7 +646,6 @@ void TimelineItem::updateModelFromSize()
         return;
     }
 
-    // Get current event data
     const TimelineEvent* currentEvent = model_->getEvent(eventId_);
 
     if (!currentEvent)
@@ -654,73 +653,59 @@ void TimelineItem::updateModelFromSize()
         return;
     }
 
-    // Calculate edge positions (these are already in scene coordinates since pos() is 0)
     double leftX = rect_.left();
     double rightX = rect_.right();
 
     qDebug() << "=== UPDATE MODEL FROM SIZE ===";
     qDebug() << "Input rect coords:" << leftX << "to" << rightX;
 
-    // Apply zoom-aware snapping to both edges
     double snappedLeftX = mapper_->snapXToNearestTick(leftX);
     double snappedRightX = mapper_->snapXToNearestTick(rightX);
 
     qDebug() << "Re-snapped coords:" << snappedLeftX << "to" << snappedRightX;
     qDebug() << "Pixels per day:" << mapper_->pixelsPerday();
 
-    // Convert snapped X coordinates to dates
-    QDate newStartDate;
-    QDate newEndDate;
+    QDateTime startDateTime;
+    QDateTime endDateTime;
 
     double pixelsPerDay = mapper_->pixelsPerday();
 
     if (pixelsPerDay >= 192.0)
     {
-        // Hour/half-hour precision - use DateTime to preserve snapped hour position
-        QDateTime startDateTime = mapper_->xToDateTime(snappedLeftX);
-        QDateTime endDateTime = mapper_->xToDateTime(snappedRightX);
+        // Hour/half-hour precision - use SNAPPED coordinates to get DateTimes
+        startDateTime = mapper_->xToDateTime(snappedLeftX);
+        endDateTime = mapper_->xToDateTime(snappedRightX);  // Use snapped coordinate!
 
-        newStartDate = startDateTime.date();
-
-        // If at midnight (00:00), the event ends on the PREVIOUS day
-        // If at any other hour, the event ends on THAT day
-        if (endDateTime.time() == QTime(0, 0, 0))
-        {
-            newEndDate = endDateTime.date().addDays(-1);
-        }
-        else
-        {
-            newEndDate = endDateTime.date();  // Don't subtract!
-        }
+        qDebug() << "Start DateTime:" << startDateTime;
+        qDebug() << "End DateTime:" << endDateTime;
     }
     else
     {
         // Day/week/month precision - use standard date conversion
-        newStartDate = mapper_->xToDate(snappedLeftX);
+        QDate startDate = mapper_->xToDate(snappedLeftX);
+        QDate endDate = mapper_->xToDate(snappedRightX).addDays(-1);
 
-        // Right edge represents start of next day, so subtract 1
-        QDate rightEdgeDate = mapper_->xToDate(snappedRightX);
-        newEndDate = rightEdgeDate.addDays(-1);
+        // Create DateTimes with time preserved from current event
+        startDateTime = QDateTime(startDate, currentEvent->startDate.time());
+        endDateTime = QDateTime(endDate, currentEvent->endDate.time());
     }
 
-    // Ensure at least 1-day minimum duration
-    if (newEndDate < newStartDate)
+    // Ensure at least 1-hour minimum duration at high zoom
+    if (endDateTime < startDateTime)
     {
-        newEndDate = newStartDate;
+        endDateTime = startDateTime;
     }
 
     // Create updated event
     TimelineEvent updatedEvent = *currentEvent;
-    updatedEvent.startDate = newStartDate;
-    updatedEvent.endDate = newEndDate;
+    updatedEvent.startDate = startDateTime;
+    updatedEvent.endDate = endDateTime;
 
     // Use undo command instead of direct model update
     if (undoStack_)
     {
-        // Set skip flag BEFORE pushing (so it's active when redo() executes)
         skipNextUpdate_ = true;
         undoStack_->push(new UpdateEventCommand(model_, eventId_, updatedEvent));
-        // The flag will be cleared by the scene after handling the signal from redo()
     }
     else
     {
@@ -729,7 +714,7 @@ void TimelineItem::updateModelFromSize()
         model_->updateEvent(eventId_, updatedEvent);
     }
 
-    qDebug() << "Final dates:" << newStartDate << "to" << newEndDate;
+    qDebug() << "Final dates:" << updatedEvent.startDate << "to" << updatedEvent.endDate;
 }
 
 

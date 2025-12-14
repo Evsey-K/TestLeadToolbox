@@ -1,9 +1,8 @@
-// AddEventDialog.cpp - Complete Implementation with Dynamic Fields
-
+// AddEventDialog.cpp - Updated to use QDateTime for startDate/endDate
 
 #include "AddEventDialog.h"
 
-
+// Constructor and destructor remain the same
 AddEventDialog::AddEventDialog(const QDate& versionStart,
                                const QDate& versionEnd,
                                QWidget* parent)
@@ -19,12 +18,13 @@ AddEventDialog::AddEventDialog(const QDate& versionStart,
     onTypeChanged(0);
 }
 
-
 AddEventDialog::~AddEventDialog()
 {
     // Qt parent-child hierarchy handles cleanup
 }
 
+// setupUi, createFieldGroups, create*Fields methods remain exactly the same
+// (No changes needed - they just set up the UI)
 
 void AddEventDialog::setupUi()
 {
@@ -77,7 +77,7 @@ void AddEventDialog::setupUi()
     manualLaneSpinner_ = new QSpinBox();
     manualLaneSpinner_->setRange(0, 20);
     manualLaneSpinner_->setValue(0);
-    manualLaneSpinner_->setEnabled(false);  // Initially disabled
+    manualLaneSpinner_->setEnabled(false);
     manualLaneSpinner_->setToolTip("Lane 0 is at the top, higher numbers are below");
     laneNumberLayout->addWidget(laneLabel);
     laneNumberLayout->addWidget(manualLaneSpinner_);
@@ -93,11 +93,10 @@ void AddEventDialog::setupUi()
 
     mainLayout->addWidget(laneControlGroup);
 
-    // Connect lane control checkbox
     connect(laneControlCheckbox_, &QCheckBox::toggled, [this](bool checked)
-    {
-        manualLaneSpinner_->setEnabled(checked);
-    });
+            {
+                manualLaneSpinner_->setEnabled(checked);
+            });
 
     mainLayout->addWidget(commonGroup);
 
@@ -115,16 +114,15 @@ void AddEventDialog::setupUi()
     connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
 }
 
-
+// createFieldGroups and all create*Fields methods remain the same
 void AddEventDialog::createFieldGroups()
 {
-    fieldStack_->addWidget(createMeetingFields());          // Index 0
-    fieldStack_->addWidget(createActionFields());           // Index 1
-    fieldStack_->addWidget(createTestEventFields());        // Index 2
-    fieldStack_->addWidget(createReminderFields());         // Index 3
-    fieldStack_->addWidget(createJiraTicketFields());       // Index 4
+    fieldStack_->addWidget(createMeetingFields());
+    fieldStack_->addWidget(createActionFields());
+    fieldStack_->addWidget(createTestEventFields());
+    fieldStack_->addWidget(createReminderFields());
+    fieldStack_->addWidget(createJiraTicketFields());
 }
-
 
 QWidget* AddEventDialog::createMeetingFields()
 {
@@ -177,7 +175,6 @@ QWidget* AddEventDialog::createMeetingFields()
     participantsEdit_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     layout->addRow("Participants:", participantsEdit_);
 
-    // Connect signals
     connect(meetingStartDate_, &QDateEdit::dateChanged, [this](const QDate& date) {
         if (meetingEndDate_->date() < date)
             meetingEndDate_->setDate(date);
@@ -187,13 +184,14 @@ QWidget* AddEventDialog::createMeetingFields()
     return widget;
 }
 
+// createActionFields, createTestEventFields, createReminderFields, createJiraTicketFields
+// all remain the same as before - no changes needed
 
 QWidget* AddEventDialog::createActionFields()
 {
     QWidget* widget = new QWidget();
     QFormLayout* layout = new QFormLayout(widget);
 
-    // Start Date/Time
     QHBoxLayout* startLayout = new QHBoxLayout();
     actionStartDate_ = new QDateEdit(QDate::currentDate());
     actionStartDate_->setCalendarPopup(true);
@@ -204,7 +202,6 @@ QWidget* AddEventDialog::createActionFields()
     startLayout->addWidget(actionStartTime_);
     layout->addRow("Start:", startLayout);
 
-    // Due Date/Time
     QHBoxLayout* dueLayout = new QHBoxLayout();
     actionDueDate_ = new QDateEdit(QDate::currentDate().addDays(7));
     actionDueDate_->setCalendarPopup(true);
@@ -215,28 +212,23 @@ QWidget* AddEventDialog::createActionFields()
     dueLayout->addWidget(actionDueTime_);
     layout->addRow("Due:", dueLayout);
 
-    // All-Day Event Checkbox
     actionAllDayCheckbox_ = new QCheckBox("All-day event");
     layout->addRow("", actionAllDayCheckbox_);
 
-    // Status
     statusCombo_ = new QComboBox();
     statusCombo_->addItems({"Not Started", "In Progress", "Blocked", "Completed"});
     layout->addRow("Status:", statusCombo_);
 
-    // Connect signals
     connect(actionAllDayCheckbox_, &QCheckBox::toggled, this, &AddEventDialog::onActionAllDayChanged);
 
     return widget;
 }
-
 
 QWidget* AddEventDialog::createTestEventFields()
 {
     QWidget* widget = new QWidget();
     QFormLayout* layout = new QFormLayout(widget);
 
-    // Start Date/Time
     QHBoxLayout* startLayout = new QHBoxLayout();
     startLayout->setSpacing(5);
     startLayout->setContentsMargins(0, 0, 0, 0);
@@ -249,7 +241,6 @@ QWidget* AddEventDialog::createTestEventFields()
     startLayout->addWidget(testStartTime_);
     layout->addRow("Start:", startLayout);
 
-    // End Date/Time
     QHBoxLayout* endLayout = new QHBoxLayout();
     endLayout->setSpacing(5);
     endLayout->setContentsMargins(0, 0, 0, 0);
@@ -262,16 +253,13 @@ QWidget* AddEventDialog::createTestEventFields()
     endLayout->addWidget(testEndTime_);
     layout->addRow("End:", endLayout);
 
-    // All-Day Event Checkbox
     testAllDayCheckbox_ = new QCheckBox("All-day event");
     layout->addRow("", testAllDayCheckbox_);
 
-    // Test Category
     testCategoryCombo_ = new QComboBox();
     testCategoryCombo_->addItems({"Dry Run", "Preliminary", "Formal"});
     layout->addRow("Category:", testCategoryCombo_);
 
-    // Preparation Checklist
     QGroupBox* checklistGroup = new QGroupBox("Preparation Checklist");
     QVBoxLayout* checklistLayout = new QVBoxLayout(checklistGroup);
 
@@ -298,7 +286,6 @@ QWidget* AddEventDialog::createTestEventFields()
 
     layout->addRow(checklistGroup);
 
-    // Connect date change handler
     connect(testStartDate_, &QDateEdit::dateChanged, [this](const QDate& date) {
         if (testEndDate_->date() < date)
             testEndDate_->setDate(date);
@@ -308,13 +295,11 @@ QWidget* AddEventDialog::createTestEventFields()
     return widget;
 }
 
-
 QWidget* AddEventDialog::createReminderFields()
 {
     QWidget* widget = new QWidget();
     QFormLayout* layout = new QFormLayout(widget);
 
-    // Start Date/Time
     QHBoxLayout* startLayout = new QHBoxLayout();
     startLayout->setSpacing(5);
     startLayout->setContentsMargins(0, 0, 0, 0);
@@ -327,7 +312,6 @@ QWidget* AddEventDialog::createReminderFields()
     startLayout->addWidget(reminderTime_);
     layout->addRow("Start:", startLayout);
 
-    // End Date/Time
     QHBoxLayout* endLayout = new QHBoxLayout();
     endLayout->setSpacing(5);
     endLayout->setContentsMargins(0, 0, 0, 0);
@@ -340,54 +324,44 @@ QWidget* AddEventDialog::createReminderFields()
     endLayout->addWidget(reminderEndTime_);
     layout->addRow("End:", endLayout);
 
-    // All-Day Event Checkbox
     reminderAllDayCheckbox_ = new QCheckBox("All-day event");
     layout->addRow("", reminderAllDayCheckbox_);
 
-    // Recurring Rule
     recurringRuleCombo_ = new QComboBox();
     recurringRuleCombo_->addItems({"None", "Daily", "Weekly", "Monthly"});
     layout->addRow("Recurrence:", recurringRuleCombo_);
 
-    // Connect date change handler
     connect(reminderDate_, &QDateEdit::dateChanged, [this](const QDate& date) {
         if (reminderEndDate_->date() < date)
             reminderEndDate_->setDate(date);
     });
 
-    // Connect signals
     connect(reminderAllDayCheckbox_, &QCheckBox::toggled, this, &AddEventDialog::onReminderAllDayChanged);
 
     return widget;
 }
-
 
 QWidget* AddEventDialog::createJiraTicketFields()
 {
     QWidget* widget = new QWidget();
     QFormLayout* layout = new QFormLayout(widget);
 
-    // Jira Key
     jiraKeyEdit_ = new QLineEdit();
     jiraKeyEdit_->setPlaceholderText("e.g., ABC-123");
     layout->addRow("Ticket Key:", jiraKeyEdit_);
 
-    // Jira Summary
     jiraSummaryEdit_ = new QLineEdit();
     jiraSummaryEdit_->setPlaceholderText("Brief summary from Jira");
     layout->addRow("Summary:", jiraSummaryEdit_);
 
-    // Jira Type
     jiraTypeCombo_ = new QComboBox();
     jiraTypeCombo_->addItems({"Story", "Bug", "Task", "Sub-task", "Epic"});
     layout->addRow("Type:", jiraTypeCombo_);
 
-    // Jira Status
     jiraStatusCombo_ = new QComboBox();
     jiraStatusCombo_->addItems({"To Do", "In Progress", "Done"});
     layout->addRow("Status:", jiraStatusCombo_);
 
-    // Start Date/Time
     QHBoxLayout* startLayout = new QHBoxLayout();
     startLayout->setSpacing(5);
     startLayout->setContentsMargins(0, 0, 0, 0);
@@ -400,7 +374,6 @@ QWidget* AddEventDialog::createJiraTicketFields()
     startLayout->addWidget(jiraStartTime_);
     layout->addRow("Start:", startLayout);
 
-    // Due Date/Time
     QHBoxLayout* dueLayout = new QHBoxLayout();
     dueLayout->setSpacing(5);
     dueLayout->setContentsMargins(0, 0, 0, 0);
@@ -413,11 +386,9 @@ QWidget* AddEventDialog::createJiraTicketFields()
     dueLayout->addWidget(jiraDueTime_);
     layout->addRow("Due:", dueLayout);
 
-    // All-Day Event Checkbox
     jiraAllDayCheckbox_ = new QCheckBox("All-day event");
     layout->addRow("", jiraAllDayCheckbox_);
 
-    // Connect signals
     connect(jiraStartDate_, &QDateEdit::dateChanged, [this](const QDate& date) {
         if (jiraDueDate_->date() < date)
             jiraDueDate_->setDate(date);
@@ -427,6 +398,8 @@ QWidget* AddEventDialog::createJiraTicketFields()
     return widget;
 }
 
+// onTypeChanged, showFieldsForType, validateCommonFields, validateTypeSpecificFields
+// remain the same - no changes needed
 
 void AddEventDialog::onTypeChanged(int index)
 {
@@ -435,7 +408,6 @@ void AddEventDialog::onTypeChanged(int index)
 
     showFieldsForType(type);
 }
-
 
 void AddEventDialog::showFieldsForType(TimelineEventType type)
 {
@@ -458,10 +430,8 @@ void AddEventDialog::showFieldsForType(TimelineEventType type)
         break;
     }
 
-    // Adjust dialog size to fit content
     adjustSize();
 }
-
 
 bool AddEventDialog::validateCommonFields()
 {
@@ -474,7 +444,6 @@ bool AddEventDialog::validateCommonFields()
     }
     return true;
 }
-
 
 bool AddEventDialog::validateTypeSpecificFields()
 {
@@ -548,7 +517,6 @@ bool AddEventDialog::validateTypeSpecificFields()
         }
         break;
 
-    // Other types have no specific validation requirements
     default:
         break;
     }
@@ -556,50 +524,31 @@ bool AddEventDialog::validateTypeSpecificFields()
     return true;
 }
 
-
 void AddEventDialog::validateAndAccept()
 {
-    //
     if (!validateCommonFields() || !validateTypeSpecificFields())
     {
         return;
     }
 
-    // Validate lane control conflicts
-    if (laneControlCheckbox_->isChecked())
-    {
-        // Get the event data to check for conflicts
-        TimelineEvent tempEvent = getEvent();
-
-        // Note: We need access to the model to check conflicts
-        // This requires passing the model pointer to the dialog
-        // For now, we'll add this validation in the MainWindow when the dialog is accepted
-    }
-
     accept();
 }
-
 
 TimelineEvent AddEventDialog::getEvent() const
 {
     TimelineEvent event;
 
-    // Populate common fields
     populateCommonFields(event);
 
-    // Populate lane control fields
     event.laneControlEnabled = laneControlCheckbox_->isChecked();
     event.manualLane = manualLaneSpinner_->value();
 
-    // Populate type-specific fields
     populateTypeSpecificFields(event);
 
-    // Assign color based on type
     event.color = TimelineModel::colorForType(event.type);
 
     return event;
 }
-
 
 void AddEventDialog::populateCommonFields(TimelineEvent& event) const
 {
@@ -609,63 +558,61 @@ void AddEventDialog::populateCommonFields(TimelineEvent& event) const
     event.description = descriptionEdit_->toPlainText().trimmed();
 }
 
-
+// UPDATED: populateTypeSpecificFields - Now creates QDateTime objects
 void AddEventDialog::populateTypeSpecificFields(TimelineEvent& event) const
 {
     switch (event.type)
     {
     case TimelineEventType_Meeting:
-        event.startDate = meetingStartDate_->date();
-        event.endDate = meetingEndDate_->date();
+    {
+        QTime startTime = meetingAllDayCheckbox_->isChecked() ? QTime(0, 0, 0) : meetingStartTime_->time();
+        QTime endTime = meetingAllDayCheckbox_->isChecked() ? QTime(23, 59, 59) : meetingEndTime_->time();
 
-        if (!meetingAllDayCheckbox_->isChecked())
-        {
-            event.startTime = meetingStartTime_->time();
-            event.endTime = meetingEndTime_->time();
-        }
-        else
-        {
-            event.startTime = QTime(0, 0);
-            event.endTime = QTime(23, 59);
-        }
+        // NEW: Create QDateTime objects combining date and time
+        event.startDate = QDateTime(meetingStartDate_->date(), startTime);
+        event.endDate = QDateTime(meetingEndDate_->date(), endTime);
+
+        // Legacy fields for backward compatibility
+        event.startTime = startTime;
+        event.endTime = endTime;
 
         event.location = locationEdit_->text().trimmed();
         event.participants = participantsEdit_->toPlainText().trimmed();
         break;
+    }
 
     case TimelineEventType_Action:
-        event.startDate = actionStartDate_->date();
+    {
+        QTime startTime = actionAllDayCheckbox_->isChecked() ? QTime(0, 0, 0) : actionStartTime_->time();
+        QTime dueTime = actionAllDayCheckbox_->isChecked() ? QTime(23, 59, 59) : actionDueTime_->time();
 
-        if (!actionAllDayCheckbox_->isChecked())
-        {
-            event.startTime = actionStartTime_->time();
-            event.dueDateTime = QDateTime(actionDueDate_->date(), actionDueTime_->time());
-        }
-        else
-        {
-            event.startTime = QTime(0, 0);
-            event.dueDateTime = QDateTime(actionDueDate_->date(), QTime(23, 59));
-        }
+        // NEW: Create QDateTime objects
+        event.startDate = QDateTime(actionStartDate_->date(), startTime);
+        event.dueDateTime = QDateTime(actionDueDate_->date(), dueTime);
+
+        // Set endDate to dueDateTime for timeline rendering
+        event.endDate = event.dueDateTime;
+
+        // Legacy fields
+        event.startTime = startTime;
+        event.endTime = dueTime;
 
         event.status = statusCombo_->currentText();
-        // Set endDate to due date for timeline rendering
-        event.endDate = event.dueDateTime.date();
         break;
+    }
 
     case TimelineEventType_TestEvent:
-        event.startDate = testStartDate_->date();
-        event.endDate = testEndDate_->date();
+    {
+        QTime startTime = testAllDayCheckbox_->isChecked() ? QTime(0, 0, 0) : testStartTime_->time();
+        QTime endTime = testAllDayCheckbox_->isChecked() ? QTime(23, 59, 59) : testEndTime_->time();
 
-        if (!testAllDayCheckbox_->isChecked())
-        {
-            event.startTime = testStartTime_->time();
-            event.endTime = testEndTime_->time();
-        }
-        else
-        {
-            event.startTime = QTime(0, 0);
-            event.endTime = QTime(23, 59);
-        }
+        // NEW: Create QDateTime objects
+        event.startDate = QDateTime(testStartDate_->date(), startTime);
+        event.endDate = QDateTime(testEndDate_->date(), endTime);
+
+        // Legacy fields
+        event.startTime = startTime;
+        event.endTime = endTime;
 
         event.testCategory = testCategoryCombo_->currentText();
 
@@ -675,63 +622,54 @@ void AddEventDialog::populateTypeSpecificFields(TimelineEvent& event) const
             event.preparationChecklist[it.key()] = it.value()->isChecked();
         }
         break;
+    }
 
     case TimelineEventType_Reminder:
-        if (!reminderAllDayCheckbox_->isChecked())
-        {
-            event.reminderDateTime = QDateTime(reminderDate_->date(), reminderTime_->time());
-        }
-        else
-        {
-            event.reminderDateTime = QDateTime(reminderDate_->date(), QTime(9, 0)); // Default to 9 AM
-        }
+    {
+        QTime startTime = reminderAllDayCheckbox_->isChecked() ? QTime(9, 0, 0) : reminderTime_->time();
+        QTime endTime = reminderAllDayCheckbox_->isChecked() ? QTime(23, 59, 59) : reminderEndTime_->time();
+
+        event.reminderDateTime = QDateTime(reminderDate_->date(), startTime);
+
+        // NEW: Set startDate and endDate for timeline rendering
+        event.startDate = event.reminderDateTime;
+        event.endDate = QDateTime(reminderEndDate_->date(), endTime);
+
+        // Legacy field
+        event.endTime = endTime;
 
         event.recurringRule = recurringRuleCombo_->currentText();
-
-        // Set startDate and endDate for timeline rendering
-        event.startDate = event.reminderDateTime.date();
-        event.endDate = reminderEndDate_->date();
-
-        // Set end time
-        if (!reminderAllDayCheckbox_->isChecked())
-        {
-            event.endTime = reminderEndTime_->time();
-        }
-        else
-        {
-            event.endTime = QTime(23, 59);
-        }
         break;
+    }
 
     case TimelineEventType_JiraTicket:
+    {
+        QTime startTime = jiraAllDayCheckbox_->isChecked() ? QTime(0, 0, 0) : jiraStartTime_->time();
+        QTime endTime = jiraAllDayCheckbox_->isChecked() ? QTime(23, 59, 59) : jiraDueTime_->time();
+
+        // NEW: Create QDateTime objects
+        event.startDate = QDateTime(jiraStartDate_->date(), startTime);
+        event.endDate = QDateTime(jiraDueDate_->date(), endTime);
+
+        // Legacy fields
+        event.startTime = startTime;
+        event.endTime = endTime;
+
         event.jiraKey = jiraKeyEdit_->text().trimmed();
         event.jiraSummary = jiraSummaryEdit_->text().trimmed();
         event.jiraType = jiraTypeCombo_->currentText();
         event.jiraStatus = jiraStatusCombo_->currentText();
-        event.startDate = jiraStartDate_->date();
-        event.endDate = jiraDueDate_->date();
-
-        if (!jiraAllDayCheckbox_->isChecked())
-        {
-            event.startTime = jiraStartTime_->time();
-            event.endTime = jiraDueTime_->time();
-        }
-        else
-        {
-            event.startTime = QTime(0, 0);
-            event.endTime = QTime(23, 59);
-        }
         break;
+    }
     }
 }
 
-
+// All-day checkbox handlers remain the same
 void AddEventDialog::onMeetingAllDayChanged(bool checked)
 {
     meetingStartTime_->setEnabled(!checked);
     meetingEndTime_->setEnabled(!checked);
 }
-
 
 void AddEventDialog::onActionAllDayChanged(bool checked)
 {
@@ -739,20 +677,17 @@ void AddEventDialog::onActionAllDayChanged(bool checked)
     actionDueTime_->setEnabled(!checked);
 }
 
-
 void AddEventDialog::onTestAllDayChanged(bool checked)
 {
     testStartTime_->setEnabled(!checked);
     testEndTime_->setEnabled(!checked);
 }
 
-
 void AddEventDialog::onReminderAllDayChanged(bool checked)
 {
     reminderTime_->setEnabled(!checked);
     reminderEndTime_->setEnabled(!checked);
 }
-
 
 void AddEventDialog::onJiraAllDayChanged(bool checked)
 {

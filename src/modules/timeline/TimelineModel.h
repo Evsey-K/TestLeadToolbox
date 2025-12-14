@@ -1,6 +1,5 @@
 // TimelineModel.h
 
-
 #pragma once
 #include <QObject>
 #include <QVector>
@@ -11,7 +10,6 @@
 #include <QColor>
 #include <QMap>
 
-
 // Forward declarations
 using TimelineEventType = int;
 constexpr TimelineEventType TimelineEventType_Meeting = 0;
@@ -20,34 +18,35 @@ constexpr TimelineEventType TimelineEventType_TestEvent = 2;
 constexpr TimelineEventType TimelineEventType_Reminder = 4;
 constexpr TimelineEventType TimelineEventType_JiraTicket = 5;
 
-
 /**
  * @struct TimelineEvent
  * @brief Extended timeline event structure with type-specific fields
  *
- * This structure supports multiple event types with dynamic field usage:
- * - Common fields: Used by all event types
- * - Type-specific fields: Only populated for relevant event types
+ * NOTE: startDate and endDate are QDateTime objects that store both date and time.
+ * For all-day events, the time component is set to 00:00:00 for start and 23:59:59 for end.
+ * For events with hour precision, the exact time is stored.
  *
  * Field Usage by Type:
  *
  * Meeting:
- *   - title, startDate, endDate, startTime, endTime, location,
+ *   - title, startDate (QDateTime), endDate (QDateTime), location,
  *     participants, priority, description
  *
  * Action:
- *   - title, startDate, startTime, dueDateTime, status, priority, description
+ *   - title, startDate (QDateTime), dueDateTime, status, priority, description
+ *     Note: endDate is set to dueDateTime.date() with time 23:59:59 for rendering
  *
  * Test Event:
- *   - title, startDate, endDate, testCategory, preparationChecklist,
- *     priority, description
+ *   - title, startDate (QDateTime), endDate (QDateTime), testCategory,
+ *     preparationChecklist, priority, description
  *
  * Reminder:
  *   - title, reminderDateTime, recurringRule, description
+ *     Note: startDate and endDate are derived from reminderDateTime for rendering
  *
  * Jira Ticket:
- *   - title, jiraKey, jiraSummary, jiraType, jiraStatus, startDate,
- *     endDate (as due date), priority, description
+ *   - title, jiraKey, jiraSummary, jiraType, jiraStatus, startDate (QDateTime),
+ *     endDate (QDateTime), priority, description
  */
 struct TimelineEvent
 {
@@ -66,12 +65,16 @@ struct TimelineEvent
     int manualLane = 0;                 ///< User-specified lane number (when laneControlEnabled is true)
 
     // ========== DATE/TIME FIELDS ==========
-    QDate startDate;            ///< Start date (used by most types)
-    QDate endDate;              ///< End date (used by multi-day events)
-    QTime startTime;            ///< Start time (Meeting, Action)
-    QTime endTime;              ///< End time (Meeting)
-    QDateTime reminderDateTime; ///< Reminder datetime (Reminder)
-    QDateTime dueDateTime;      ///< Due datetime (Action)
+    // CHANGED: These are now QDateTime instead of QDate
+    QDateTime startDate;        ///< Start date/time (used by most types) - includes hour precision
+    QDateTime endDate;          ///< End date/time (used by multi-day events) - includes hour precision
+
+    // DEPRECATED: These fields are kept for backward compatibility but are now derived from startDate/endDate
+    QTime startTime;            ///< Legacy: Use startDate.time() instead
+    QTime endTime;              ///< Legacy: Use endDate.time() instead
+
+    QDateTime reminderDateTime; ///< Reminder datetime (Reminder type)
+    QDateTime dueDateTime;      ///< Due datetime (Action type)
 
     // ========== MEETING-SPECIFIC FIELDS ==========
     QString location;           ///< Physical location or virtual link
@@ -100,7 +103,7 @@ struct TimelineEvent
      */
     bool occursOnDate(const QDate& date) const
     {
-        return date >= startDate && date <= endDate;
+        return date >= startDate.date() && date <= endDate.date();
     }
 
     /**
@@ -116,7 +119,7 @@ struct TimelineEvent
      */
     int durationDays() const
     {
-        return startDate.daysTo(endDate) + 1;
+        return startDate.date().daysTo(endDate.date()) + 1;
     }
 
     /**
@@ -130,17 +133,29 @@ struct TimelineEvent
         }
         else if (type == TimelineEventType_Action && dueDateTime.isValid())
         {
-            QString start = startDate.isValid() ? startDate.toString("yyyy-MM-dd") : "Not Set";
+            QString start = startDate.isValid() ? startDate.toString("yyyy-MM-dd HH:mm") : "Not Set";
             return QString("%1 → Due: %2").arg(start).arg(dueDateTime.toString("yyyy-MM-dd HH:mm"));
         }
-        else if (startDate == endDate)
+        else if (startDate.date() == endDate.date())
         {
-            return startDate.toString("yyyy-MM-dd");
+            // Same day - show time if not midnight
+            if (startDate.time() == QTime(0, 0, 0) && endDate.time() == QTime(23, 59, 59))
+            {
+                return startDate.date().toString("yyyy-MM-dd");  // All-day event
+            }
+            else
+            {
+                return QString("%1 %2-%3")
+                .arg(startDate.date().toString("yyyy-MM-dd"))
+                    .arg(startDate.time().toString("HH:mm"))
+                    .arg(endDate.time().toString("HH:mm"));
+            }
         }
         else
         {
-            return QString("%1 to %2").arg(startDate.toString("yyyy-MM-dd"))
-            .arg(endDate.toString("yyyy-MM-dd"));
+            return QString("%1 to %2")
+            .arg(startDate.toString("yyyy-MM-dd HH:mm"))
+                .arg(endDate.toString("yyyy-MM-dd HH:mm"));
         }
     }
 };
@@ -154,51 +169,51 @@ class TimelineModel : public QObject
     Q_OBJECT
 
 public:
-    explicit TimelineModel(QObject* parent = nullptr);                                      ///< @brief Constructs a TimelineModel with version date range
+    explicit TimelineModel(QObject* parent = nullptr);
 
-    void setVersionDates(const QDate& start, const QDate& end);                             ///< @brief Sets the version's date range for the timeline
-    QDate versionStartDate() const { return versionStart_; }                                ///< @brief Gets the version start date
-    QDate versionEndDate() const { return versionEnd_; }                                    ///< @brief Gets the version end date
-    QString addEvent(const TimelineEvent& event);                                           ///< @brief Adds a new event to the timeline
-    bool removeEvent(const QString& eventId);                                               ///< @brief Removes an event from the timeline
-    bool updateEvent(const QString& eventId, const TimelineEvent& updatedEvent);            ///< @brief Updates an existing event
+    void setVersionDates(const QDate& start, const QDate& end);
+    QDate versionStartDate() const { return versionStart_; }
+    QDate versionEndDate() const { return versionEnd_; }
+    QString addEvent(const TimelineEvent& event);
+    bool removeEvent(const QString& eventId);
+    bool updateEvent(const QString& eventId, const TimelineEvent& updatedEvent);
 
-    TimelineEvent* getEvent(const QString& eventId);                                        ///< @brief Gets an event by ID (mutable)
-    const TimelineEvent* getEvent(const QString& eventId) const;                            ///< @brief Gets an event by ID (const)
-    QVector<TimelineEvent> getAllEvents() const;                                            ///< @brief Gets all events (sorted by start date, then lane)
-    QVector<TimelineEvent> getEventsInRange(const QDate& start, const QDate& end) const;    ///< @brief Gets events in date range
-    QVector<TimelineEvent> getEventsForToday() const;                                       ///< @brief Gets events for today
-    QVector<TimelineEvent> getEventsLookahead(int days = 14) const;                         ///< @brief Gets events in next N days (lookahead)
-    int eventCount() const { return events_.size(); }                                       ///< @brief Returns total number of events
-    int maxLane() const { return maxLane_; }                                                ///< @brief Returns maximum lane number used (for scene height calculation)
-    void clear();                                                                           ///< @brief Clears all events
-    void recalculateLanes();                                                                ///< @brief Force recalculation of all lanes
-    static QColor colorForType(TimelineEventType type);                                     ///< @brief Returns color for a given event type
-    bool archiveEvent(const QString& eventId);                                              ///< @brief Archive an event (soft delete)
-    bool restoreEvent(const QString& eventId);                                              ///< @brief Restore an archived event
-    bool permanentlyDeleteArchivedEvent(const QString& eventId);                            ///< @brief Permanently delete an archived event
-    const TimelineEvent* getArchivedEvent(const QString& eventId) const;                    ///< @brief Get an archived event by ID
-    QVector<TimelineEvent> getAllArchivedEvents() const;                                    ///< @brief Get all archived events
+    TimelineEvent* getEvent(const QString& eventId);
+    const TimelineEvent* getEvent(const QString& eventId) const;
+    QVector<TimelineEvent> getAllEvents() const;
+    QVector<TimelineEvent> getEventsInRange(const QDate& start, const QDate& end) const;
+    QVector<TimelineEvent> getEventsForToday() const;
+    QVector<TimelineEvent> getEventsLookahead(int days = 14) const;
+    int eventCount() const { return events_.size(); }
+    int maxLane() const { return maxLane_; }
+    void clear();
+    void recalculateLanes();
+    static QColor colorForType(TimelineEventType type);
+    bool archiveEvent(const QString& eventId);
+    bool restoreEvent(const QString& eventId);
+    bool permanentlyDeleteArchivedEvent(const QString& eventId);
+    const TimelineEvent* getArchivedEvent(const QString& eventId) const;
+    QVector<TimelineEvent> getAllArchivedEvents() const;
 
-    bool hasLaneConflict(const QDate& startDate, const QDate& endDate, int manualLane, const QString& excludeEventId = QString()) const;        ///< @brief Check if a manually-controlled lane placement conflicts with existing events
+    bool hasLaneConflict(const QDateTime& startDateTime, const QDateTime& endDateTime, int manualLane, const QString& excludeEventId = QString()) const;
 
 signals:
-    void versionDatesChanged(const QDate& start, const QDate& end);         ///< @brief Emitted when version dates change
-    void eventAdded(const QString& eventId);                                ///< @brief Emitted when an event is added
-    void eventRemoved(const QString& eventId);                              ///< @brief Emitted when an event is removed
-    void eventUpdated(const QString& eventId);                              ///< @brief Emitted when an event is updated
-    void eventArchived(const QString& eventId);                             ///< @brief Emitted when an event is archived (soft delete)
-    void eventRestored(const QString& eventId);                             ///< @brief Emitted when an archived event is restored
-    void lanesRecalculated();                                               ///< @brief Emitted when lanes are recalculated
-    void eventsCleared();                                                   ///< @brief Emitted when all events are cleared from the model
+    void versionDatesChanged(const QDate& start, const QDate& end);
+    void eventAdded(const QString& eventId);
+    void eventRemoved(const QString& eventId);
+    void eventUpdated(const QString& eventId);
+    void eventArchived(const QString& eventId);
+    void eventRestored(const QString& eventId);
+    void lanesRecalculated();
+    void eventsCleared();
 
 private:
-    void assignLanesToEvents();                 ///< @brief Assigns lanes to all events to prevent visual overlap
-    QString generateEventId() const;            ///< @brief Generates a unique event ID
+    void assignLanesToEvents();
+    QString generateEventId() const;
 
-    QDate versionStart_;                        ///< Version start date boundary
-    QDate versionEnd_;                          ///< Version end date boundary
-    QVector<TimelineEvent> events_;             ///< Active events
-    QVector<TimelineEvent> archivedEvents_;     ///< Archived events
-    int maxLane_ = 0;                           ///< Maximum lane number in use
+    QDate versionStart_;
+    QDate versionEnd_;
+    QVector<TimelineEvent> events_;
+    QVector<TimelineEvent> archivedEvents_;
+    int maxLane_ = 0;
 };

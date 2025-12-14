@@ -1,5 +1,4 @@
-// TimelineSerializer.cpp - Updated with Type-Specific Field Support
-
+// TimelineSerializer.cpp - Updated with QDateTime support and backward compatibility
 
 #include "TimelineSerializer.h"
 #include <QFile>
@@ -10,7 +9,6 @@
 #include <QDir>
 #include <QStandardPaths>
 
-
 bool TimelineSerializer::saveToFile(const TimelineModel* model, const QString& filePath)
 {
     if (!model)
@@ -19,11 +17,9 @@ bool TimelineSerializer::saveToFile(const TimelineModel* model, const QString& f
         return false;
     }
 
-    // Serialize model to JSON
     QJsonObject jsonObj = serializeModel(model);
     QJsonDocument doc(jsonObj);
 
-    // Write to file
     QFile file(filePath);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
     {
@@ -38,7 +34,6 @@ bool TimelineSerializer::saveToFile(const TimelineModel* model, const QString& f
     return true;
 }
 
-
 bool TimelineSerializer::loadFromFile(TimelineModel* model, const QString& filePath)
 {
     if (!model)
@@ -47,7 +42,6 @@ bool TimelineSerializer::loadFromFile(TimelineModel* model, const QString& fileP
         return false;
     }
 
-    // Read file
     QFile file(filePath);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
     {
@@ -58,7 +52,6 @@ bool TimelineSerializer::loadFromFile(TimelineModel* model, const QString& fileP
     QByteArray data = file.readAll();
     file.close();
 
-    // Parse JSON
     QJsonDocument doc = QJsonDocument::fromJson(data);
     if (doc.isNull() || !doc.isObject())
     {
@@ -66,20 +59,16 @@ bool TimelineSerializer::loadFromFile(TimelineModel* model, const QString& fileP
         return false;
     }
 
-    // Deserialize into model
     return deserializeModel(model, doc.object());
 }
-
 
 QJsonObject TimelineSerializer::serializeModel(const TimelineModel* model)
 {
     QJsonObject obj;
 
-    // Serialize version dates
     obj["versionStart"] = model->versionStartDate().toString(Qt::ISODate);
     obj["versionEnd"] = model->versionEndDate().toString(Qt::ISODate);
 
-    // Serialize active events
     QJsonArray eventsArray;
     QVector<TimelineEvent> events = model->getAllEvents();
     for (const TimelineEvent& event : events)
@@ -88,7 +77,6 @@ QJsonObject TimelineSerializer::serializeModel(const TimelineModel* model)
     }
     obj["events"] = eventsArray;
 
-    // Serialize archived events
     QJsonArray archivedArray;
     QVector<TimelineEvent> archivedEvents = model->getAllArchivedEvents();
     for (const TimelineEvent& event : archivedEvents)
@@ -97,18 +85,16 @@ QJsonObject TimelineSerializer::serializeModel(const TimelineModel* model)
     }
     obj["archivedEvents"] = archivedArray;
 
-    // Add version info for future migration support
-    obj["serializerVersion"] = "2.0";  // Bumped version for new field support
+    // Bumped version to indicate QDateTime support
+    obj["serializerVersion"] = "3.0";
 
     return obj;
 }
-
 
 bool TimelineSerializer::deserializeModel(TimelineModel* model, const QJsonObject& json)
 {
     model->clear();
 
-    // Deserialize version dates
     QString startDateStr = json["versionStart"].toString();
     QString endDateStr = json["versionEnd"].toString();
 
@@ -120,7 +106,6 @@ bool TimelineSerializer::deserializeModel(TimelineModel* model, const QJsonObjec
         model->setVersionDates(startDate, endDate);
     }
 
-    // Deserialize active events
     QJsonArray eventsArray = json["events"].toArray();
     for (const QJsonValue& val : eventsArray)
     {
@@ -128,7 +113,6 @@ bool TimelineSerializer::deserializeModel(TimelineModel* model, const QJsonObjec
         model->addEvent(event);
     }
 
-    // Deserialize archived events (if present)
     if (json.contains("archivedEvents"))
     {
         QJsonArray archivedArray = json["archivedEvents"].toArray();
@@ -136,7 +120,6 @@ bool TimelineSerializer::deserializeModel(TimelineModel* model, const QJsonObjec
         {
             TimelineEvent event = deserializeEvent(val.toObject());
             event.archived = true;
-            // Add and then archive (requires the event to exist first)
             QString eventId = model->addEvent(event);
             if (!eventId.isEmpty())
             {
@@ -147,7 +130,6 @@ bool TimelineSerializer::deserializeModel(TimelineModel* model, const QJsonObjec
 
     return true;
 }
-
 
 QString TimelineSerializer::getDefaultSaveLocation()
 {
@@ -160,17 +142,15 @@ QString TimelineSerializer::getDefaultSaveLocation()
     return dir.filePath("timeline.json");
 }
 
-
 bool TimelineSerializer::createBackup(const QString& filePath)
 {
     if (!QFile::exists(filePath))
     {
-        return false;  // Nothing to back up
+        return false;
     }
 
     QString backupPath = filePath + ".backup";
 
-    // Remove old backup if exists
     if (QFile::exists(backupPath))
     {
         QFile::remove(backupPath);
@@ -179,12 +159,11 @@ bool TimelineSerializer::createBackup(const QString& filePath)
     return QFile::copy(filePath, backupPath);
 }
 
-
 QJsonObject TimelineSerializer::serializeEvent(const TimelineEvent& event)
 {
     QJsonObject obj;
 
-    // Common fields (all event types)
+    // Common fields
     obj["id"] = event.id;
     obj["type"] = eventTypeToString(event.type);
     obj["title"] = event.title;
@@ -196,15 +175,18 @@ QJsonObject TimelineSerializer::serializeEvent(const TimelineEvent& event)
     obj["manualLane"] = event.manualLane;
     obj["color"] = event.color.name();
 
-    // Date/Time fields (used by most types)
+    // NEW: Save startDate and endDate as QDateTime (ISO format includes time)
     if (event.startDate.isValid())
         obj["startDate"] = event.startDate.toString(Qt::ISODate);
     if (event.endDate.isValid())
         obj["endDate"] = event.endDate.toString(Qt::ISODate);
+
+    // Legacy fields for backward compatibility (deprecated)
     if (event.startTime.isValid())
         obj["startTime"] = event.startTime.toString("HH:mm");
     if (event.endTime.isValid())
         obj["endTime"] = event.endTime.toString("HH:mm");
+
     if (event.reminderDateTime.isValid())
         obj["reminderDateTime"] = event.reminderDateTime.toString(Qt::ISODate);
     if (event.dueDateTime.isValid())
@@ -251,7 +233,6 @@ QJsonObject TimelineSerializer::serializeEvent(const TimelineEvent& event)
     return obj;
 }
 
-
 TimelineEvent TimelineSerializer::deserializeEvent(const QJsonObject& json)
 {
     TimelineEvent event;
@@ -267,22 +248,77 @@ TimelineEvent TimelineSerializer::deserializeEvent(const QJsonObject& json)
     event.laneControlEnabled = json.contains("laneControlEnabled") ? json["laneControlEnabled"].toBool() : false;
     event.manualLane = json.contains("manualLane") ? json["manualLane"].toInt() : 0;
 
-    // Parse color
     QString colorStr = json["color"].toString();
     if (!colorStr.isEmpty())
     {
         event.color = QColor(colorStr);
     }
 
-    // Date/Time fields (with validity checks)
+    // BACKWARD COMPATIBILITY: Handle both old QDate format and new QDateTime format
     if (json.contains("startDate"))
-        event.startDate = QDate::fromString(json["startDate"].toString(), Qt::ISODate);
+    {
+        QString startDateStr = json["startDate"].toString();
+
+        // Try to parse as QDateTime first (new format)
+        QDateTime startDateTime = QDateTime::fromString(startDateStr, Qt::ISODate);
+
+        if (startDateTime.isValid())
+        {
+            // New format - has time component
+            event.startDate = startDateTime;
+        }
+        else
+        {
+            // Old format - date only, need to add time from separate field
+            QDate startDate = QDate::fromString(startDateStr, Qt::ISODate);
+            QTime startTime = QTime(0, 0, 0);  // Default to midnight
+
+            if (json.contains("startTime"))
+            {
+                startTime = QTime::fromString(json["startTime"].toString(), "HH:mm");
+                if (!startTime.isValid())
+                    startTime = QTime(0, 0, 0);
+            }
+
+            event.startDate = QDateTime(startDate, startTime);
+        }
+    }
+
     if (json.contains("endDate"))
-        event.endDate = QDate::fromString(json["endDate"].toString(), Qt::ISODate);
+    {
+        QString endDateStr = json["endDate"].toString();
+
+        // Try to parse as QDateTime first (new format)
+        QDateTime endDateTime = QDateTime::fromString(endDateStr, Qt::ISODate);
+
+        if (endDateTime.isValid())
+        {
+            // New format - has time component
+            event.endDate = endDateTime;
+        }
+        else
+        {
+            // Old format - date only, need to add time from separate field
+            QDate endDate = QDate::fromString(endDateStr, Qt::ISODate);
+            QTime endTime = QTime(23, 59, 59);  // Default to end of day
+
+            if (json.contains("endTime"))
+            {
+                endTime = QTime::fromString(json["endTime"].toString(), "HH:mm");
+                if (!endTime.isValid())
+                    endTime = QTime(23, 59, 59);
+            }
+
+            event.endDate = QDateTime(endDate, endTime);
+        }
+    }
+
+    // Legacy time fields (for backward compatibility with old data)
     if (json.contains("startTime"))
         event.startTime = QTime::fromString(json["startTime"].toString(), "HH:mm");
     if (json.contains("endTime"))
         event.endTime = QTime::fromString(json["endTime"].toString(), "HH:mm");
+
     if (json.contains("reminderDateTime"))
         event.reminderDateTime = QDateTime::fromString(json["reminderDateTime"].toString(), Qt::ISODate);
     if (json.contains("dueDateTime"))
@@ -326,16 +362,15 @@ TimelineEvent TimelineSerializer::deserializeEvent(const QJsonObject& json)
         event.jiraStatus = json["jiraStatus"].toString();
 
     // Backward Compatibility: Convert old DueDate type to Action
-    if (event.type == 3)  // Old TimelineEventType_DueDate value
+    if (event.type == 3)
     {
         qDebug() << "Migrating old DueDate event to Action type:" << event.title;
         event.type = TimelineEventType_Action;
-        event.status = "Not Started";  // Default status for migrated events
+        event.status = "Not Started";
     }
 
     return event;
 }
-
 
 QString TimelineSerializer::eventTypeToString(TimelineEventType type)
 {
@@ -356,7 +391,6 @@ QString TimelineSerializer::eventTypeToString(TimelineEventType type)
     }
 }
 
-
 TimelineEventType TimelineSerializer::stringToEventType(const QString& typeStr)
 {
     if (typeStr == "Meeting")
@@ -370,16 +404,12 @@ TimelineEventType TimelineSerializer::stringToEventType(const QString& typeStr)
     if (typeStr == "JiraTicket")
         return TimelineEventType_JiraTicket;
 
-    // Backward compatibility - migrate to Action
     if (typeStr == "DueDate")
     {
         qDebug() << "Encountered legacy DueDate type in deserialization";
-
-        // Auto-migrate
         return TimelineEventType_Action;
     }
 
     qWarning() << "Unknown event type:" << typeStr << "- defaulting to Meeting";
-
-    return TimelineEventType_Meeting;  // Safe fallback
+    return TimelineEventType_Meeting;
 }
