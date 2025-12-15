@@ -1190,42 +1190,71 @@ QString TimelineSidePanel::buildMeetingDetails(const TimelineEvent& event)
 {
     QString details;
 
-    // Date/Time Information
-    details += QString("<b>When:</b><br>");
-    details += QString("Start: %1 at %2<br>")
-                   .arg(event.startDate.toString("yyyy-MM-dd"))
-                   .arg(event.startTime.toString("HH:mm"));
-    details += QString("End: %1 at %2<br>")
-                   .arg(event.endDate.toString("yyyy-MM-dd"))
-                   .arg(event.endTime.toString("HH:mm"));
+    // ========== DATE/TIME SECTION ==========
+    details += QString("<b>Date & Time:</b><br>");
 
-    // Duration calculation
-    int durationDays = event.startDate.daysTo(event.endDate);
-    if (durationDays == 0)
+    // Check if all-day event (time is 00:00:00 to 23:59:59)
+    bool isAllDay = (event.startDate.time() == QTime(0, 0, 0) &&
+                     event.endDate.time() == QTime(23, 59, 59));
+
+    if (isAllDay)
     {
-        QTime startTime = event.startTime;
-        QTime endTime = event.endTime;
-        int minutes = startTime.secsTo(endTime) / 60;
-        int hours = minutes / 60;
-        int mins = minutes % 60;
-        details += QString("Duration: %1h %2m<br>").arg(hours).arg(mins);
+        details += QString("Start: %1 (All Day)<br>")
+        .arg(event.startDate.toString("yyyy-MM-dd"));
+        details += QString("End: %1 (All Day)<br>")
+                       .arg(event.endDate.toString("yyyy-MM-dd"));
     }
     else
     {
-        details += QString("Duration: %1 days<br>").arg(durationDays + 1);
+        details += QString("Start: %1 at %2<br>")
+        .arg(event.startDate.toString("yyyy-MM-dd"))
+            .arg(event.startDate.time().toString("HH:mm"));
+        details += QString("End: %1 at %2<br>")
+                       .arg(event.endDate.toString("yyyy-MM-dd"))
+                       .arg(event.endDate.time().toString("HH:mm"));
     }
 
-    details += "<br>";
+    // Duration calculation
+    if (event.startDate.date() == event.endDate.date())
+    {
+        // Same day - calculate time duration
+        qint64 seconds = event.startDate.secsTo(event.endDate);
+        int hours = seconds / 3600;
+        int mins = (seconds % 3600) / 60;
 
-    // Location
+        if (hours > 0)
+        {
+            details += QString("Duration: %1h %2m<br>").arg(hours).arg(mins);
+        }
+        else
+        {
+            details += QString("Duration: %1m<br>").arg(mins);
+        }
+    }
+    else
+    {
+        // Multi-day event
+        int days = event.startDate.daysTo(event.endDate);
+        details += QString("Duration: %1 days<br>").arg(days + 1);
+    }
+
+    // ========== MEETING-SPECIFIC FIELDS ==========
+    if (!event.location.isEmpty() || !event.participants.isEmpty())
+    {
+        details += "<br>";  // Add spacing before next section
+    }
+
     if (!event.location.isEmpty())
     {
-        details += QString("<b>Location:</b><br>%1<br><br>").arg(event.location);
+        details += QString("<b>Location:</b><br>%1<br>").arg(event.location);
     }
 
-    // Participants
     if (!event.participants.isEmpty())
     {
+        if (!event.location.isEmpty())
+        {
+            details += "<br>";  // Spacing between location and participants
+        }
         details += QString("<b>Participants:</b><br>%1<br>").arg(event.participants);
     }
 
@@ -1233,24 +1262,72 @@ QString TimelineSidePanel::buildMeetingDetails(const TimelineEvent& event)
 }
 
 
+
 QString TimelineSidePanel::buildActionDetails(const TimelineEvent& event)
 {
     QString details;
 
-    // Start Date/Time
-    details += QString("<b>Started:</b><br>");
-    details += QString("%1 at %2<br><br>")
-                   .arg(event.startDate.toString("yyyy-MM-dd"))
-                   .arg(event.startTime.toString("HH:mm"));
+    // ========== DATE/TIME SECTION ==========
+    details += QString("<b>Date & Time:</b><br>");
+
+    // Check if all-day event
+    bool isStartAllDay = (event.startDate.time() == QTime(0, 0, 0));
+
+    if (isStartAllDay)
+    {
+        details += QString("Start: %1 (All Day)<br>")
+        .arg(event.startDate.toString("yyyy-MM-dd"));
+    }
+    else
+    {
+        details += QString("Start: %1 at %2<br>")
+        .arg(event.startDate.toString("yyyy-MM-dd"))
+            .arg(event.startDate.time().toString("HH:mm"));
+    }
 
     // Due Date/Time
     if (event.dueDateTime.isValid())
     {
-        details += QString("<b>Due:</b><br>");
-        details += QString("%1<br><br>")
-                       .arg(event.dueDateTime.toString("yyyy-MM-dd HH:mm"));
+        // Check if due time is midnight (all-day)
+        bool isDueAllDay = (event.dueDateTime.time() == QTime(0, 0, 0) ||
+                            event.dueDateTime.time() == QTime(23, 59, 59));
 
-        // Calculate time remaining
+        if (isDueAllDay)
+        {
+            details += QString("Due: %1 (All Day)<br>")
+            .arg(event.dueDateTime.toString("yyyy-MM-dd"));
+        }
+        else
+        {
+            details += QString("Due: %1 at %2<br>")
+            .arg(event.dueDateTime.toString("yyyy-MM-dd"))
+                .arg(event.dueDateTime.time().toString("HH:mm"));
+        }
+    }
+
+    // ========== STATUS SECTION ==========
+    if (!event.status.isEmpty())
+    {
+        details += "<br>";  // Add spacing before status section
+
+        QString statusColor = "black";
+        if (event.status == "Completed")
+            statusColor = "green";
+        else if (event.status == "In Progress")
+            statusColor = "blue";
+        else if (event.status == "Blocked")
+            statusColor = "red";
+
+        details += QString("<b>Status:</b> <span style='color:%1;'>%2</span><br>")
+                       .arg(statusColor)
+                       .arg(event.status);
+    }
+
+    // ========== TIME TRACKING SECTION ==========
+    if (event.dueDateTime.isValid())
+    {
+        details += "<br>";  // Add spacing before time tracking
+
         QDateTime now = QDateTime::currentDateTime();
         qint64 secsRemaining = now.secsTo(event.dueDateTime);
 
@@ -1258,25 +1335,46 @@ QString TimelineSidePanel::buildActionDetails(const TimelineEvent& event)
         {
             int days = secsRemaining / 86400;
             int hours = (secsRemaining % 86400) / 3600;
-            details += QString("<b>Time Remaining:</b><br>%1 days, %2 hours<br><br>")
-                           .arg(days)
-                           .arg(hours);
+
+            if (days > 0)
+            {
+                details += QString("<b>Time Remaining:</b><br>%1 days, %2 hours<br>")
+                .arg(days)
+                    .arg(hours);
+            }
+            else if (hours > 0)
+            {
+                details += QString("<b>Time Remaining:</b><br>%1 hours<br>")
+                .arg(hours);
+            }
+            else
+            {
+                int mins = secsRemaining / 60;
+                details += QString("<b>Time Remaining:</b><br>%1 minutes<br>")
+                               .arg(mins);
+            }
         }
         else if (secsRemaining < 0)
         {
             int days = (-secsRemaining) / 86400;
-            details += QString("<b style='color:red;'>Overdue by:</b> %1 days<br><br>").arg(days);
+            int hours = ((-secsRemaining) % 86400) / 3600;
+
+            if (days > 0)
+            {
+                details += QString("<b style='color:red;'>Overdue By:</b><br>%1 days, %2 hours<br>")
+                .arg(days)
+                    .arg(hours);
+            }
+            else
+            {
+                details += QString("<b style='color:red;'>Overdue By:</b><br>%1 hours<br>")
+                .arg(hours);
+            }
         }
         else
         {
-            details += QString("<b style='color:orange;'>Due now!</b><br><br>");
+            details += QString("<b style='color:orange;'>Due Now!</b><br>");
         }
-    }
-
-    // Status (if present)
-    if (!event.status.isEmpty())
-    {
-        details += QString("<b>Status:</b><br>%1<br>").arg(event.status);
     }
 
     return details;
@@ -1287,20 +1385,46 @@ QString TimelineSidePanel::buildTestEventDetails(const TimelineEvent& event)
 {
     QString details;
 
-    // Date Information
-    details += QString("<b>Test Window:</b><br>");
-    details += QString("Start: %1<br>").arg(event.startDate.toString("yyyy-MM-dd"));
-    details += QString("End: %1<br><br>").arg(event.endDate.toString("yyyy-MM-dd"));
+    // ========== DATE/TIME SECTION ==========
+    details += QString("<b>Date & Time:</b><br>");
 
-    // Test Category
-    if (!event.testCategory.isEmpty())
+    // Check if all-day events
+    bool isStartAllDay = (event.startDate.time() == QTime(0, 0, 0));
+    bool isEndAllDay = (event.endDate.time() == QTime(23, 59, 59));
+
+    if (isStartAllDay && isEndAllDay)
     {
-        details += QString("<b>Test Category:</b><br>%1<br><br>").arg(event.testCategory);
+        details += QString("Start: %1 (All Day)<br>")
+        .arg(event.startDate.toString("yyyy-MM-dd"));
+        details += QString("End: %1 (All Day)<br>")
+                       .arg(event.endDate.toString("yyyy-MM-dd"));
+    }
+    else
+    {
+        details += QString("Start: %1 at %2<br>")
+        .arg(event.startDate.toString("yyyy-MM-dd"))
+            .arg(event.startDate.time().toString("HH:mm"));
+        details += QString("End: %1 at %2<br>")
+                       .arg(event.endDate.toString("yyyy-MM-dd"))
+                       .arg(event.endDate.time().toString("HH:mm"));
     }
 
-    // Preparation Checklist
+    // Duration calculation
+    int durationDays = event.startDate.daysTo(event.endDate) + 1;
+    details += QString("Duration: %1 days<br>").arg(durationDays);
+
+    // ========== TEST-SPECIFIC FIELDS ==========
+    if (!event.testCategory.isEmpty())
+    {
+        details += "<br>";  // Add spacing before category section
+        details += QString("<b>Event Category:</b><br>%1<br>").arg(event.testCategory);
+    }
+
+    // ========== PROGRESS SECTION ==========
     if (!event.preparationChecklist.isEmpty())
     {
+        details += "<br>";  // Add spacing before progress section
+
         int completedCount = 0;
         int totalCount = event.preparationChecklist.size();
 
@@ -1309,9 +1433,12 @@ QString TimelineSidePanel::buildTestEventDetails(const TimelineEvent& event)
             if (completed) completedCount++;
         }
 
-        details += QString("<b>Checklist Progress:</b><br>%1 / %2 completed<br>")
+        double percentage = (totalCount > 0) ? (completedCount * 100.0 / totalCount) : 0.0;
+
+        details += QString("<b>Preparation Progress:</b><br>%1 / %2 completed (%3%)<br>")
                        .arg(completedCount)
-                       .arg(totalCount);
+                       .arg(totalCount)
+                       .arg(QString::number(percentage, 'f', 0));
     }
 
     return details;
@@ -1322,14 +1449,61 @@ QString TimelineSidePanel::buildReminderDetails(const TimelineEvent& event)
 {
     QString details;
 
-    // Reminder DateTime
+    // ========== REMINDER DATE/TIME SECTION ==========
     if (event.reminderDateTime.isValid())
     {
-        details += QString("<b>Reminder Date/Time:</b><br>");
-        details += QString("%1<br><br>")
-                       .arg(event.reminderDateTime.toString("yyyy-MM-dd HH:mm"));
+        details += QString("<b>Reminder:</b><br>");
+        details += QString("%1 at %2<br>")
+                       .arg(event.reminderDateTime.toString("yyyy-MM-dd"))
+                       .arg(event.reminderDateTime.time().toString("HH:mm"));
+    }
 
-        // Calculate time until reminder
+    // ========== EVENT DATE/TIME SECTION ==========
+    if (event.startDate.isValid() && event.endDate.isValid())
+    {
+        details += "<br>";  // Add spacing before event timeline section
+        details += QString("<b>Event Date & Time:</b><br>");
+
+        bool isStartAllDay = (event.startDate.time() == QTime(0, 0, 0));
+        bool isEndAllDay = (event.endDate.time() == QTime(23, 59, 59));
+
+        if (isStartAllDay && isEndAllDay)
+        {
+            details += QString("Start: %1 (All Day)<br>")
+            .arg(event.startDate.toString("yyyy-MM-dd"));
+            details += QString("End: %1 (All Day)<br>")
+                           .arg(event.endDate.toString("yyyy-MM-dd"));
+        }
+        else
+        {
+            details += QString("Start: %1 at %2<br>")
+            .arg(event.startDate.toString("yyyy-MM-dd"))
+                .arg(event.startDate.time().toString("HH:mm"));
+            details += QString("End: %1 at %2<br>")
+                           .arg(event.endDate.toString("yyyy-MM-dd"))
+                           .arg(event.endDate.time().toString("HH:mm"));
+        }
+
+        // Duration calculation
+        int durationDays = event.startDate.daysTo(event.endDate) + 1;
+        if (durationDays > 1)
+        {
+            details += QString("Duration: %1 days<br>").arg(durationDays);
+        }
+    }
+
+    // ========== RECURRENCE SECTION ==========
+    if (!event.recurringRule.isEmpty() && event.recurringRule != "None")
+    {
+        details += "<br>";  // Add spacing before recurrence section
+        details += QString("<b>Recurrence:</b><br>%1<br>").arg(event.recurringRule);
+    }
+
+    // ========== TIME TRACKING SECTION ==========
+    if (event.reminderDateTime.isValid())
+    {
+        details += "<br>";  // Add spacing before time tracking
+
         QDateTime now = QDateTime::currentDateTime();
         qint64 secsUntilReminder = now.secsTo(event.reminderDateTime);
 
@@ -1341,20 +1515,20 @@ QString TimelineSidePanel::buildReminderDetails(const TimelineEvent& event)
 
             if (days > 0)
             {
-                details += QString("<b>Time Until:</b><br>%1 days, %2 hours, %3 minutes<br>")
+                details += QString("<b>Time Until Reminder:</b><br>%1 days, %2 hours, %3 minutes<br>")
                 .arg(days)
                     .arg(hours)
                     .arg(mins);
             }
             else if (hours > 0)
             {
-                details += QString("<b>Time Until:</b><br>%1 hours, %2 minutes<br>")
+                details += QString("<b>Time Until Reminder:</b><br>%1 hours, %2 minutes<br>")
                 .arg(hours)
                     .arg(mins);
             }
             else
             {
-                details += QString("<b>Time Until:</b><br>%1 minutes<br>").arg(mins);
+                details += QString("<b>Time Until Reminder:</b><br>%1 minutes<br>").arg(mins);
             }
         }
         else if (secsUntilReminder < 0)
@@ -1367,12 +1541,6 @@ QString TimelineSidePanel::buildReminderDetails(const TimelineEvent& event)
         }
     }
 
-    // Recurring Rule
-    if (!event.recurringRule.isEmpty())
-    {
-        details += QString("<br><b>Recurrence:</b><br>%1<br>").arg(event.recurringRule);
-    }
-
     return details;
 }
 
@@ -1381,13 +1549,52 @@ QString TimelineSidePanel::buildJiraTicketDetails(const TimelineEvent& event)
 {
     QString details;
 
-    // Jira Key
-    if (!event.jiraKey.isEmpty())
+    // ========== DATE/TIME SECTION ==========
+    details += QString("<b>Date & Time:</b><br>");
+
+    // Check if all-day events
+    bool isStartAllDay = (event.startDate.time() == QTime(0, 0, 0));
+    bool isEndAllDay = (event.endDate.time() == QTime(23, 59, 59));
+
+    if (isStartAllDay)
     {
-        details += QString("<b>Jira Key:</b> %1<br><br>").arg(event.jiraKey);
+        details += QString("Start: %1 (All Day)<br>")
+        .arg(event.startDate.toString("yyyy-MM-dd"));
+    }
+    else
+    {
+        details += QString("Start: %1 at %2<br>")
+        .arg(event.startDate.toString("yyyy-MM-dd"))
+            .arg(event.startDate.time().toString("HH:mm"));
     }
 
-    // Jira Type with Icon
+    if (isEndAllDay)
+    {
+        details += QString("Due: %1 (All Day)<br>")
+        .arg(event.endDate.toString("yyyy-MM-dd"));
+    }
+    else
+    {
+        details += QString("Due: %1 at %2<br>")
+        .arg(event.endDate.toString("yyyy-MM-dd"))
+            .arg(event.endDate.time().toString("HH:mm"));
+    }
+
+    // Duration calculation
+    int durationDays = event.startDate.daysTo(event.endDate) + 1;
+    details += QString("Duration: %1 days<br>").arg(durationDays);
+
+    // ========== JIRA-SPECIFIC FIELDS ==========
+    if (!event.jiraKey.isEmpty() || !event.jiraType.isEmpty())
+    {
+        details += "<br>";  // Add spacing before Jira section
+    }
+
+    if (!event.jiraKey.isEmpty())
+    {
+        details += QString("<b>Jira Key:</b> %1<br>").arg(event.jiraKey);
+    }
+
     if (!event.jiraType.isEmpty())
     {
         QString typeIcon = "📝";
@@ -1400,29 +1607,32 @@ QString TimelineSidePanel::buildJiraTicketDetails(const TimelineEvent& event)
         else if (event.jiraType == "Task")
             typeIcon = "✅";
 
+        if (!event.jiraKey.isEmpty())
+        {
+            details += "<br>";  // Spacing between key and type
+        }
         details += QString("<b>Type:</b> %1 %2<br>").arg(typeIcon).arg(event.jiraType);
     }
 
-    // Status
+    // ========== STATUS SECTION ==========
     if (!event.jiraStatus.isEmpty())
     {
+        details += "<br>";  // Add spacing before status section
+
         QString statusColor = "black";
         if (event.jiraStatus == "Done")
             statusColor = "green";
         else if (event.jiraStatus == "In Progress")
             statusColor = "blue";
 
-        details += QString("<b>Status:</b> <span style='color:%1;'>%2</span><br><br>")
+        details += QString("<b>Status:</b> <span style='color:%1;'>%2</span><br>")
                        .arg(statusColor)
                        .arg(event.jiraStatus);
     }
 
-    // Date Range
-    details += QString("<b>Timeline:</b><br>");
-    details += QString("Start: %1<br>").arg(event.startDate.toString("yyyy-MM-dd"));
-    details += QString("Due: %1<br>").arg(event.endDate.toString("yyyy-MM-dd"));
+    // ========== TIME TRACKING SECTION ==========
+    details += "<br>";  // Add spacing before time tracking
 
-    // Calculate time remaining
     QDate today = QDate::currentDate();
     int daysRemaining = today.daysTo(event.endDate.date());
 
@@ -1432,11 +1642,11 @@ QString TimelineSidePanel::buildJiraTicketDetails(const TimelineEvent& event)
     }
     else if (daysRemaining < 0)
     {
-        details += QString("<b style='color:red;'>Overdue by %1 days</b><br>").arg(-daysRemaining);
+        details += QString("<b style='color:red;'>Overdue By:</b> %1 days<br>").arg(-daysRemaining);
     }
     else
     {
-        details += QString("<b style='color:orange;'>Due today!</b><br>");
+        details += QString("<b style='color:orange;'>Due Today!</b><br>");
     }
 
     return details;
@@ -1445,18 +1655,54 @@ QString TimelineSidePanel::buildJiraTicketDetails(const TimelineEvent& event)
 
 QString TimelineSidePanel::buildGenericDetails(const TimelineEvent& event)
 {
-    // Fallback for any event type without specific handler
     QString details;
 
-    details += QString("<b>Dates:</b><br>");
-    details += QString("%1 to %2<br>")
-                   .arg(event.startDate.toString("yyyy-MM-dd"))
-                   .arg(event.endDate.toString("yyyy-MM-dd"));
+    // ========== DATE/TIME SECTION ==========
+    details += QString("<b>Date & Time:</b><br>");
 
-    if (event.startDate.daysTo(event.endDate) > 0)
+    // Check if all-day events
+    bool isStartAllDay = (event.startDate.time() == QTime(0, 0, 0));
+    bool isEndAllDay = (event.endDate.time() == QTime(23, 59, 59));
+
+    if (isStartAllDay && isEndAllDay)
     {
-        details += QString("Duration: %1 days<br>")
-        .arg(event.startDate.daysTo(event.endDate) + 1);
+        details += QString("Start: %1 (All Day)<br>")
+        .arg(event.startDate.toString("yyyy-MM-dd"));
+        details += QString("End: %1 (All Day)<br>")
+                       .arg(event.endDate.toString("yyyy-MM-dd"));
+    }
+    else
+    {
+        if (isStartAllDay)
+        {
+            details += QString("Start: %1 (All Day)<br>")
+            .arg(event.startDate.toString("yyyy-MM-dd"));
+        }
+        else
+        {
+            details += QString("Start: %1 at %2<br>")
+            .arg(event.startDate.toString("yyyy-MM-dd"))
+                .arg(event.startDate.time().toString("HH:mm"));
+        }
+
+        if (isEndAllDay)
+        {
+            details += QString("End: %1 (All Day)<br>")
+            .arg(event.endDate.toString("yyyy-MM-dd"));
+        }
+        else
+        {
+            details += QString("End: %1 at %2<br>")
+            .arg(event.endDate.toString("yyyy-MM-dd"))
+                .arg(event.endDate.time().toString("HH:mm"));
+        }
+    }
+
+    // Duration calculation
+    int durationDays = event.startDate.daysTo(event.endDate) + 1;
+    if (durationDays > 1)
+    {
+        details += QString("Duration: %1 days<br>").arg(durationDays);
     }
 
     return details;

@@ -874,6 +874,7 @@ void TimelineItem::updateModelFromPosition()
     qDebug() << "┃   scenePos():" << scenePos();
     qDebug() << "┃   rect_:" << rect_;
     qDebug() << "┃   xPos (rect_.x + pos.x):" << xPos;
+    qDebug() << "┃   Event type:" << currentEvent->type;
 
     QDateTime newStartDateTime;
     QDateTime newEndDateTime;
@@ -912,8 +913,43 @@ void TimelineItem::updateModelFromPosition()
 
     // Create updated event
     TimelineEvent updatedEvent = *currentEvent;
-    updatedEvent.startDate = newStartDateTime;
-    updatedEvent.endDate = newEndDateTime;
+
+    // **NEW: Update type-specific date fields based on event type**
+    switch (currentEvent->type)
+    {
+    case TimelineEventType_Meeting:
+    case TimelineEventType_TestEvent:
+    case TimelineEventType_Reminder:
+        // These types use startDate and endDate directly
+        updatedEvent.startDate = newStartDateTime;
+        updatedEvent.endDate = newEndDateTime;
+        qDebug() << "┃ Type uses startDate/endDate - both updated";
+        break;
+
+    case TimelineEventType_Action:
+    case TimelineEventType_JiraTicket:
+        // These types use startDate and dueDateTime
+        updatedEvent.startDate = newStartDateTime;
+        updatedEvent.dueDateTime = newEndDateTime;
+        // Also update endDate for rendering purposes (it mirrors dueDateTime)
+        updatedEvent.endDate = newEndDateTime;
+        qDebug() << "┃ Type uses startDate/dueDateTime - both updated, endDate mirrored";
+        break;
+
+    default:
+        // Fallback: update both startDate and endDate
+        qWarning() << "┃ Unknown event type" << currentEvent->type << "- defaulting to startDate/endDate";
+        updatedEvent.startDate = newStartDateTime;
+        updatedEvent.endDate = newEndDateTime;
+        break;
+    }
+
+    // Update Reminder-specific field if applicable
+    if (currentEvent->type == TimelineEventType_Reminder)
+    {
+        updatedEvent.reminderDateTime = newStartDateTime;
+        qDebug() << "┃ Reminder type - reminderDateTime also updated";
+    }
 
     // If lane control is enabled, update the lane based on Y position
     if (currentEvent->laneControlEnabled)
@@ -970,6 +1006,10 @@ void TimelineItem::updateModelFromPosition()
     qDebug() << "┃ Updating model...";
     qDebug() << "┃   Old: " << currentEvent->startDate << "to" << currentEvent->endDate << "lane" << currentEvent->lane;
     qDebug() << "┃   New: " << updatedEvent.startDate << "to" << updatedEvent.endDate << "lane" << updatedEvent.lane;
+    if (currentEvent->type == TimelineEventType_Action || currentEvent->type == TimelineEventType_JiraTicket)
+    {
+        qDebug() << "┃   Due: " << updatedEvent.dueDateTime;
+    }
 
     // Use undo command instead of direct model update
     if (undoStack_)
@@ -1084,6 +1124,7 @@ void TimelineItem::updateModelFromSize()
     qDebug() << "┃   pos():" << pos();
     qDebug() << "┃   scenePos():" << scenePos();
     qDebug() << "┃   rect_:" << rect_;
+    qDebug() << "┃   Event type:" << currentEvent->type;
 
     qDebug() << "┃ Edge positions (already snapped in mouseReleaseEvent):";
     qDebug() << "┃   leftX:" << leftX;
@@ -1140,12 +1181,51 @@ void TimelineItem::updateModelFromSize()
 
     // Create updated event
     TimelineEvent updatedEvent = *currentEvent;
-    updatedEvent.startDate = newStartDateTime;
-    updatedEvent.endDate = newEndDateTime;
+
+    // **NEW: Update type-specific date fields based on event type**
+    switch (currentEvent->type)
+    {
+    case TimelineEventType_Meeting:
+    case TimelineEventType_TestEvent:
+    case TimelineEventType_Reminder:
+        // These types use startDate and endDate directly
+        updatedEvent.startDate = newStartDateTime;
+        updatedEvent.endDate = newEndDateTime;
+        qDebug() << "┃ Type uses startDate/endDate - both updated";
+        break;
+
+    case TimelineEventType_Action:
+    case TimelineEventType_JiraTicket:
+        // These types use startDate and dueDateTime
+        updatedEvent.startDate = newStartDateTime;
+        updatedEvent.dueDateTime = newEndDateTime;
+        // Also update endDate for rendering purposes (it mirrors dueDateTime)
+        updatedEvent.endDate = newEndDateTime;
+        qDebug() << "┃ Type uses startDate/dueDateTime - both updated, endDate mirrored";
+        break;
+
+    default:
+        // Fallback: update both startDate and endDate
+        qWarning() << "┃ Unknown event type" << currentEvent->type << "- defaulting to startDate/endDate";
+        updatedEvent.startDate = newStartDateTime;
+        updatedEvent.endDate = newEndDateTime;
+        break;
+    }
+
+    // Update Reminder-specific field if applicable
+    if (currentEvent->type == TimelineEventType_Reminder)
+    {
+        updatedEvent.reminderDateTime = newStartDateTime;
+        qDebug() << "┃ Reminder type - reminderDateTime also updated";
+    }
 
     qDebug() << "┃ Updating model...";
     qDebug() << "┃   Old: " << currentEvent->startDate << "to" << currentEvent->endDate;
     qDebug() << "┃   New: " << updatedEvent.startDate << "to" << updatedEvent.endDate;
+    if (currentEvent->type == TimelineEventType_Action || currentEvent->type == TimelineEventType_JiraTicket)
+    {
+        qDebug() << "┃   Due: " << updatedEvent.dueDateTime;
+    }
 
     // Use undo command instead of direct model update
     if (undoStack_)
