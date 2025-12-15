@@ -53,6 +53,8 @@ public:
     void setPixelsPerDay(double ppd);
     double pixelsPerday() const { return pixelsPerDay_; }
     void zoom(double factor); // Multiple current scale by factor
+    void setMinPixelsPerDay(double minPpd);                 ///< @brief Set dynamic minimum zoom level
+    double minPixelsPerDay() const { return minPixelsPerDay_; } ///< @brief Get current minimum zoom level
 
 
     // Version date range management
@@ -67,7 +69,7 @@ public:
 
     // Constants
     static constexpr double DEFAULT_PIXELS_PER_DAY = 20.0;
-    static constexpr double MIN_PIXELS_PER_DAY = 2.0;
+    static constexpr double ABSOLUTE_MIN_PIXELS_PER_DAY = 0.5;
     static constexpr double MAX_PIXELS_PER_DAY = 2000.0;
 
 
@@ -75,6 +77,7 @@ private:
     QDate versionStart_;
     QDate versionEnd_;
     double pixelsPerDay_;
+    double minPixelsPerDay_;
 };
 
 

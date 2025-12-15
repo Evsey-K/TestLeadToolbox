@@ -21,6 +21,7 @@ class TimelineCoordinateMapper;
  * - Left-click rubber band selection for multi-select
  * - Right-click drag-based panning
  * - Scene management
+ * - Dynamic minimum zoom calculation based on viewport width
  */
 class TimelineView : public QGraphicsView {
     Q_OBJECT
@@ -45,9 +46,13 @@ protected:
     void mousePressEvent(QMouseEvent* event) override;                      ///< @brief Override to handle right-click panning start
     void mouseMoveEvent(QMouseEvent* event) override;                       ///< @brief Override to handle right-click panning movement
     void mouseReleaseEvent(QMouseEvent* event) override;                    ///< @brief Override to handle right-click panning end
+    void resizeEvent(QResizeEvent* event) override;                         ///< @brief Override to recalculate minimum zoom on viewport resize
 
 private:
+    void updateMinimumZoom();                                               ///< @brief Calculate and set minimum zoom based on viewport and padding
+
     TimelineScene* scene_;
+    TimelineModel* model_;
     TimelineCoordinateMapper* mapper_;
     bool isPanning_;
     QPoint lastPanPoint_;

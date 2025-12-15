@@ -6,11 +6,14 @@
 #include <cmath>
 
 
-TimelineCoordinateMapper::TimelineCoordinateMapper(const QDate& versionStart, const QDate& versionEnd, double pixelsPerday)
-    : versionStart_(versionStart), versionEnd_(versionEnd), pixelsPerDay_(pixelsPerday)
+TimelineCoordinateMapper::TimelineCoordinateMapper(const QDate& versionStart,
+                                                   const QDate& versionEnd,
+                                                   double pixelsPerday)
+    : versionStart_(versionStart)
+    , versionEnd_(versionEnd)
+    , pixelsPerDay_(pixelsPerday)
+    , minPixelsPerDay_(ABSOLUTE_MIN_PIXELS_PER_DAY)
 {
-    // Clamp initial pixels per day to valid range
-    pixelsPerDay_ = std::clamp(pixelsPerDay_, MIN_PIXELS_PER_DAY, MAX_PIXELS_PER_DAY);
 }
 
 
@@ -22,10 +25,10 @@ double TimelineCoordinateMapper::dateToX(const QDate& date) const
     }
 
     // Calculate days from version start
-    int days = versionStart_.daysTo(date);
+    int dayOffset = versionStart_.daysTo(date);
 
     // Convert to pixel coordinate
-    return days * pixelsPerDay_;
+    return dayOffset * pixelsPerDay_;
 }
 
 
@@ -37,14 +40,15 @@ double TimelineCoordinateMapper::dateTimeToX(const QDateTime& dateTime) const
     }
 
     // Calculate days from version start
-    int days = versionStart_.daysTo(dateTime.date());
+    int dayOffset = versionStart_.daysTo(dateTime.date());
 
-    // Calculate fractional day from time
-    QTime time = dateTime.time();
-    double fractionalDay = (time.hour() * 3600.0 + time.minute() * 60.0 + time.second()) / 86400.0;
+    // Add fractional day based on time
+    double fractionalDay = dateTime.time().hour() / 24.0 +
+                           dateTime.time().minute() / (1440.0) +
+                           dateTime.time().second() / (86400.0);
 
     // Convert to pixel coordinate
-    return (days + fractionalDay) * pixelsPerDay_;
+    return (dayOffset + fractionalDay) * pixelsPerDay_;
 }
 
 
@@ -54,17 +58,26 @@ QPointF TimelineCoordinateMapper::dateToPoint(const QDate& date, double yPos) co
 }
 
 
-QRectF TimelineCoordinateMapper::dateRangeToRect(const QDate& start, const QDate& end, double yPos, double height) const
+QRectF TimelineCoordinateMapper::dateRangeToRect(const QDate& start,
+                                                 const QDate& end,
+                                                 double yPos,
+                                                 double height) const
 {
+    // Calculate inclusive end (add 1 day to visually include the end date)
+    QDate inclusiveEnd = end.addDays(1);
+
     double x1 = dateToX(start);
-    double x2 = dateToX(end.addDays(1));    // +1 to include end date visually
+    double x2 = dateToX(inclusiveEnd);
     double width = x2 - x1;
 
     return QRectF(x1, yPos, width, height);
 }
 
 
-QRectF TimelineCoordinateMapper::dateTimeRangeToRect(const QDateTime& start, const QDateTime& end, double yPos, double height) const
+QRectF TimelineCoordinateMapper::dateTimeRangeToRect(const QDateTime& start,
+                                                     const QDateTime& end,
+                                                     double yPos,
+                                                     double height) const
 {
     double x1 = dateTimeToX(start);
     double x2 = dateTimeToX(end);
@@ -87,26 +100,30 @@ QDate TimelineCoordinateMapper::xToDate(double xCoord) const
 QDateTime TimelineCoordinateMapper::xToDateTime(double xCoord) const
 {
     // Convert pixel position to days offset (with fractional part)
-    double daysOffset = xCoord / pixelsPerDay_;
-    int wholeDays = static_cast<int>(std::floor(daysOffset));
-    double fractionalDay = daysOffset - wholeDays;
+    double daysOffsetFloat = xCoord / pixelsPerDay_;
+    int daysOffset = static_cast<int>(std::floor(daysOffsetFloat));
+    double fractionalDay = daysOffsetFloat - daysOffset;
 
     // Calculate time from fractional day - ROUND instead of truncate
     int totalSeconds = static_cast<int>(std::round(fractionalDay * 86400.0));
-
-    // Handle edge case where rounding pushes us to the next day
-    if (totalSeconds >= 86400)
-    {
-        wholeDays++;
-        totalSeconds = 0;
-    }
-
     int hours = totalSeconds / 3600;
     int minutes = (totalSeconds % 3600) / 60;
     int seconds = totalSeconds % 60;
 
+    // Clamp values to valid ranges
+    hours = qBound(0, hours, 23);
+    minutes = qBound(0, minutes, 59);
+    seconds = qBound(0, seconds, 59);
+
+    // Handle edge case where rounding pushes us to the next day
+    if (totalSeconds >= 86400)
+    {
+        daysOffset++;
+        totalSeconds = 0;
+    }
+
     // Construct date-time
-    QDate date = versionStart_.addDays(wholeDays);
+    QDate date = versionStart_.addDays(daysOffset);
     QTime time(hours, minutes, seconds);
 
     return QDateTime(date, time);
@@ -121,7 +138,7 @@ int TimelineCoordinateMapper::daysBetween(const QDate& start, const QDate& end) 
 
 void TimelineCoordinateMapper::setPixelsPerDay(double ppd)
 {
-    pixelsPerDay_ = std::clamp(ppd, MIN_PIXELS_PER_DAY, MAX_PIXELS_PER_DAY);
+    pixelsPerDay_ = std::clamp(ppd, minPixelsPerDay_, MAX_PIXELS_PER_DAY);
 }
 
 
@@ -129,6 +146,19 @@ void TimelineCoordinateMapper::zoom(double factor)
 {
     double newScale = pixelsPerDay_ * factor;
     setPixelsPerDay(newScale);
+}
+
+
+void TimelineCoordinateMapper::setMinPixelsPerDay(double minPpd)
+{
+    // Ensure minimum doesn't go below absolute floor
+    minPixelsPerDay_ = qMax(minPpd, ABSOLUTE_MIN_PIXELS_PER_DAY);
+
+    // If current zoom is now below the new minimum, clamp it
+    if (pixelsPerDay_ < minPixelsPerDay_)
+    {
+        pixelsPerDay_ = minPixelsPerDay_;
+    }
 }
 
 
@@ -155,7 +185,7 @@ double TimelineCoordinateMapper::snapXToNearestTick(double xCoord) const
     // Determine snap interval based on zoom level
     // These thresholds MUST match TimelineDateScale rendering logic
 
-    if (pixelsPerDay_ >= 960.0)  // ← Changed from 100.0 to 960.0
+    if (pixelsPerDay_ >= 960.0)
     {
         // Very deep zoom: snap to half-hour intervals (30 minutes)
         QDateTime dateTime = xToDateTime(xCoord);
@@ -177,7 +207,7 @@ double TimelineCoordinateMapper::snapXToNearestTick(double xCoord) const
         QDateTime snappedDateTime(targetDate, QTime(hours, minutes, 0));
         return dateTimeToX(snappedDateTime);
     }
-    else if (pixelsPerDay_ >= 192.0)  // ← Changed from 50.0 to 192.0
+    else if (pixelsPerDay_ >= 192.0)
     {
         // Deep zoom: snap to hour intervals
         QDateTime dateTime = xToDateTime(xCoord);
@@ -263,7 +293,7 @@ QDate TimelineCoordinateMapper::xToDateSnapped(double xCoord) const
 {
     double snappedX = snapXToNearestTick(xCoord);
 
-    if (pixelsPerDay_ >= 192.0)  // ← Changed from 50.0 to 192.0
+    if (pixelsPerDay_ >= 192.0)
     {
         // For hour precision, use DateTime
         QDateTime dt = xToDateTime(snappedX);
