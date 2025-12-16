@@ -19,11 +19,22 @@ TimelineDateScale::TimelineDateScale(TimelineCoordinateMapper* mapper, QGraphics
     setZValue(-1);
 }
 
-
+/*
 QRectF TimelineDateScale::boundingRect() const
 {
     double width = mapper_->totalWidth();
     return QRectF(0, 0, width, SCALE_HEIGHT + timelineHeight_);
+}
+*/
+
+QRectF TimelineDateScale::boundingRect() const
+{
+    // Calculate the full padded range to match scene rect
+    double startX = mapper_->dateToX(paddedStart_);
+    double endX = mapper_->dateToX(paddedEnd_);
+    double width = endX - startX;
+
+    return QRectF(startX, 0, width, SCALE_HEIGHT + timelineHeight_);
 }
 
 

@@ -12,6 +12,7 @@
 #include <QGraphicsSceneMouseEvent>
 #include <QPen>
 #include <QKeyEvent>
+#include <qpainter.h>
 
 
 TimelineScene::TimelineScene(TimelineModel* model, TimelineCoordinateMapper* mapper, QObject* parent)
@@ -40,6 +41,15 @@ TimelineScene::TimelineScene(TimelineModel* model, TimelineCoordinateMapper* map
 
     // Build initial scene from existing model data
     rebuildFromModel();
+}
+
+
+void TimelineScene::drawBackground(QPainter* painter, const QRectF& rect)
+{
+    // Fill the entire exposed region with the timeline background color
+    // This ensures padding areas beyond version boundaries render correctly
+    // The color matches TimelineView's background brush (250, 250, 250)
+    painter->fillRect(rect, QColor(250, 250, 250));
 }
 
 

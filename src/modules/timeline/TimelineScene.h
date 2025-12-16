@@ -64,6 +64,7 @@ public slots:
 protected:
     void mousePressEvent(QGraphicsSceneMouseEvent* event) override;         ///< @brief Override to detect item clicks
     void keyPressEvent(QKeyEvent* event) override;                          ///<
+    void drawBackground(QPainter* painter, const QRectF& rect) override;    ///< @brief Override to draw consistent background across entire scene including padding
 
 private:
     TimelineItem* createItemForEvent(const QString& eventId);               ///< @brief Create a single timeline item from event data
