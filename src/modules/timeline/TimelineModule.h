@@ -75,6 +75,8 @@ private slots:
     void onExportPDF();                                         ///< @brief Handle Export PDF action
 
     void onScrollToDate();                                      ///< @brief Handle Scroll to Date action
+    void onGoToCurrentDay();                                    ///< @brief Handle Go to Current Day action
+    void onGoToCurrentWeek();                                   ///< @brief Handle Go to Current Week action
 
     void onEditEventRequested(const QString& eventId);          ///< @brief Handle edit event request from scene or side panel
     void onDeleteEventRequested(const QString& eventId);        ///< @brief Handle delete event request from scene or side panel

@@ -351,4 +351,62 @@ double TimelineView::currentZoomLevel() const
 }
 
 
+void TimelineView::zoomToFitDateRange(const QDate& startDate, const QDate& endDate, bool animate)
+{
+    if (!startDate.isValid() || !endDate.isValid() || startDate > endDate)
+    {
+        qWarning() << "Invalid date range for zoom-to-fit:" << startDate << "to" << endDate;
+        return;
+    }
 
+    // Calculate required pixels per day to fit the date range in viewport
+    int viewportWidth = viewport()->width();
+    if (viewportWidth <= 0)
+    {
+        qWarning() << "Invalid viewport width for zoom calculation";
+        return;
+    }
+
+    // Calculate number of days in range (inclusive)
+    int daysInRange = startDate.daysTo(endDate) + 1;
+
+    // Calculate required pixels per day to exactly fit the range
+    // Add small margin (5% on each side) for visual breathing room
+    double requiredPixelsPerDay = (viewportWidth * 0.9) / static_cast<double>(daysInRange);
+
+    // Clamp to valid zoom range
+    requiredPixelsPerDay = qBound(
+        mapper_->minPixelsPerDay(),
+        requiredPixelsPerDay,
+        TimelineCoordinateMapper::MAX_PIXELS_PER_DAY
+        );
+
+    // Store old zoom level
+    double oldZoom = mapper_->pixelsPerday();
+
+    // Apply new zoom level
+    mapper_->setPixelsPerDay(requiredPixelsPerDay);
+
+    // Rebuild scene with new zoom
+    scene_->rebuildFromModel();
+
+    // Calculate center point of the date range
+    QDateTime rangeStart(startDate, QTime(0, 0, 0));
+    QDateTime rangeEnd(endDate, QTime(23, 59, 59));
+    qint64 centerMsecs = rangeStart.toMSecsSinceEpoch() +
+                         (rangeEnd.toMSecsSinceEpoch() - rangeStart.toMSecsSinceEpoch()) / 2;
+    QDateTime centerDateTime = QDateTime::fromMSecsSinceEpoch(centerMsecs);
+
+    // Convert center datetime to scene X coordinate
+    double centerX = mapper_->dateTimeToX(centerDateTime);
+
+    // Center the view on the calculated position
+    centerOn(centerX, sceneRect().center().y());
+
+    qDebug() << "Zoom-to-fit applied:"
+             << "Range:" << startDate << "to" << endDate
+             << "| Days:" << daysInRange
+             << "| Old zoom:" << oldZoom
+             << "| New zoom:" << requiredPixelsPerDay
+             << "| Center X:" << centerX;
+}

@@ -118,7 +118,7 @@ QRectF DateRangeHighlight::calculateRect() const
 
     // Convert to scene coordinates
     double startX = mapper_->dateToX(startDate);
-    double endX = mapper_->dateToX(endDate.addDays(1));  // +1 to include end date
+    double endX = mapper_->dateToX(endDate);
 
     double width = endX - startX;
 

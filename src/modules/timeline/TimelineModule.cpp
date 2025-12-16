@@ -155,17 +155,19 @@ QToolBar* TimelineModule::createToolbar()
     auto toolbar = new QToolBar();
     toolbar->setIconSize(QSize(24, 24));
 
-    // File operations
+    // Add the 'Save' button
     auto saveAction = toolbar->addAction("💾 Save");
     saveAction->setToolTip("Save timeline to current file");
     saveAction->setShortcut(QKeySequence::Save);
     connect(saveAction, &QAction::triggered, this, &TimelineModule::onSaveClicked);
 
+    // Add the 'Save As' button
     auto saveAsAction = toolbar->addAction("💾 Save As");
     saveAsAction->setToolTip("Save timeline to new file");
     saveAsAction->setShortcut(QKeySequence::SaveAs);
     connect(saveAsAction, &QAction::triggered, this, &TimelineModule::onSaveAsClicked);
 
+    // Add the 'Load' button
     auto loadAction = toolbar->addAction("📂 Load");
     loadAction->setToolTip("Load timeline data");
     loadAction->setShortcut(QKeySequence::Open);
@@ -179,16 +181,17 @@ QToolBar* TimelineModule::createToolbar()
     versionSettingsButton_ = new QPushButton("⚙️ Version Settings");
     toolbar->addWidget(versionSettingsButton_);
 
-    // Add the 'Add' event button Event operations
+    // Add the 'Add Event' button Event operations
     addEventButton_ = new QPushButton("➕ Add Event");
     toolbar->addWidget(addEventButton_);
 
-    // Add the 'delete' event button (context-sensitive, disabled when no selection)
+    // Add the 'Delete Event' button (context-sensitive, disabled when no selection)
     deleteAction_ = toolbar->addAction("🗑️ Delete");
     deleteAction_->setToolTip("Delete selected event(s)");
     deleteAction_->setEnabled(false);  // Initially disabled
     connect(deleteAction_, &QAction::triggered, this, &TimelineModule::onDeleteActionTriggered);
 
+    // Add the 'Archive' button
     auto archiveAction = toolbar->addAction("📦 Archive");
     archiveAction->setToolTip("View archived events");
     connect(archiveAction, &QAction::triggered, this, &TimelineModule::onShowArchivedEvents);
@@ -197,7 +200,6 @@ QToolBar* TimelineModule::createToolbar()
     toolbar->addSeparator();
 
 
-    // Export operations
     auto exportMenu = new QMenu();
     auto exportScreenshotAction = exportMenu->addAction("Export Screenshot (PNG)");
     auto exportCSVAction = exportMenu->addAction("Export to CSV");
@@ -207,6 +209,7 @@ QToolBar* TimelineModule::createToolbar()
     connect(exportCSVAction, &QAction::triggered, this, &TimelineModule::onExportCSV);
     connect(exportPDFAction, &QAction::triggered, this, &TimelineModule::onExportPDF);
 
+    // Add the 'Export' button with drop down options
     auto exportButton = new QPushButton("📤 Export");
     exportButton->setMenu(exportMenu);
     toolbar->addWidget(exportButton);
@@ -215,10 +218,27 @@ QToolBar* TimelineModule::createToolbar()
     toolbar->addSeparator();
 
 
-    // Navigation
-    auto scrollToDateAction = toolbar->addAction("📅 Go to Date");
-    scrollToDateAction->setToolTip("Scroll to specific date");
-    connect(scrollToDateAction, &QAction::triggered, this, &TimelineModule::onScrollToDate);
+    // Navigation - Replace single action with button + menu
+    auto goToDateMenu = new QMenu();
+    auto goToDateDialogAction = goToDateMenu->addAction("📅 Go to Date...");
+    goToDateDialogAction->setToolTip("Scroll to specific date");
+    connect(goToDateDialogAction, &QAction::triggered, this, &TimelineModule::onScrollToDate);
+
+
+    goToDateMenu->addSeparator();
+
+
+    auto goToCurrentDayAction = goToDateMenu->addAction("📍 Current Day");
+    goToCurrentDayAction->setToolTip("Zoom and center on current day");
+    connect(goToCurrentDayAction, &QAction::triggered, this, &TimelineModule::onGoToCurrentDay);
+
+    auto goToCurrentWeekAction = goToDateMenu->addAction("📆 Current Week");
+    goToCurrentWeekAction->setToolTip("Zoom and center on current week");
+    connect(goToCurrentWeekAction, &QAction::triggered, this, &TimelineModule::onGoToCurrentWeek);
+
+    auto goToDateButton = new QPushButton("📅 Go to Date");
+    goToDateButton->setMenu(goToDateMenu);
+    toolbar->addWidget(goToDateButton);
 
     // Add legend checkbox after "Go to Date"
     legendCheckbox_ = new QCheckBox("Legend");
@@ -697,6 +717,52 @@ void TimelineModule::onScrollToDate()
                                       .arg(targetDate.toString("yyyy-MM-dd")));
         }
     }
+}
+
+
+void TimelineModule::onGoToCurrentDay()
+{
+    QDate currentDate = QDate::currentDate();
+
+    qDebug() << "🔍 Go to Current Day triggered for:" << currentDate;
+
+    // Zoom to fit the entire current day (from 00:00 to 23:59)
+    view_->zoomToFitDateRange(currentDate, currentDate, true);
+
+    statusLabel_->setText(QString("Zoomed to current day: %1").arg(currentDate.toString("yyyy-MM-dd")));
+}
+
+
+void TimelineModule::onGoToCurrentWeek()
+{
+    QDate currentDate = QDate::currentDate();
+
+    // Calculate start of current week (Sunday)
+    // Qt's dayOfWeek(): Monday = 1, Tuesday = 2, ..., Saturday = 6, Sunday = 7
+    int dayOfWeek = currentDate.dayOfWeek();
+
+    // Calculate days back to most recent Sunday
+    // If today is Sunday (7), go back 0 days
+    // If today is Monday (1), go back 1 day
+    // If today is Saturday (6), go back 6 days
+    int daysBackToSunday = (dayOfWeek == 7) ? 0 : dayOfWeek;
+
+    QDate weekStart = currentDate.addDays(-daysBackToSunday);  // Sunday
+    QDate weekEnd = weekStart.addDays(6);                       // Saturday
+
+    qDebug() << "🔍 Go to Current Week triggered:"
+             << "Current date:" << currentDate
+             << "| Day of week:" << dayOfWeek
+             << "| Days back to Sunday:" << daysBackToSunday
+             << "| Week start (Sunday):" << weekStart
+             << "| Week end (Saturday):" << weekEnd;
+
+    // Zoom to fit the entire current week (Sunday through Saturday)
+    view_->zoomToFitDateRange(weekStart, weekEnd, true);
+
+    statusLabel_->setText(QString("Zoomed to current week: %1 to %2")
+                              .arg(weekStart.toString("yyyy-MM-dd"))
+                              .arg(weekEnd.toString("yyyy-MM-dd")));
 }
 
 

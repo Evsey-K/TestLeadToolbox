@@ -4,6 +4,7 @@
 #pragma once
 #include <QGraphicsView>
 #include <QPoint>
+#include <QDate>
 
 
 class TimelineScene;
@@ -22,6 +23,7 @@ class TimelineCoordinateMapper;
  * - Right-click drag-based panning
  * - Scene management
  * - Dynamic minimum zoom calculation based on viewport width
+ * - Programmatic zoom-to-fit for specific date ranges
  */
 class TimelineView : public QGraphicsView {
     Q_OBJECT
@@ -39,7 +41,8 @@ public:
 
     TimelineScene* timelineScene() const { return scene_; }                 ///< @brief Get the timeline scene
 
-    double currentZoomLevel() const;                                        ///< @brief Get the current zoom level (pixels per day)
+    double currentZoomLevel() const;                                                                ///< @brief Get the current zoom level (pixels per day)
+    void zoomToFitDateRange(const QDate& startDate, const QDate& endDate, bool animate = true);     ///< @brief Zoom and center to fit a specific date range in the viewport
 
 protected:
     void wheelEvent(QWheelEvent* event) override;                           ///< @brief Override to implement horizontal zoom on mouse wheel
