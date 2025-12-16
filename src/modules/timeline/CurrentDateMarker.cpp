@@ -23,7 +23,7 @@ QRectF CurrentDateMarker::boundingRect() const
     double xPos = mapper_->dateToX(currentDate_);
 
     // Make bounding rect wide enough for the line and label
-    return QRectF(xPos - 50, 0, 100, timelineHeight_);
+    return QRectF(xPos - 50, -60, 100, timelineHeight_);
 }
 
 
@@ -55,7 +55,7 @@ void CurrentDateMarker::paint(QPainter* painter, const QStyleOptionGraphicsItem*
     QString label = "TODAY";
     QFontMetrics fm(labelFont);
     int labelWidth = fm.horizontalAdvance(label);
-    QRectF labelRect(xPos - labelWidth / 2 - 5, 5, labelWidth + 10, 20);
+    QRectF labelRect(xPos - labelWidth / 2 - 5, -46, labelWidth + 10, 20);
 
     painter->setPen(Qt::NoPen);
     painter->setBrush(QColor(200, 20, 60, 200));    // Semi-transparent red

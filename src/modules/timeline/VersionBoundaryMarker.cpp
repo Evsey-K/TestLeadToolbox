@@ -28,7 +28,7 @@ QRectF VersionBoundaryMarker::boundingRect() const
     double xPos = mapper_->dateToX(markerDate_);
 
     // Make bounding rect wide enough for the line and label
-    return QRectF(xPos - 40, 0, 80, timelineHeight_);
+    return QRectF(xPos - 40, -25, 80, timelineHeight_);
 }
 
 
@@ -61,7 +61,7 @@ void VersionBoundaryMarker::paint(QPainter* painter,
     QString label = (type_ == VersionStart) ? "START" : "END";
     QFontMetrics fm(labelFont);
     int labelWidth = fm.horizontalAdvance(label);
-    QRectF labelRect(xPos - labelWidth / 2 - 4, 10, labelWidth + 8, 16);
+    QRectF labelRect(xPos - labelWidth / 2 - 4, -21, labelWidth + 8, 16);
 
     // Draw label background
     painter->setPen(Qt::NoPen);
