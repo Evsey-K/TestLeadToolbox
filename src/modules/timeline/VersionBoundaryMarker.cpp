@@ -3,6 +3,7 @@
 
 #include "VersionBoundaryMarker.h"
 #include "TimelineCoordinateMapper.h"
+#include "TimelineDateScale.h"
 #include <QPainter>
 #include <QDate>
 
@@ -15,8 +16,8 @@ VersionBoundaryMarker::VersionBoundaryMarker(TimelineCoordinateMapper* mapper,
     , type_(type)
     , timelineHeight_(500.0)
 {
-    // Set Z-value to draw on top of items but below current date marker
-    setZValue(50);
+    // Set Z-value to draw below date scale and events
+    setZValue(0);
 
     // Set the marker date based on type
     updatePosition();
@@ -49,7 +50,7 @@ void VersionBoundaryMarker::paint(QPainter* painter,
     QPen linePen(lineColor, 2);
     linePen.setStyle(Qt::DashLine);
     painter->setPen(linePen);
-    painter->drawLine(QPointF(xPos, 0), QPointF(xPos, timelineHeight_));
+    painter->drawLine(QPointF(xPos, TimelineDateScale::SCALE_HEIGHT), QPointF(xPos, timelineHeight_));
 
     // Draw label at the top
     QFont labelFont = painter->font();

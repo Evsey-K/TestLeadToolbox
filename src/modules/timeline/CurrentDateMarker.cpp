@@ -3,6 +3,7 @@
 
 #include "CurrentDateMarker.h"
 #include "TimelineCoordinateMapper.h"
+#include "TimelineDateScale.h"
 #include <QPainter>
 #include <QDate>
 
@@ -13,8 +14,8 @@ CurrentDateMarker::CurrentDateMarker(TimelineCoordinateMapper* mapper, QGraphics
     , timelineHeight_(500.0)
     , currentDate_(QDate::currentDate())
 {
-    // Set Z-value to draw on top of most items
-    setZValue(100);
+    // Set Z-value to draw below date scale and events
+    setZValue(0);
 }
 
 
@@ -43,7 +44,7 @@ void CurrentDateMarker::paint(QPainter* painter, const QStyleOptionGraphicsItem*
     QPen linePen(QColor(220, 20, 60), 3);       // Crimson Red, thick line (we like em thick)
     linePen.setStyle(Qt::SolidLine);
     painter->setPen(linePen);
-    painter->drawLine(QPointF(xPos, 0), QPointF(xPos, timelineHeight_));
+    painter->drawLine(QPointF(xPos, TimelineDateScale::SCALE_HEIGHT), QPointF(xPos, timelineHeight_));
 
     // Draw "TODAY" label at the top
     QFont labelFont = painter->font();

@@ -353,6 +353,9 @@ TimelineItem* TimelineScene::createItemForEvent(const QString& eventId)
                          .arg(event->endDate.toString(Qt::ISODate))
                          .arg(event->lane));
 
+    // Set Z-value to draw events above marker lines
+    item->setZValue(10);
+
     // Add to scene and tracking map
     addItem(item);
     eventIdToItem_[eventId] = item;

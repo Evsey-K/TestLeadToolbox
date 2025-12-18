@@ -15,8 +15,8 @@ TimelineDateScale::TimelineDateScale(TimelineCoordinateMapper* mapper, QGraphics
     , paddedStart_(mapper->versionStart())
     , paddedEnd_(mapper->versionEnd())
 {
-    // Set Z-value to draw below event items but above background
-    setZValue(-1);
+    // Set Z-value to draw date scale above marker lines but below events
+    setZValue(5);
 }
 
 /*
@@ -107,10 +107,22 @@ void TimelineDateScale::drawMonthTicks(QPainter* painter)
         painter->drawLine(QPointF(xPos, SCALE_HEIGHT - MAJOR_TICK_HEIGHT),
                           QPointF(xPos, SCALE_HEIGHT));
 
-        // Draw month label
+        // Draw month label centered in the middle of the month
         QString monthLabel = monthStart.toString("MMM yyyy");
-        QRectF textRect(xPos + 5, 5, 100, 20);
-        painter->drawText(textRect, Qt::AlignLeft | Qt::AlignVCenter, monthLabel);
+
+        // Calculate the middle of the month
+        QDate monthEnd = monthStart.addMonths(1);
+        double monthStartX = mapper_->dateToX(monthStart);
+        double monthEndX = mapper_->dateToX(monthEnd);
+        double monthCenterX = (monthStartX + monthEndX) / 2.0;
+
+        // Get text width for centering
+        QFontMetrics fm(labelFont);
+        int textWidth = fm.horizontalAdvance(monthLabel);
+
+        // Position text centered on the month's midpoint
+        QRectF textRect(monthCenterX - textWidth / 2.0, 5, textWidth, 20);
+        painter->drawText(textRect, Qt::AlignCenter, monthLabel);
 
         monthStart = monthStart.addMonths(1);
     }
@@ -142,6 +154,7 @@ void TimelineDateScale::drawWeekTicks(QPainter* painter)
     }
 }
 
+
 void TimelineDateScale::drawDayTicks(QPainter* painter)
 {
     QDate currentDate = paddedStart_;
@@ -162,11 +175,58 @@ void TimelineDateScale::drawDayTicks(QPainter* painter)
                               QPointF(xPos, SCALE_HEIGHT));
         }
 
+        // Draw day number labels
         if (mapper_->pixelsPerday() >= 20.0)
         {
             QString dayLabel = QString::number(currentDate.day());
             QRectF textRect(xPos - 10, SCALE_HEIGHT - 28, 20, 15);
             painter->drawText(textRect, Qt::AlignCenter, dayLabel);
+        }
+
+        // Draw day-of-week abbreviations centered between day ticks
+        if (mapper_->pixelsPerday() >= 20.0)  // Show when days have reasonable spacing
+        {
+            QDate nextDate = currentDate.addDays(1);
+
+            // Only draw if next date is within range
+            if (nextDate <= endDate)
+            {
+                // Calculate center position between current day and next day
+                double currentX = mapper_->dateToX(currentDate);
+                double nextX = mapper_->dateToX(nextDate);
+                double centerX = (currentX + nextX) / 2.0;
+
+                // Get 3-letter day abbreviation (Mon, Tue, Wed, etc.)
+                QString dayOfWeek = currentDate.toString("ddd");
+
+                // Position the label higher when hour labels are showing to avoid overlap
+                double yPosition;
+                if (shouldShowHourLabels())
+                {
+                    // When hour labels are present (at SCALE_HEIGHT - 42), place day-of-week above them
+                    yPosition = SCALE_HEIGHT - 55;
+                }
+                else
+                {
+                    // When no hour labels, place between day numbers and scale bottom
+                    yPosition = SCALE_HEIGHT - 43;
+                }
+
+                // Create text rectangle centered on the midpoint
+                QRectF dowRect(centerX - 15, yPosition, 30, 12);
+
+                // Use slightly smaller, lighter font for day-of-week
+                QFont dowFont = painter->font();
+                dowFont.setPointSize(7);
+                painter->setFont(dowFont);
+                painter->setPen(QPen(QColor(80, 80, 80), 0));  // Darker gray for better readability
+
+                painter->drawText(dowRect, Qt::AlignCenter, dayOfWeek);
+
+                // Restore original font and pen for day numbers
+                painter->setFont(dayFont);
+                painter->setPen(QPen(Qt::black, 0));
+            }
         }
 
         currentDate = currentDate.addDays(1);
