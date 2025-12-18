@@ -50,6 +50,7 @@ protected:
     void mouseMoveEvent(QMouseEvent* event) override;                       ///< @brief Override to handle right-click panning movement
     void mouseReleaseEvent(QMouseEvent* event) override;                    ///< @brief Override to handle right-click panning end
     void resizeEvent(QResizeEvent* event) override;                         ///< @brief Override to recalculate minimum zoom on viewport resize
+    void scrollContentsBy(int dx, int dy) override;                         ///< @brief Override to update version name position on scroll
 
 private:
     void updateMinimumZoom();                                               ///< @brief Calculate and set minimum zoom based on viewport and padding

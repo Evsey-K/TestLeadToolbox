@@ -345,6 +345,19 @@ void TimelineView::resizeEvent(QResizeEvent* event)
 }
 
 
+void TimelineView::scrollContentsBy(int dx, int dy)
+{
+    // Call base implementation to perform actual scrolling
+    QGraphicsView::scrollContentsBy(dx, dy);
+
+    // Update version name label position to stay centered in viewport
+    if (scene_)
+    {
+        scene_->updateVersionNamePosition();
+    }
+}
+
+
 double TimelineView::currentZoomLevel() const
 {
     return mapper_->pixelsPerday();

@@ -25,6 +25,17 @@ void TimelineModel::setVersionDates(const QDate& start, const QDate& end)
     emit versionDatesChanged(start, end);
 }
 
+
+void TimelineModel::setVersionName(const QString& name)
+{
+    if (versionName_ != name)
+    {
+        versionName_ = name;
+        emit versionNameChanged(name);
+    }
+}
+
+
 QString TimelineModel::addEvent(const TimelineEvent& event)
 {
     // Validate event dates are within Version range

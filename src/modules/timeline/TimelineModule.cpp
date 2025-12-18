@@ -400,6 +400,10 @@ void TimelineModule::onVersionSettingsClicked()
     {
         QDate newStart = dialog.startDate();
         QDate newEnd = dialog.endDate();
+        QString newName = dialog.versionName();
+
+        // Update model version name (this will trigger versionNameChanged signal)
+        model_->setVersionName(newName);
 
         // Update model (this will trigger versionDatesChanged signal)
         model_->setVersionDates(newStart, newEnd);
@@ -410,9 +414,16 @@ void TimelineModule::onVersionSettingsClicked()
         // Rebuild the entire scene with new date range
         view_->timelineScene()->rebuildFromModel();
 
-        statusLabel_->setText(QString("Version dates updated: %1 to %2")
-                                  .arg(newStart.toString("yyyy-MM-dd"))
-                                  .arg(newEnd.toString("yyyy-MM-dd")));
+        QString statusMessage = QString("Version dates updated: %1 to %2")
+                                    .arg(newStart.toString("yyyy-MM-dd"))
+                                    .arg(newEnd.toString("yyyy-MM-dd"));
+
+        if (!newName.isEmpty())
+        {
+            statusMessage += QString(" | Version: %1").arg(newName);
+        }
+
+        statusLabel_->setText(statusMessage);
     }
 }
 

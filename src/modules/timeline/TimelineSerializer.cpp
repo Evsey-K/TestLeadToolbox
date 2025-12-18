@@ -1,4 +1,5 @@
-// TimelineSerializer.cpp - Updated with QDateTime support and backward compatibility
+// TimelineSerializer.cpp
+
 
 #include "TimelineSerializer.h"
 #include <QFile>
@@ -8,6 +9,7 @@
 #include <QDebug>
 #include <QDir>
 #include <QStandardPaths>
+
 
 bool TimelineSerializer::saveToFile(const TimelineModel* model, const QString& filePath)
 {
@@ -33,6 +35,7 @@ bool TimelineSerializer::saveToFile(const TimelineModel* model, const QString& f
     qDebug() << "Timeline saved to:" << filePath;
     return true;
 }
+
 
 bool TimelineSerializer::loadFromFile(TimelineModel* model, const QString& filePath)
 {
@@ -62,15 +65,18 @@ bool TimelineSerializer::loadFromFile(TimelineModel* model, const QString& fileP
     return deserializeModel(model, doc.object());
 }
 
+
 QJsonObject TimelineSerializer::serializeModel(const TimelineModel* model)
 {
     QJsonObject obj;
 
     obj["versionStart"] = model->versionStartDate().toString(Qt::ISODate);
     obj["versionEnd"] = model->versionEndDate().toString(Qt::ISODate);
+    obj["versionName"] = model->versionName();
 
     QJsonArray eventsArray;
     QVector<TimelineEvent> events = model->getAllEvents();
+
     for (const TimelineEvent& event : events)
     {
         eventsArray.append(serializeEvent(event));
@@ -79,17 +85,18 @@ QJsonObject TimelineSerializer::serializeModel(const TimelineModel* model)
 
     QJsonArray archivedArray;
     QVector<TimelineEvent> archivedEvents = model->getAllArchivedEvents();
+
     for (const TimelineEvent& event : archivedEvents)
     {
         archivedArray.append(serializeEvent(event));
     }
     obj["archivedEvents"] = archivedArray;
 
-    // Bumped version to indicate QDateTime support
-    obj["serializerVersion"] = "3.0";
+    obj["serializerVersion"] = "1.0";
 
     return obj;
 }
+
 
 bool TimelineSerializer::deserializeModel(TimelineModel* model, const QJsonObject& json)
 {
@@ -104,6 +111,11 @@ bool TimelineSerializer::deserializeModel(TimelineModel* model, const QJsonObjec
     if (startDate.isValid() && endDate.isValid())
     {
         model->setVersionDates(startDate, endDate);
+    }
+
+    if (json.contains("versionName"))
+    {
+        model->setVersionName(json["versionName"].toString());
     }
 
     QJsonArray eventsArray = json["events"].toArray();
@@ -131,6 +143,7 @@ bool TimelineSerializer::deserializeModel(TimelineModel* model, const QJsonObjec
     return true;
 }
 
+
 QString TimelineSerializer::getDefaultSaveLocation()
 {
     QString appDataPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
@@ -141,6 +154,7 @@ QString TimelineSerializer::getDefaultSaveLocation()
     }
     return dir.filePath("timeline.json");
 }
+
 
 bool TimelineSerializer::createBackup(const QString& filePath)
 {
@@ -158,6 +172,7 @@ bool TimelineSerializer::createBackup(const QString& filePath)
 
     return QFile::copy(filePath, backupPath);
 }
+
 
 QJsonObject TimelineSerializer::serializeEvent(const TimelineEvent& event)
 {
@@ -232,6 +247,7 @@ QJsonObject TimelineSerializer::serializeEvent(const TimelineEvent& event)
 
     return obj;
 }
+
 
 TimelineEvent TimelineSerializer::deserializeEvent(const QJsonObject& json)
 {
@@ -372,6 +388,7 @@ TimelineEvent TimelineSerializer::deserializeEvent(const QJsonObject& json)
     return event;
 }
 
+
 QString TimelineSerializer::eventTypeToString(TimelineEventType type)
 {
     switch (type)
@@ -390,6 +407,7 @@ QString TimelineSerializer::eventTypeToString(TimelineEventType type)
         return "Unknown";
     }
 }
+
 
 TimelineEventType TimelineSerializer::stringToEventType(const QString& typeStr)
 {

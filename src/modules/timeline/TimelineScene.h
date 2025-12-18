@@ -45,6 +45,7 @@ public:
     TimelineCoordinateMapper* coordinateMapper() const { return mapper_; }      ///< @brief Get the coordinate mapper
     void setUndoStack(QUndoStack* undoStack) { undoStack_ = undoStack; }        ///<
     void rebuildFromModel();                                                    ///< @brief Rebuild all items from the model (useful after zoom or major changes)
+    void updateVersionNamePosition();                                           ///< @brief Update version name label to stay centered in viewport
     TimelineItem* findItemByEventId(const QString& eventId) const;              ///< @brief Find the TimelineItem associated with an event ID
 
 signals:
@@ -59,6 +60,7 @@ public slots:
     void onEventRemoved(const QString& eventId);            ///< @brief Handle an event being removed from the model
     void onEventUpdated(const QString& eventId);            ///< @brief Handle an event being updated in the model
     void onVersionDatesChanged();                           ///< @brief Handle version dates changing (requires full rebuild)
+    void onVersionNameChanged();                            ///< @brief Handle version name changes
     void onLanesRecalculated();                             ///< @brief Handle lanes being recalculated
 
 protected:
@@ -67,11 +69,13 @@ protected:
     void drawBackground(QPainter* painter, const QRectF& rect) override;    ///< @brief Override to draw consistent background across entire scene including padding
 
 private:
-    TimelineItem* createItemForEvent(const QString& eventId);               ///< @brief Create a single timeline item from event data
-    void updateItemFromEvent(TimelineItem* item, const QString& eventId);   ///< @brief Update an existing item's visual representation
-    void updateSceneHeight();                                               ///< @brief Update scene height based on current lane count
-    void setupDateScale();                                                  ///< @brief Initialize date scale and current date marker
-    void setupVersionBoundaryMarkers();                                     ///< @brief Setup version boundary markers
+    TimelineItem* createItemForEvent(const QString& eventId);               ///< Create a single timeline item from event data
+    void updateItemFromEvent(TimelineItem* item, const QString& eventId);   ///< Update an existing item's visual representation
+    void updateSceneHeight();                                               ///< Update scene height based on current lane count
+    void setupDateScale();                                                  ///< Initialize date scale and current date marker
+    void setupVersionBoundaryMarkers();                                     ///< Setup version boundary markers
+    void setupVersionNameLabel();                                           ///< Setup version name label
+    void updateVersionNameLabel();                                          ///< Update version name label text and position
     void connectItemSignals(TimelineItem* item);                            ///<
 
     TimelineModel* model_;                              ///< Data model (not owned)
@@ -83,6 +87,7 @@ private:
     CurrentDateMarker* currentDateMarker_;              ///< Today marker (owned by scene)
     VersionBoundaryMarker* versionStartMarker_;         ///< Version start marker (owned by scene)
     VersionBoundaryMarker* versionEndMarker_;           ///< Version end marker (owned by scene)
+    QGraphicsTextItem* versionNameLabel_;               ///< Version name label (owned by scene)
 
     // Lane-based layout constants
     static constexpr double ITEM_HEIGHT = 30.0;         ///< Default height of timeline bars

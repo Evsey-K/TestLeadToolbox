@@ -13,6 +13,7 @@
 #include <QPen>
 #include <QKeyEvent>
 #include <qpainter.h>
+#include <qgraphicsview.h>
 
 
 TimelineScene::TimelineScene(TimelineModel* model, TimelineCoordinateMapper* mapper, QObject* parent)
@@ -23,23 +24,22 @@ TimelineScene::TimelineScene(TimelineModel* model, TimelineCoordinateMapper* map
     , currentDateMarker_(nullptr)
     , versionStartMarker_(nullptr)
     , versionEndMarker_(nullptr)
+    , versionNameLabel_(nullptr)
 {
     // Connect to model signals
     connect(model_, &TimelineModel::eventAdded, this, &TimelineScene::onEventAdded);
     connect(model_, &TimelineModel::eventRemoved, this, &TimelineScene::onEventRemoved);
     connect(model_, &TimelineModel::eventUpdated, this, &TimelineScene::onEventUpdated);
     connect(model_, &TimelineModel::versionDatesChanged, this, &TimelineScene::onVersionDatesChanged);
-    connect(model_, &TimelineModel::lanesRecalculated, this, &TimelineScene::onLanesRecalculated);          // Connect to lane recalculation signal
-    connect(model_, &TimelineModel::eventArchived, this, &TimelineScene::onEventRemoved);                   // Handle archiving (soft delete) - should remove from view like hard delete
-    connect(model_, &TimelineModel::eventRestored, this, &TimelineScene::onEventAdded);                     // Handle restoration - should add back to view
+    connect(model_, &TimelineModel::versionNameChanged, this, &TimelineScene::onVersionNameChanged);
+    connect(model_, &TimelineModel::lanesRecalculated, this, &TimelineScene::onLanesRecalculated);
+    connect(model_, &TimelineModel::eventArchived, this, &TimelineScene::onEventRemoved);
+    connect(model_, &TimelineModel::eventRestored, this, &TimelineScene::onEventAdded);
 
-    // Setup date scale and current date marker
     setupDateScale();
-
-    // Setup version boundary markers (Feature 3a)
     setupVersionBoundaryMarkers();
+    setupVersionNameLabel();
 
-    // Build initial scene from existing model data
     rebuildFromModel();
 }
 
@@ -77,6 +77,76 @@ void TimelineScene::setupVersionBoundaryMarkers()
 }
 
 
+void TimelineScene::setupVersionNameLabel()
+{
+    // Create version name label
+    versionNameLabel_ = new QGraphicsTextItem();
+    versionNameLabel_->setDefaultTextColor(QColor(40, 40, 40));  // Dark gray, user-friendly
+
+    // Set large, readable font
+    QFont font = versionNameLabel_->font();
+    font.setPointSize(18);
+    font.setBold(true);
+    versionNameLabel_->setFont(font);
+
+    addItem(versionNameLabel_);
+
+    // Position it initially
+    updateVersionNameLabel();
+}
+
+
+void TimelineScene::updateVersionNameLabel()
+{
+    if (!versionNameLabel_)
+    {
+        return;
+    }
+
+    QString versionName = model_->versionName();
+
+    if (versionName.isEmpty())
+    {
+        versionNameLabel_->setPlainText("");
+        versionNameLabel_->setVisible(false);
+        return;
+    }
+
+    versionNameLabel_->setPlainText(versionName);
+    versionNameLabel_->setVisible(true);
+
+    // Update position after setting text
+    updateVersionNamePosition();
+}
+
+
+void TimelineScene::updateVersionNamePosition()
+{
+    if (!versionNameLabel_ || !versionNameLabel_->isVisible())
+    {
+        return;
+    }
+
+    // Get the view's viewport rectangle in scene coordinates
+    QGraphicsView* view = views().isEmpty() ? nullptr : views().first();
+    if (!view)
+    {
+        return;
+    }
+
+    // Map viewport rectangle to scene coordinates
+    QRectF viewportRect = view->mapToScene(view->viewport()->rect()).boundingRect();
+
+    double labelY = -150.0;
+
+    // Center horizontally within the VISIBLE viewport (not the entire scene)
+    double labelWidth = versionNameLabel_->boundingRect().width();
+    double centerX = viewportRect.left() + (viewportRect.width() - labelWidth) / 2.0;
+
+    versionNameLabel_->setPos(centerX, labelY);
+}
+
+
 void TimelineScene::rebuildFromModel()
 {
     // Clear all existing event items (but keep date scale and markers)
@@ -95,7 +165,7 @@ void TimelineScene::rebuildFromModel()
         createItemForEvent(event.id);
     }
 
-    // Feature 3b: Calculate scene rect with +1 month padding before/after version dates
+    // Calculate scene rect with +1 month padding before/after version dates
     QDate paddedStart = model_->versionStartDate().addMonths(-1);
     QDate paddedEnd = model_->versionEndDate().addMonths(1);
 
@@ -134,6 +204,9 @@ void TimelineScene::rebuildFromModel()
         versionEndMarker_->setTimelineHeight(height);
         versionEndMarker_->updatePosition();
     }
+
+    // Update version name label text and position
+    updateVersionNameLabel();
 }
 
 
@@ -206,6 +279,12 @@ void TimelineScene::onVersionDatesChanged()
 {
     // Version dates changed - need to recalculate all positions
     rebuildFromModel();
+}
+
+
+void TimelineScene::onVersionNameChanged()
+{
+    updateVersionNameLabel();
 }
 
 

@@ -1,5 +1,6 @@
 // TimelineModel.h
 
+
 #pragma once
 #include <QObject>
 #include <QVector>
@@ -10,6 +11,7 @@
 #include <QColor>
 #include <QMap>
 
+
 // Forward declarations
 using TimelineEventType = int;
 constexpr TimelineEventType TimelineEventType_Meeting = 0;
@@ -17,6 +19,7 @@ constexpr TimelineEventType TimelineEventType_Action = 1;
 constexpr TimelineEventType TimelineEventType_TestEvent = 2;
 constexpr TimelineEventType TimelineEventType_Reminder = 4;
 constexpr TimelineEventType TimelineEventType_JiraTicket = 5;
+
 
 /**
  * @struct TimelineEvent
@@ -174,6 +177,8 @@ public:
     void setVersionDates(const QDate& start, const QDate& end);
     QDate versionStartDate() const { return versionStart_; }
     QDate versionEndDate() const { return versionEnd_; }
+    void setVersionName(const QString& name);
+    QString versionName() const { return versionName_; }
     QString addEvent(const TimelineEvent& event);
     bool removeEvent(const QString& eventId);
     bool updateEvent(const QString& eventId, const TimelineEvent& updatedEvent);
@@ -199,6 +204,7 @@ public:
 
 signals:
     void versionDatesChanged(const QDate& start, const QDate& end);
+    void versionNameChanged(const QString& name);
     void eventAdded(const QString& eventId);
     void eventRemoved(const QString& eventId);
     void eventUpdated(const QString& eventId);
@@ -213,6 +219,7 @@ private:
 
     QDate versionStart_;
     QDate versionEnd_;
+    QString versionName_;
     QVector<TimelineEvent> events_;
     QVector<TimelineEvent> archivedEvents_;
     int maxLane_ = 0;
