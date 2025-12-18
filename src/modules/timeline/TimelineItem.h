@@ -99,6 +99,7 @@ private:
     bool isResizing_ = false;                               ///< Whether currently being resized
     bool resizable_ = true;                                 ///< Whether item can be resized
     bool skipNextUpdate_ = false;                           ///< Whether to skip next model update (used during undo/redo)
+    qreal originalZValue_ = 10.0;                           ///< Original z-value before drag (for restoration)
 
     QRectF rect_;                                           ///< Item's rectangle
     QBrush brush_;                                          ///< Fill brush

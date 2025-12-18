@@ -318,6 +318,10 @@ void TimelineItem::mousePressEvent(QGraphicsSceneMouseEvent* event)
             isResizing_ = true;
             activeHandle_ = handle;
 
+            originalZValue_ = zValue();
+            setZValue(100.0);
+
+            qDebug() << "║ Z-ORDER: Raised from" << originalZValue_ << "to 100.0 (resize)";
             qDebug() << "║ MODE: RESIZING - Handle:" << (handle == LeftEdge ? "LEFT" : "RIGHT");
             qDebug() << "╚═══════════════════════════════════════════════════════════";
 
@@ -346,7 +350,12 @@ void TimelineItem::mousePressEvent(QGraphicsSceneMouseEvent* event)
                 TimelineItem* tItem = qgraphicsitem_cast<TimelineItem*>(item);
                 if (tItem)
                 {
-                    qDebug() << "║   - Item:" << tItem->eventId() << "at position:" << item->pos();
+                    tItem->originalZValue_ = tItem->zValue();
+                    tItem->setZValue(100.0);
+
+                    qDebug() << "║   - Item:" << tItem->eventId()
+                             << "at position:" << item->pos()
+                             << "Z:" << tItem->originalZValue_ << "→ 100.0";
                 }
             }
 
@@ -359,8 +368,12 @@ void TimelineItem::mousePressEvent(QGraphicsSceneMouseEvent* event)
         else
         {
             // Single item selected - emit clicked to update details
-
             qDebug() << "║ MODE: SINGLE DRAG (already selected)";
+
+            originalZValue_ = zValue();
+            setZValue(100.0);
+
+            qDebug() << "║ Z-ORDER: Raised from" << originalZValue_ << "to 100.0 (single drag)";
 
             if (!eventId_.isEmpty())
             {
@@ -373,8 +386,12 @@ void TimelineItem::mousePressEvent(QGraphicsSceneMouseEvent* event)
     {
         // Item not selected or no multi-selection
         // Emit clicked signal to allow selection management
-
         qDebug() << "║ MODE: SINGLE DRAG (newly selected)";
+
+        originalZValue_ = zValue();
+        setZValue(100.0);
+
+        qDebug() << "║ Z-ORDER: Raised from" << originalZValue_ << "to 100.0 (newly selected)";
 
         if (!eventId_.isEmpty())
         {
@@ -472,6 +489,10 @@ void TimelineItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event)
             qDebug() << "║ rect_:" << rect_;
             qDebug() << "║ Size changed:" << (rect_ != resizeStartRect_);
 
+            setZValue(originalZValue_);
+
+            qDebug() << "║ Z-ORDER: Restored to" << originalZValue_;
+
             isResizing_ = false;
             activeHandle_ = None;
 
@@ -527,6 +548,18 @@ void TimelineItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event)
         if (isMultiDragging_)
         {
             qDebug() << "║ MULTI-DRAG COMPLETE";
+
+            for (QGraphicsItem* item : multiDragStartPositions_.keys())
+            {
+                TimelineItem* tItem = qgraphicsitem_cast<TimelineItem*>(item);
+                if (tItem)
+                {
+                    tItem->setZValue(tItem->originalZValue_);
+                    qDebug() << "║ Z-ORDER: Restored item" << tItem->eventId()
+                             << "to" << tItem->originalZValue_;
+                }
+            }
+
             isMultiDragging_ = false;
 
             // Collect all event updates for batch command
@@ -783,6 +816,11 @@ void TimelineItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event)
         if (isDragging_)
         {
             qDebug() << "║ SINGLE-DRAG COMPLETE";
+
+            setZValue(originalZValue_);
+
+            qDebug() << "║ Z-ORDER: Restored to" << originalZValue_;
+
             isDragging_ = false;
 
             // Snap to nearest tick mark after drag
