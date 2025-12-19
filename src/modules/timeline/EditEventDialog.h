@@ -2,6 +2,7 @@
 
 
 #pragma once
+#include "AttachmentListWidget.h"
 #include "TimelineModel.h"
 #include <QDialog>
 #include <QDate>
@@ -63,6 +64,8 @@ private slots:
     void onTestAllDayChanged(bool checked);
     void onReminderAllDayChanged(bool checked);
     void onJiraAllDayChanged(bool checked);
+
+    void onAttachmentsChanged();
 
 private:
     void setupUi();                                                 ///< @brief Setup UI components and connections
@@ -145,6 +148,9 @@ private:
     QCheckBox* laneControlCheckbox_;
     QSpinBox* manualLaneSpinner_;
     QLabel* laneControlWarningLabel_;
+
+    // Attachment widget
+    AttachmentListWidget* attachmentWidget_ = nullptr;
 
     // State
     bool deleted_ = false;

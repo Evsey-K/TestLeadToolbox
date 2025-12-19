@@ -17,7 +17,8 @@
 #include <QPen>
 #include <QStyleOptionGraphicsItem>
 #include <QUndoStack>
-
+#include <QMimeData>
+#include <QUrl>
 #include <QDebug>
 
 
@@ -45,6 +46,9 @@ TimelineItem::TimelineItem(const QRectF& rect, QGraphicsItem* parent)
 
     // Enable hover events for resize cursor
     setAcceptHoverEvents(true);
+
+    // Enable drag-and-drop for attachments
+    setAcceptDrops(true);
 }
 
 
@@ -149,6 +153,12 @@ void TimelineItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* opti
             }
         }
     }
+
+    // Draw attachment indicator
+    drawAttachmentIndicator(painter);
+
+    // Draw drag-over overlay
+    drawDragOverlay(painter);
 }
 
 
@@ -1361,4 +1371,232 @@ TimelineItem::ResizeHandle TimelineItem::getResizeHandle(const QPointF& pos) con
     }
 
     return None;
+}
+
+
+void TimelineItem::setAttachmentCount(int count)
+{
+    if (attachmentCount_ != count)
+    {
+        attachmentCount_ = count;
+        showAttachmentIndicator_ = (count > 0);
+        update();  // Trigger repaint
+
+        qDebug() << "TimelineItem" << eventId_ << "attachment count set to:" << count;
+    }
+}
+
+
+void TimelineItem::drawAttachmentIndicator(QPainter* painter)
+{
+    if (!showAttachmentIndicator_ || attachmentCount_ <= 0)
+    {
+        return;
+    }
+
+    // Constants for attachment indicator
+    const double ICON_SIZE = 16.0;
+    const double BADGE_SIZE = 14.0;
+    const double MARGIN = 4.0;
+
+    // Position in top-right corner of the item
+    double iconX = rect_.right() - ICON_SIZE - MARGIN;
+    double iconY = rect_.top() + MARGIN;
+
+    // Save painter state
+    painter->save();
+
+    // Draw paperclip icon background (light circle)
+    QRectF iconRect(iconX, iconY, ICON_SIZE, ICON_SIZE);
+    painter->setBrush(QColor(255, 255, 255, 200));  // Semi-transparent white
+    painter->setPen(QPen(QColor(100, 100, 100), 1));
+    painter->drawEllipse(iconRect);
+
+    // Draw simplified paperclip icon
+    painter->setPen(QPen(QColor(60, 60, 60), 1.5));
+    painter->setBrush(Qt::NoBrush);
+
+    // Paperclip shape (simplified curved path)
+    double centerX = iconX + ICON_SIZE / 2.0;
+    double centerY = iconY + ICON_SIZE / 2.0;
+
+    // Draw paperclip as a curved line with hooks
+    QPainterPath clipPath;
+    clipPath.moveTo(centerX - 3, centerY + 4);
+    clipPath.lineTo(centerX - 3, centerY - 1);
+    clipPath.cubicTo(centerX - 3, centerY - 3,
+                     centerX - 1, centerY - 5,
+                     centerX + 1, centerY - 5);
+    clipPath.cubicTo(centerX + 3, centerY - 5,
+                     centerX + 5, centerY - 3,
+                     centerX + 5, centerY - 1);
+    clipPath.lineTo(centerX + 5, centerY + 5);
+
+    painter->drawPath(clipPath);
+
+    // Draw attachment count badge if > 1
+    if (attachmentCount_ > 1)
+    {
+        // Position badge at bottom-right of icon
+        double badgeX = iconX + ICON_SIZE - BADGE_SIZE / 2.0;
+        double badgeY = iconY + ICON_SIZE - BADGE_SIZE / 2.0;
+
+        QRectF badgeRect(badgeX, badgeY, BADGE_SIZE, BADGE_SIZE);
+
+        // Draw badge circle
+        painter->setBrush(QColor(220, 50, 50));  // Red badge
+        painter->setPen(QPen(Qt::white, 1));
+        painter->drawEllipse(badgeRect);
+
+        // Draw count text
+        painter->setPen(Qt::white);
+        QFont badgeFont = painter->font();
+        badgeFont.setPixelSize(9);
+        badgeFont.setBold(true);
+        painter->setFont(badgeFont);
+
+        QString countText = (attachmentCount_ > 9) ? "9+" : QString::number(attachmentCount_);
+        painter->drawText(badgeRect, Qt::AlignCenter, countText);
+    }
+
+    // Restore painter state
+    painter->restore();
+}
+
+
+void TimelineItem::dragEnterEvent(QGraphicsSceneDragDropEvent* event)
+{
+    // Check if the drag contains files
+    if (event->mimeData()->hasUrls())
+    {
+        // Filter to only file URLs (not web URLs)
+        QList<QUrl> urls = event->mimeData()->urls();
+        bool hasFiles = false;
+
+        for (const QUrl& url : urls)
+        {
+            if (url.isLocalFile())
+            {
+                hasFiles = true;
+                break;
+            }
+        }
+
+        if (hasFiles)
+        {
+            isDragHover_ = true;
+            event->acceptProposedAction();
+            update();  // Trigger repaint to show drag overlay
+
+            qDebug() << "TimelineItem" << eventId_ << ": Drag enter with files";
+            return;
+        }
+    }
+
+    event->ignore();
+}
+
+
+void TimelineItem::dragLeaveEvent(QGraphicsSceneDragDropEvent* event)
+{
+    isDragHover_ = false;
+    update();  // Trigger repaint to hide drag overlay
+
+    qDebug() << "TimelineItem" << eventId_ << ": Drag leave";
+    event->accept();
+}
+
+
+void TimelineItem::dropEvent(QGraphicsSceneDragDropEvent* event)
+{
+    isDragHover_ = false;
+    update();  // Clear drag overlay
+
+    // DEBUG: Log event ID
+    qDebug() << "TimelineItem::dropEvent() - eventId_:" << eventId_;
+    qDebug() << "  isEmpty:" << eventId_.isEmpty();
+
+    if (!event->mimeData()->hasUrls())
+    {
+        event->ignore();
+        return;
+    }
+
+    // Extract file paths from dropped URLs
+    QStringList filePaths;
+    QList<QUrl> urls = event->mimeData()->urls();
+
+    for (const QUrl& url : urls)
+    {
+        if (url.isLocalFile())
+        {
+            QString filePath = url.toLocalFile();
+            filePaths.append(filePath);
+            qDebug() << "  - File:" << filePath;
+        }
+    }
+
+    if (!filePaths.isEmpty())
+    {
+        qDebug() << "TimelineItem" << eventId_ << ": Dropped" << filePaths.size() << "file(s)";
+
+        // Check if eventId_ is valid before emitting
+        if (eventId_.isEmpty())
+        {
+            qWarning() << "TimelineItem::dropEvent() - eventId_ is EMPTY! Cannot emit filesDropped signal.";
+            QMessageBox::warning(nullptr, "Attachment Error",
+                                 "Timeline item has no event ID. Cannot add attachments.");
+            event->ignore();
+            return;
+        }
+
+        // Emit signal with the dropped files
+        emit filesDropped(eventId_, filePaths);
+
+        event->acceptProposedAction();
+    }
+    else
+    {
+        qDebug() << "TimelineItem" << eventId_ << ": No valid files dropped";
+        event->ignore();
+    }
+}
+
+
+void TimelineItem::drawDragOverlay(QPainter* painter)
+{
+    if (!isDragHover_)
+    {
+        return;
+    }
+
+    // Save painter state
+    painter->save();
+
+    // Draw semi-transparent overlay
+    QColor overlayColor(100, 150, 255, 80);  // Light blue with transparency
+    painter->fillRect(rect_, overlayColor);
+
+    // Draw dashed border
+    QPen dashedPen(QColor(50, 100, 255), 2, Qt::DashLine);
+    painter->setPen(dashedPen);
+    painter->setBrush(Qt::NoBrush);
+    painter->drawRect(rect_.adjusted(2, 2, -2, -2));
+
+    // Draw hint text if item is wide enough
+    if (rect_.width() > 120)
+    {
+        painter->setPen(QColor(0, 50, 150));
+        QFont hintFont = painter->font();
+        hintFont.setPixelSize(11);
+        hintFont.setBold(true);
+        painter->setFont(hintFont);
+
+        QString hintText = "Drop files to attach";
+        QRectF textRect = rect_.adjusted(10, 0, -10, 0);
+        painter->drawText(textRect, Qt::AlignCenter, hintText);
+    }
+
+    // Restore painter state
+    painter->restore();
 }

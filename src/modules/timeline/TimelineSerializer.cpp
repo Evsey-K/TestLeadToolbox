@@ -1,6 +1,7 @@
 // TimelineSerializer.cpp
 
 
+#include "../../shared/models/AttachmentModel.h"
 #include "TimelineSerializer.h"
 #include <QFile>
 #include <QJsonDocument>
@@ -18,6 +19,11 @@ bool TimelineSerializer::saveToFile(const TimelineModel* model, const QString& f
         qWarning() << "TimelineSerializer::saveToFile - null model provided";
         return false;
     }
+
+    // Ensure AttachmentManager knows the project directory
+    QFileInfo fileInfo(filePath);
+    QString projectDir = fileInfo.absolutePath();
+    AttachmentManager::instance().setProjectDirectory(projectDir);
 
     QJsonObject jsonObj = serializeModel(model);
     QJsonDocument doc(jsonObj);
@@ -54,6 +60,14 @@ bool TimelineSerializer::loadFromFile(TimelineModel* model, const QString& fileP
 
     QByteArray data = file.readAll();
     file.close();
+
+    // Extract project directory from file path for AttachmentManager
+    QFileInfo fileInfo(filePath);
+    QString projectDir = fileInfo.absolutePath();
+
+    // Initialize AttachmentManager with project directory
+    AttachmentManager::instance().setProjectDirectory(projectDir);
+    qDebug() << "AttachmentManager: Project directory set to" << projectDir;
 
     QJsonDocument doc = QJsonDocument::fromJson(data);
     if (doc.isNull() || !doc.isObject())
@@ -245,6 +259,18 @@ QJsonObject TimelineSerializer::serializeEvent(const TimelineEvent& event)
     if (!event.jiraStatus.isEmpty())
         obj["jiraStatus"] = event.jiraStatus;
 
+    // Serialize attachments using UUID hash
+    int numericEventId = qHash(event.id);
+
+    QJsonArray attachmentsArray = AttachmentManager::instance().serializeAttachments(numericEventId);
+    if (!attachmentsArray.isEmpty())
+    {
+        obj["attachments"] = attachmentsArray;
+        qDebug() << "Serialized" << attachmentsArray.size()
+                 << "attachments for event" << event.id
+                 << "(hash:" << numericEventId << ")";
+    }
+
     return obj;
 }
 
@@ -383,6 +409,42 @@ TimelineEvent TimelineSerializer::deserializeEvent(const QJsonObject& json)
         qDebug() << "Migrating old DueDate event to Action type:" << event.title;
         event.type = TimelineEventType_Action;
         event.status = "Not Started";
+    }
+
+    // Deserialize attachments
+    if (json.contains("attachments"))
+    {
+        QJsonArray attachmentsArray = json["attachments"].toArray();
+
+        // Extract numeric ID from string ID (format: "event_N")
+        bool ok;
+        int numericEventId = event.id.mid(6).toInt(&ok);  // Skip "event_" prefix
+
+        if (ok && !attachmentsArray.isEmpty())
+        {
+            AttachmentManager::instance().deserializeAttachments(numericEventId, attachmentsArray);
+            qDebug() << "Deserialized" << attachmentsArray.size() << "attachments for event" << event.id;
+        }
+        else if (!ok)
+        {
+            qWarning() << "Failed to extract numeric ID from event ID:" << event.id;
+        }
+    }
+
+    // Deserialize attachments using UUID hash
+    if (json.contains("attachments"))
+    {
+        QJsonArray attachmentsArray = json["attachments"].toArray();
+
+        int numericEventId = qHash(event.id);
+
+        if (!attachmentsArray.isEmpty())
+        {
+            AttachmentManager::instance().deserializeAttachments(numericEventId, attachmentsArray);
+            qDebug() << "Deserialized" << attachmentsArray.size()
+                     << "attachments for event" << event.id
+                     << "(hash:" << numericEventId << ")";
+        }
     }
 
     return event;

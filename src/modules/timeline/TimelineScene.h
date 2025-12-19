@@ -56,12 +56,14 @@ signals:
     void batchDeleteRequested(const QStringList& eventIds);     ///< @brief Emitted when multiple events should be deleted
 
 public slots:
-    void onEventAdded(const QString& eventId);              ///< @brief Handle a new event being added to the model
-    void onEventRemoved(const QString& eventId);            ///< @brief Handle an event being removed from the model
-    void onEventUpdated(const QString& eventId);            ///< @brief Handle an event being updated in the model
-    void onVersionDatesChanged();                           ///< @brief Handle version dates changing (requires full rebuild)
-    void onVersionNameChanged();                            ///< @brief Handle version name changes
-    void onLanesRecalculated();                             ///< @brief Handle lanes being recalculated
+    void onEventAdded(const QString& eventId);                                  ///< @brief Handle a new event being added to the model
+    void onEventRemoved(const QString& eventId);                                ///< @brief Handle an event being removed from the model
+    void onEventUpdated(const QString& eventId);                                ///< @brief Handle an event being updated in the model
+    void onVersionDatesChanged();                                               ///< @brief Handle version dates changing (requires full rebuild)
+    void onVersionNameChanged();                                                ///< @brief Handle version name changes
+    void onLanesRecalculated();                                                 ///< @brief Handle lanes being recalculated
+    void onEventAttachmentsChanged(const QString& eventId);                     ///<
+    void onFilesDropped(const QString& eventId, const QStringList& filePaths);  ///<
 
 protected:
     void mousePressEvent(QGraphicsSceneMouseEvent* event) override;         ///< @brief Override to detect item clicks

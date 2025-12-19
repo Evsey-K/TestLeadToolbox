@@ -1,8 +1,10 @@
 // TimelineModel.cpp
 
+
 #include "TimelineModel.h"
 #include "LaneAssigner.h"
 #include <QUuid>
+
 
 TimelineModel::TimelineModel(QObject* parent)
     : QObject(parent)
@@ -10,7 +12,11 @@ TimelineModel::TimelineModel(QObject* parent)
     , versionEnd_(QDate::currentDate().addMonths(3))
 {
     // Default to a 3-month version cycle starting today
+
+    // Connect to AttachmentManager signals
+    connect(&AttachmentManager::instance(), &AttachmentManager::attachmentsChanged, this, &TimelineModel::onAttachmentsChanged);
 }
+
 
 void TimelineModel::setVersionDates(const QDate& start, const QDate& end)
 {
@@ -436,3 +442,43 @@ bool TimelineModel::hasLaneConflict(const QDateTime& startDateTime, const QDateT
 
     return false;  // No conflict
 }
+
+
+int TimelineModel::getAttachmentCount(const QString& eventId) const
+{
+    // Convert UUID to stable numeric ID using hash
+    int numericId = qHash(eventId);
+
+    qDebug() << "TimelineModel::getAttachmentCount - UUID:" << eventId
+             << "-> Hash:" << numericId;
+
+    return AttachmentManager::instance().getAttachmentCount(numericId);
+}
+
+
+bool TimelineModel::hasAttachments(const QString& eventId) const
+{
+    return getAttachmentCount(eventId) > 0;
+}
+
+
+void TimelineModel::onAttachmentsChanged(int eventId)
+{
+    // This is tricky - we need to find which UUID maps to this numeric ID
+    // For now, we'll iterate through all events and check their hashes
+
+    for (const TimelineEvent& event : events_)
+    {
+        if (qHash(event.id) == eventId)
+        {
+            qDebug() << "TimelineModel: Attachments changed for event" << event.id;
+            emit eventAttachmentsChanged(event.id);
+            return;
+        }
+    }
+
+    qWarning() << "TimelineModel: Could not find event for attachment ID" << eventId;
+}
+
+
+

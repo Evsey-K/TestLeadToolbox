@@ -2,6 +2,7 @@
 
 
 #pragma once
+#include "../../shared/models/AttachmentModel.h"
 #include <QObject>
 #include <QVector>
 #include <QDate>
@@ -163,6 +164,7 @@ struct TimelineEvent
     }
 };
 
+
 /**
  * @class TimelineModel
  * @brief Data model with collision avoidance and lane tracking
@@ -200,6 +202,9 @@ public:
     const TimelineEvent* getArchivedEvent(const QString& eventId) const;
     QVector<TimelineEvent> getAllArchivedEvents() const;
 
+    int getAttachmentCount(const QString& eventId) const;
+    bool hasAttachments(const QString& eventId) const;
+
     bool hasLaneConflict(const QDateTime& startDateTime, const QDateTime& endDateTime, int manualLane, const QString& excludeEventId = QString()) const;
 
 signals:
@@ -212,6 +217,10 @@ signals:
     void eventRestored(const QString& eventId);
     void lanesRecalculated();
     void eventsCleared();
+    void eventAttachmentsChanged(const QString& eventId);
+
+private slots:
+    void onAttachmentsChanged(int eventId);
 
 private:
     void assignLanesToEvents();

@@ -1,6 +1,7 @@
 // TimelineScene.cpp
 
 
+#include "../../shared/models/AttachmentModel.h"
 #include "TimelineScene.h"
 #include "TimelineModel.h"
 #include "TimelineCoordinateMapper.h"
@@ -12,6 +13,7 @@
 #include <QGraphicsSceneMouseEvent>
 #include <QPen>
 #include <QKeyEvent>
+#include <QMessageBox>
 #include <qpainter.h>
 #include <qgraphicsview.h>
 
@@ -35,6 +37,7 @@ TimelineScene::TimelineScene(TimelineModel* model, TimelineCoordinateMapper* map
     connect(model_, &TimelineModel::lanesRecalculated, this, &TimelineScene::onLanesRecalculated);
     connect(model_, &TimelineModel::eventArchived, this, &TimelineScene::onEventRemoved);
     connect(model_, &TimelineModel::eventRestored, this, &TimelineScene::onEventAdded);
+    connect(model_, &TimelineModel::eventAttachmentsChanged, this, &TimelineScene::onEventAttachmentsChanged);
 
     setupDateScale();
     setupVersionBoundaryMarkers();
@@ -353,6 +356,25 @@ TimelineItem* TimelineScene::createItemForEvent(const QString& eventId)
                          .arg(event->endDate.toString(Qt::ISODate))
                          .arg(event->lane));
 
+    // Set attachment count for visual indicator
+    int attachmentCount = model_->getAttachmentCount(eventId);
+    item->setAttachmentCount(attachmentCount);
+
+    // Build tooltip with attachment info
+    QString tooltip = QString("%1\n%2 to %3\nLane: %4")
+                          .arg(event->title)
+                          .arg(event->startDate.toString(Qt::ISODate))
+                          .arg(event->endDate.toString(Qt::ISODate))
+                          .arg(event->lane);
+
+    // Add attachment info to tooltip
+    if (attachmentCount > 0)
+    {
+        tooltip += QString("\nAttachments: %1").arg(attachmentCount);
+    }
+
+    item->setToolTip(tooltip);
+
     // Set Z-value to draw events above marker lines
     item->setZValue(10);
 
@@ -404,12 +426,23 @@ void TimelineScene::updateItemFromEvent(TimelineItem* item, const QString& event
     // Update item geometry
     item->setRect(newRect);
 
-    // Update tooltip
-    item->setToolTip(QString("%1\n%2 to %3\nLane: %4")
-                         .arg(event->title)
-                         .arg(event->startDate.toString(Qt::ISODate))
-                         .arg(event->endDate.toString(Qt::ISODate))
-                         .arg(event->lane));
+    // Update attachment count
+    int attachmentCount = model_->getAttachmentCount(eventId);
+    item->setAttachmentCount(attachmentCount);
+
+    // Build tooltip with attachment info
+    QString tooltip = QString("%1\n%2 to %3\nLane: %4")
+                          .arg(event->title)
+                          .arg(event->startDate.toString(Qt::ISODate))
+                          .arg(event->endDate.toString(Qt::ISODate))
+                          .arg(event->lane);
+
+    if (attachmentCount > 0)
+    {
+        tooltip += QString("\nAttachments: %1").arg(attachmentCount);
+    }
+
+    item->setToolTip(tooltip);
 
     // Update visual properties
     item->setBrush(QBrush(event->color));
@@ -511,4 +544,91 @@ void TimelineScene::connectItemSignals(TimelineItem* item)
     connect(item, &TimelineItem::editRequested, this, &TimelineScene::editEventRequested);
     connect(item, &TimelineItem::deleteRequested, this, &TimelineScene::deleteEventRequested);
     connect(item, &TimelineItem::clicked, this, &TimelineScene::itemClicked);
+    connect(item, &TimelineItem::filesDropped, this, &TimelineScene::onFilesDropped);
+
+    qDebug() << "Connected filesDropped signal for item:" << item->eventId();
+}
+
+
+void TimelineScene::onEventAttachmentsChanged(const QString& eventId)
+{
+    TimelineItem* item = findItemByEventId(eventId);
+
+    if (item)
+    {
+        int count = model_->getAttachmentCount(eventId);
+        item->setAttachmentCount(count);
+
+        qDebug() << "TimelineScene: Updated attachment count for event"
+                 << eventId << "to" << count;
+
+        // Update tooltip to reflect new attachment count
+        const TimelineEvent* event = model_->getEvent(eventId);
+        if (event)
+        {
+            QString tooltip = QString("%1\n%2 to %3\nLane: %4")
+            .arg(event->title)
+                .arg(event->startDate.toString(Qt::ISODate))
+                .arg(event->endDate.toString(Qt::ISODate))
+                .arg(event->lane);
+
+            if (count > 0)
+            {
+                tooltip += QString("\nAttachments: %1").arg(count);
+            }
+
+            item->setToolTip(tooltip);
+        }
+    }
+}
+
+
+void TimelineScene::onFilesDropped(const QString& eventId, const QStringList& filePaths)
+{
+    qDebug() << "TimelineScene: Files dropped on event" << eventId;
+    qDebug() << "  File count:" << filePaths.size();
+
+    for (const QString& path : filePaths)
+    {
+        qDebug() << "    -" << path;
+    }
+
+    // Convert UUID to numeric ID using hash
+    int numericId = qHash(eventId);
+
+    qDebug() << "TimelineScene: Converted UUID to hash:" << numericId;
+
+    // Add attachments through AttachmentManager
+    QStringList errors;
+    bool anySuccess = AttachmentManager::instance().addMultipleAttachments(
+        numericId,
+        filePaths,
+        AttachmentStorageMode::InlineEmbedded,
+        errors
+        );
+
+    // Calculate success count
+    int successCount = filePaths.size() - errors.size();
+
+    // Show feedback to user
+    if (successCount > 0 && errors.isEmpty())
+    {
+        QString message = QString("Successfully added %1 attachment(s) to event")
+        .arg(successCount);
+        qDebug() << message;
+    }
+    else if (successCount > 0 && !errors.isEmpty())
+    {
+        QString message = QString("Added %1 attachment(s), but %2 failed:\n\n%3")
+        .arg(successCount)
+            .arg(errors.size())
+            .arg(errors.join("\n"));
+
+        QMessageBox::warning(nullptr, "Partial Success", message);
+    }
+    else if (!anySuccess)
+    {
+        QString message = "Failed to add attachments:\n\n" + errors.join("\n");
+        QMessageBox::critical(nullptr, "Attachment Error", message);
+    }
 }

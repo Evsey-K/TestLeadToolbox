@@ -107,6 +107,18 @@ void EditEventDialog::setupUi()
     fieldStack_ = new QStackedWidget();
     mainLayout->addWidget(fieldStack_);
 
+    QGroupBox* attachmentGroup = new QGroupBox("Attachments", this);
+    QVBoxLayout* attachmentLayout = new QVBoxLayout(attachmentGroup);
+
+    attachmentWidget_ = new AttachmentListWidget(this);
+    attachmentWidget_->setEventId(eventId_);
+    attachmentLayout->addWidget(attachmentWidget_);
+
+    mainLayout->addWidget(attachmentGroup);
+
+    // Connect to update signal
+    connect(attachmentWidget_, &AttachmentListWidget::attachmentsChanged, this, &EditEventDialog::onAttachmentsChanged);
+
     QDialogButtonBox* buttonBox = new QDialogButtonBox();
 
     QPushButton* saveButton = buttonBox->addButton("Save", QDialogButtonBox::AcceptRole);
@@ -854,6 +866,7 @@ void EditEventDialog::populateTypeSpecificFields(TimelineEvent& event) const
     }
 }
 
+
 // All-day checkbox handlers remain the same
 void EditEventDialog::onMeetingAllDayChanged(bool checked)
 {
@@ -861,11 +874,13 @@ void EditEventDialog::onMeetingAllDayChanged(bool checked)
     meetingEndTime_->setEnabled(!checked);
 }
 
+
 void EditEventDialog::onActionAllDayChanged(bool checked)
 {
     actionStartTime_->setEnabled(!checked);
     actionDueTime_->setEnabled(!checked);
 }
+
 
 void EditEventDialog::onTestAllDayChanged(bool checked)
 {
@@ -873,14 +888,26 @@ void EditEventDialog::onTestAllDayChanged(bool checked)
     testEndTime_->setEnabled(!checked);
 }
 
+
 void EditEventDialog::onReminderAllDayChanged(bool checked)
 {
     reminderTime_->setEnabled(!checked);
     reminderEndTime_->setEnabled(!checked);
 }
 
+
 void EditEventDialog::onJiraAllDayChanged(bool checked)
 {
     jiraStartTime_->setEnabled(!checked);
     jiraDueTime_->setEnabled(!checked);
+}
+
+
+void EditEventDialog::onAttachmentsChanged()
+{
+    qDebug() << "EditEventDialog: Attachments changed for event" << eventId_;
+
+    // The attachment count will update automatically through the signal chain:
+    // AttachmentManager -> TimelineModel -> TimelineScene -> TimelineItem
+    // No additional action needed here
 }

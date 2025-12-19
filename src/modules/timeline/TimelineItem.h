@@ -66,19 +66,30 @@ public:
     void setSkipNextUpdate(bool skip) { skipNextUpdate_ = skip; }                       ///< @brief Set whether to skip the next model update (used during undo/redo)
     bool shouldSkipNextUpdate() const { return skipNextUpdate_; }                       ///< @brief Check if next update should be skipped
 
+    void setAttachmentCount(int count);                                                 ///<
+    int attachmentCount() const { return attachmentCount_; }                            ///<
+    bool hasAttachments() const { return attachmentCount_ > 0; }                        ///<
+
 signals:
     void editRequested(const QString& eventId);
     void deleteRequested(const QString& eventId);
     void clicked(const QString& eventId);
+    void filesDropped(const QString& eventId, const QStringList& filePaths);
 
 protected:
     QVariant itemChange(GraphicsItemChange change, const QVariant& value) override;     ///< @brief Override to handle drag completion and update model
+
     void mousePressEvent(QGraphicsSceneMouseEvent* event) override;                     ///< @brief Track when drag starts
     void mouseMoveEvent(QGraphicsSceneMouseEvent* event) override;                      ///< @brief Handle mouse move for dragging and resizing
     void mouseReleaseEvent(QGraphicsSceneMouseEvent* event) override;                   ///< @brief Track when drag ends
     void hoverMoveEvent(QGraphicsSceneHoverEvent* event) override;                      ///< @brief Update cursor based on mouse position (for resize handles)
     void hoverLeaveEvent(QGraphicsSceneHoverEvent* event) override;                     ///< @brief Restore cursor when leaving item
+
     void contextMenuEvent(QGraphicsSceneContextMenuEvent* event) override;              ///< @brief Show context menu
+
+    void dragEnterEvent(QGraphicsSceneDragDropEvent* event) override;                   ///<
+    void dragLeaveEvent(QGraphicsSceneDragDropEvent* event) override;                   ///<
+    void dropEvent(QGraphicsSceneDragDropEvent* event) override;                        ///<
 
 private:
     void updateModelFromPosition();                 ///< @brief Update the model with new dates based on current position
@@ -88,6 +99,8 @@ private:
     enum ResizeHandle { None, LeftEdge, RightEdge };            ///< @brief Detect which edge/corner is under mouse cursor
     ResizeHandle getResizeHandle(const QPointF& pos) const;     ///< @brief Get resize handle at given position
     void updateCursor(ResizeHandle handle);                     ///< @brief Update cursor based on resize handle
+    void drawAttachmentIndicator(QPainter* painter);            ///<
+    void drawDragOverlay(QPainter* painter);                    ///<
 
     TimelineModel* model_ = nullptr;                        ///< Model reference (not owned)
     TimelineCoordinateMapper* mapper_ = nullptr;            ///< Coordinate mapper (not owned)
@@ -99,6 +112,7 @@ private:
     bool isResizing_ = false;                               ///< Whether currently being resized
     bool resizable_ = true;                                 ///< Whether item can be resized
     bool skipNextUpdate_ = false;                           ///< Whether to skip next model update (used during undo/redo)
+    bool isDragHover_ = false;                              ///<
     qreal originalZValue_ = 10.0;                           ///< Original z-value before drag (for restoration)
 
     QRectF rect_;                                           ///< Item's rectangle
@@ -110,6 +124,9 @@ private:
     QRectF resizeStartRect_;                                ///< Rectangle when resize started
     ResizeHandle activeHandle_ = None;                      ///< Currently active resize handle
     QMap<QGraphicsItem*, QPointF> multiDragStartPositions_; ///< Starting positions of all selected items
+
+    int attachmentCount_ = 0;                               ///<
+    bool showAttachmentIndicator_ = false;                  ///<
 
     static constexpr double RESIZE_HANDLE_WIDTH = 8.0;      ///< Width of resize hit area
 };

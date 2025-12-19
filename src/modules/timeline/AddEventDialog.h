@@ -2,6 +2,7 @@
 
 
 #pragma once
+#include "AttachmentListWidget.h"
 #include "TimelineModel.h"
 #include <QDialog>
 #include <QDate>
@@ -63,6 +64,10 @@ private:
     bool validateTypeSpecificFields();                              ///< @brief Validate type-specific fields
     void populateCommonFields(TimelineEvent& event) const;          ///< @brief Populate event from common fields
     void populateTypeSpecificFields(TimelineEvent& event) const;    ///< @brief Populate event from type-specific fields
+
+    // Attachment widget (temp ID for pre-adding attachments)
+    AttachmentListWidget* attachmentWidget_ = nullptr;
+    QString tempEventId_;
 
     // Helper methods for creating field groups
     QWidget* createMeetingFields();

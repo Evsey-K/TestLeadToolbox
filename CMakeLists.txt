@@ -107,6 +107,10 @@ set(SRC
     src/modules/timeline/TimelineLegend.h
     src/modules/timeline/TimelineLegend.cpp
 
+    # Attachment UI Component
+    src/modules/timeline/AttachmentListWidget.h
+    src/modules/timeline/AttachmentListWidget.cpp
+
     # Timeline Module - Utilities
     src/modules/timeline/LaneAssigner.h
     src/modules/timeline/LaneAssigner.cpp
@@ -153,10 +157,11 @@ set(SRC
     src/modules/timeline/SetLookaheadRangeDialog.cpp
     src/modules/timeline/SetLookaheadRangeDialog.ui
 
-    # ---------------------- <NEXT> MODULE -----------------------
+    # -------------------- SHARED COMPONENTS ---------------------
     # ------------------------------------------------------------
 
-
+    src/shared/models/AttachmentModel.h
+    src/shared/models/AttachmentModel.cpp
 )
 
 # ----------------------------------------------------------------------------
