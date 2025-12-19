@@ -23,6 +23,9 @@
 #include <QMessageBox>
 #include <QLabel>
 #include <QPushButton>
+#include <QScrollArea>
+#include <QScreen>
+#include <QGuiApplication>
 
 
 /**

@@ -41,45 +41,19 @@ class AttachmentListWidget : public QWidget
 
 public:
     explicit AttachmentListWidget(QWidget* parent = nullptr);
-    ~AttachmentListWidget() override = default;
+    ~AttachmentListWidget() override;
 
-    /**
-     * @brief Set the event ID whose attachments to display
-     * @param eventId Event ID (UUID format or "event_N" format)
-     */
-    void setEventId(const QString& eventId);
-
-    /**
-     * @brief Get the current event ID
-     */
-    QString eventId() const { return eventId_; }
-
-    /**
-     * @brief Refresh the attachment list from AttachmentManager
-     */
-    void refresh();
-
-    /**
-     * @brief Clear the widget (removes event ID and clears list)
-     */
-    void clear();
+    void setEventId(const QString& eventId);                        ///< @brief Set the event ID whose attachments to display
+    QString eventId() const { return eventId_; }                    ///< @brief Get the current event ID
+    void refresh();                                                 ///< @brief Refresh the attachment list from AttachmentManager
+    void clear();                                                   ///< @brief Clear the widget (removes event ID and clears list)
 
 signals:
-    /**
-     * @brief Emitted when attachments are added or removed
-     */
-    void attachmentsChanged();
+    void attachmentsChanged();                                      ///< @brief Emitted when attachments are added or removed
 
 protected:
-    /**
-     * @brief Handle drag-enter events for file drops
-     */
-    void dragEnterEvent(QDragEnterEvent* event) override;
-
-    /**
-     * @brief Handle drop events to add attachments
-     */
-    void dropEvent(QDropEvent* event) override;
+    void dragEnterEvent(QDragEnterEvent* event) override;           ///< @brief Handle drag-enter events for file drops
+    void dropEvent(QDropEvent* event) override;                     ///< @brief Handle drop events to add attachments
 
 private slots:
     void onAddClicked();
@@ -98,7 +72,7 @@ private:
     void clearPreview();
 
     QString eventId_;
-    int numericEventId_ = -1;  // Cached hash of eventId_
+    uint numericEventId_ = -1;  // Cached hash of eventId_
 
     // UI Components
     QListWidget* listWidget_;

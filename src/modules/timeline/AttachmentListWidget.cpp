@@ -1,5 +1,6 @@
 // AttachmentListWidget.cpp
 
+
 #include "AttachmentListWidget.h"
 #include <QFileDialog>
 #include <QMessageBox>
@@ -14,6 +15,7 @@
 #include <QSplitter>
 #include <QDebug>
 
+
 AttachmentListWidget::AttachmentListWidget(QWidget* parent)
     : QWidget(parent)
     , eventId_("")
@@ -23,25 +25,35 @@ AttachmentListWidget::AttachmentListWidget(QWidget* parent)
     setAcceptDrops(true);
 }
 
+
+AttachmentListWidget::~AttachmentListWidget()
+{
+    // Explicitly disconnect from AttachmentManager singleton to prevent
+    // crashes when the dialog is destroyed while signals might still be pending
+    disconnect(&AttachmentManager::instance(), nullptr, this, nullptr);
+
+    qDebug() << "AttachmentListWidget destroyed for event:" << eventId_;
+}
+
+
 void AttachmentListWidget::setupUI()
 {
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(5);
 
-    // Top section: List + buttons
-    QWidget* topSection = new QWidget();
-    QVBoxLayout* topLayout = new QVBoxLayout(topSection);
-    topLayout->setContentsMargins(0, 0, 0, 0);
-    topLayout->setSpacing(5);
-
-    // List widget
+    // List widget with controlled height
     listWidget_ = new QListWidget();
     listWidget_->setIconSize(QSize(ICON_SIZE, ICON_SIZE));
     listWidget_->setSelectionMode(QAbstractItemView::ExtendedSelection);
     listWidget_->setAlternatingRowColors(true);
-    listWidget_->setDragDropMode(QAbstractItemView::NoDragDrop);  // We handle drag-drop ourselves
-    topLayout->addWidget(listWidget_);
+    listWidget_->setDragDropMode(QAbstractItemView::NoDragDrop);
+
+    // Set minimum and maximum heights for the list
+    listWidget_->setMinimumHeight(80);
+    listWidget_->setMaximumHeight(150);
+
+    mainLayout->addWidget(listWidget_);
 
     // Button row
     QHBoxLayout* buttonLayout = new QHBoxLayout();
@@ -61,57 +73,61 @@ void AttachmentListWidget::setupUI()
     openButton_->setEnabled(false);
     buttonLayout->addWidget(openButton_);
 
-    revealButton_ = new QPushButton("Show in Explorer");
-    revealButton_->setToolTip("Reveal attachment in file explorer");
+    revealButton_ = new QPushButton("Show in Folder");
+    revealButton_->setToolTip("Reveal attachment location in file explorer");
     revealButton_->setEnabled(false);
     buttonLayout->addWidget(revealButton_);
 
     buttonLayout->addStretch();
 
-    topLayout->addLayout(buttonLayout);
-
-    // Status label
     statusLabel_ = new QLabel("No attachments");
     statusLabel_->setStyleSheet("QLabel { color: #666; font-style: italic; }");
-    topLayout->addWidget(statusLabel_);
+    buttonLayout->addWidget(statusLabel_);
 
-    // Preview toggle
+    mainLayout->addLayout(buttonLayout);
+
+    // Preview pane (collapsible)
     showPreviewCheckbox_ = new QCheckBox("Show Preview");
     showPreviewCheckbox_->setChecked(false);
-    topLayout->addWidget(showPreviewCheckbox_);
+    mainLayout->addWidget(showPreviewCheckbox_);
 
-    mainLayout->addWidget(topSection);
-
-    // Preview pane (initially hidden)
     previewPane_ = new QWidget();
     QVBoxLayout* previewLayout = new QVBoxLayout(previewPane_);
-    previewLayout->setContentsMargins(0, 5, 0, 0);
+    previewLayout->setContentsMargins(5, 5, 5, 5);
+    previewLayout->setSpacing(5);
 
     QLabel* previewTitle = new QLabel("<b>Preview:</b>");
     previewLayout->addWidget(previewTitle);
 
     previewStack_ = new QStackedWidget();
-    previewStack_->setMaximumHeight(PREVIEW_HEIGHT);
 
-    // Page 0: Image preview
-    QScrollArea* imageScroll = new QScrollArea();
-    imageScroll->setWidgetResizable(true);
-    imageScroll->setAlignment(Qt::AlignCenter);
+    // Image preview page
+    QWidget* imagePage = new QWidget();
+    QVBoxLayout* imageLayout = new QVBoxLayout(imagePage);
+    imageLayout->setContentsMargins(0, 0, 0, 0);
     previewLabel_ = new QLabel("No preview available");
     previewLabel_->setAlignment(Qt::AlignCenter);
-    previewLabel_->setStyleSheet("QLabel { background: #f0f0f0; border: 1px solid #ccc; }");
-    imageScroll->setWidget(previewLabel_);
-    previewStack_->addWidget(imageScroll);
+    previewLabel_->setMinimumHeight(100);
+    previewLabel_->setMaximumHeight(150);  // Limit preview height
+    previewLabel_->setScaledContents(false);
+    previewLabel_->setStyleSheet("QLabel { border: 1px solid #ccc; background-color: #f5f5f5; }");
+    imageLayout->addWidget(previewLabel_);
+    previewStack_->addWidget(imagePage);
 
-    // Page 1: Text preview
+    // Text preview page
+    QWidget* textPage = new QWidget();
+    QVBoxLayout* textLayout = new QVBoxLayout(textPage);
+    textLayout->setContentsMargins(0, 0, 0, 0);
     previewTextEdit_ = new QTextEdit();
     previewTextEdit_->setReadOnly(true);
-    previewTextEdit_->setPlaceholderText("No preview available");
-    previewStack_->addWidget(previewTextEdit_);
+    previewTextEdit_->setMaximumHeight(150);  // Limit preview height
+    previewTextEdit_->setStyleSheet("QTextEdit { border: 1px solid #ccc; background-color: #f5f5f5; }");
+    textLayout->addWidget(previewTextEdit_);
+    previewStack_->addWidget(textPage);
 
     previewLayout->addWidget(previewStack_);
+    previewPane_->setVisible(false);  // Hidden by default
 
-    previewPane_->setVisible(false);
     mainLayout->addWidget(previewPane_);
 
     // Connect signals
@@ -124,6 +140,7 @@ void AttachmentListWidget::setupUI()
     connect(showPreviewCheckbox_, &QCheckBox::toggled, this, &AttachmentListWidget::onShowPreviewToggled);
 }
 
+
 void AttachmentListWidget::setEventId(const QString& eventId)
 {
     eventId_ = eventId;
@@ -135,23 +152,41 @@ void AttachmentListWidget::setEventId(const QString& eventId)
     refresh();
 }
 
+
 void AttachmentListWidget::refresh()
 {
+    qDebug() << "╔════════════════════════════════════════════════════════════";
+    qDebug() << "║ AttachmentListWidget::refresh() called";
+    qDebug() << "║ eventId_:" << eventId_;
+    qDebug() << "║ numericEventId_:" << numericEventId_;
+    qDebug() << "║ isEmpty():" << eventId_.isEmpty();
+    qDebug() << "║ numericEventId_ < 0:" << (numericEventId_ < 0);
+
     listWidget_->clear();
     clearPreview();
 
-    if (eventId_.isEmpty() || numericEventId_ < 0)
+    if (eventId_.isEmpty() || numericEventId_ == 0)
     {
+        qDebug() << "║ EARLY RETURN: eventId is empty or numericEventId == 0";
+        qDebug() << "╚════════════════════════════════════════════════════════════";
+
         statusLabel_->setText("No event selected");
         updateButtons();
         return;
     }
 
+    qDebug() << "║ Fetching attachments from AttachmentManager...";
+
     // Get attachments from AttachmentManager
     QList<Attachment> attachments = AttachmentManager::instance().getAttachments(numericEventId_);
 
+    qDebug() << "║ Found" << attachments.size() << "attachment(s)";
+
     if (attachments.isEmpty())
     {
+        qDebug() << "║ No attachments found";
+        qDebug() << "╚════════════════════════════════════════════════════════════";
+
         statusLabel_->setText("No attachments");
         updateButtons();
         return;
@@ -166,22 +201,25 @@ void AttachmentListWidget::refresh()
     statusLabel_->setText(QString("%1 attachment(s)").arg(attachments.size()));
     updateButtons();
 
-    qDebug() << "AttachmentListWidget: Loaded" << attachments.size() << "attachment(s)";
+    qDebug() << "║ AttachmentListWidget: Successfully loaded" << attachments.size() << "attachment(s)";
+    qDebug() << "╚════════════════════════════════════════════════════════════";
 }
+
 
 void AttachmentListWidget::clear()
 {
     eventId_.clear();
-    numericEventId_ = -1;
+    numericEventId_ = 0;
     listWidget_->clear();
     clearPreview();
     statusLabel_->setText("No attachments");
     updateButtons();
 }
 
+
 void AttachmentListWidget::dragEnterEvent(QDragEnterEvent* event)
 {
-    if (event->mimeData()->hasUrls() && numericEventId_ >= 0)
+    if (event->mimeData()->hasUrls() && numericEventId_ != 0)
     {
         event->acceptProposedAction();
         qDebug() << "AttachmentListWidget: Drag enter with files";
@@ -192,9 +230,10 @@ void AttachmentListWidget::dragEnterEvent(QDragEnterEvent* event)
     }
 }
 
+
 void AttachmentListWidget::dropEvent(QDropEvent* event)
 {
-    if (!event->mimeData()->hasUrls() || numericEventId_ < 0)
+    if (!event->mimeData()->hasUrls() || numericEventId_ == 0)
     {
         event->ignore();
         return;
@@ -245,9 +284,10 @@ void AttachmentListWidget::dropEvent(QDropEvent* event)
     event->acceptProposedAction();
 }
 
+
 void AttachmentListWidget::onAddClicked()
 {
-    if (numericEventId_ < 0)
+    if (numericEventId_ == 0)
     {
         QMessageBox::warning(this, "No Event", "No event selected. Cannot add attachments.");
         return;
@@ -288,6 +328,7 @@ void AttachmentListWidget::onAddClicked()
     refresh();
     emit attachmentsChanged();
 }
+
 
 void AttachmentListWidget::onRemoveClicked()
 {
@@ -337,6 +378,7 @@ void AttachmentListWidget::onRemoveClicked()
     emit attachmentsChanged();
 }
 
+
 void AttachmentListWidget::onOpenClicked()
 {
     QList<QListWidgetItem*> selectedItems = listWidget_->selectedItems();
@@ -359,6 +401,7 @@ void AttachmentListWidget::onOpenClicked()
         }
     }
 }
+
 
 void AttachmentListWidget::onRevealClicked()
 {
@@ -399,6 +442,7 @@ void AttachmentListWidget::onItemDoubleClicked(QListWidgetItem* item)
     }
 }
 
+
 void AttachmentListWidget::onSelectionChanged()
 {
     updateButtons();
@@ -425,6 +469,7 @@ void AttachmentListWidget::onSelectionChanged()
     }
 }
 
+
 void AttachmentListWidget::onShowPreviewToggled(bool checked)
 {
     previewPane_->setVisible(checked);
@@ -439,6 +484,7 @@ void AttachmentListWidget::onShowPreviewToggled(bool checked)
     }
 }
 
+
 void AttachmentListWidget::updateButtons()
 {
     bool hasSelection = !listWidget_->selectedItems().isEmpty();
@@ -448,6 +494,7 @@ void AttachmentListWidget::updateButtons()
     openButton_->setEnabled(hasSingleSelection);
     revealButton_->setEnabled(hasSingleSelection);
 }
+
 
 void AttachmentListWidget::addAttachmentToList(const Attachment& attachment, int index)
 {
@@ -488,6 +535,7 @@ void AttachmentListWidget::addAttachmentToList(const Attachment& attachment, int
     listWidget_->addItem(item);
 }
 
+
 void AttachmentListWidget::showPreview(const Attachment& attachment)
 {
     if (attachment.isImage() && AttachmentPreviewGenerator::canGenerateThumbnail(attachment))
@@ -521,6 +569,7 @@ void AttachmentListWidget::showPreview(const Attachment& attachment)
     // No preview available
     clearPreview();
 }
+
 
 void AttachmentListWidget::clearPreview()
 {

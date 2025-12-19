@@ -30,10 +30,22 @@ void AddEventDialog::setupUi()
 {
     setWindowTitle("Add Timeline Event");
     setMinimumWidth(500);
+    setMaximumWidth(600);
 
-    QVBoxLayout* mainLayout = new QVBoxLayout(this);
+    // ========== CREATE SCROLL AREA ==========
+    QScrollArea* scrollArea = new QScrollArea(this);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setFrameShape(QFrame::NoFrame);
+    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 
-    // Common Fields Section
+    // Content widget inside scroll area
+    QWidget* contentWidget = new QWidget();
+    QVBoxLayout* contentLayout = new QVBoxLayout(contentWidget);
+    contentLayout->setSpacing(10);
+    contentLayout->setContentsMargins(10, 10, 10, 10);
+
+    // ========== COMMON FIELDS SECTION ==========
     QGroupBox* commonGroup = new QGroupBox("Event Information");
     QFormLayout* commonLayout = new QFormLayout(commonGroup);
 
@@ -54,7 +66,7 @@ void AddEventDialog::setupUi()
     // Priority
     prioritySpinner_ = new QSpinBox();
     prioritySpinner_->setRange(0, 5);
-    prioritySpinner_->setValue(2);
+    prioritySpinner_->setValue(2);  // PRESERVED: Default value of 2
     prioritySpinner_->setToolTip("0 = Highest priority, 5 = Lowest priority");
     commonLayout->addRow("Priority:", prioritySpinner_);
 
@@ -64,7 +76,9 @@ void AddEventDialog::setupUi()
     descriptionEdit_->setMaximumHeight(100);
     commonLayout->addRow("Description:", descriptionEdit_);
 
-    // Lane Control
+    contentLayout->addWidget(commonGroup);
+
+    // ========== LANE CONTROL SECTION ==========
     QGroupBox* laneControlGroup = new QGroupBox("Lane Control (Advanced)");
     QVBoxLayout* laneControlLayout = new QVBoxLayout(laneControlGroup);
 
@@ -91,28 +105,64 @@ void AddEventDialog::setupUi()
     laneControlWarningLabel_->setStyleSheet("QLabel { color: #666; }");
     laneControlLayout->addWidget(laneControlWarningLabel_);
 
-    mainLayout->addWidget(laneControlGroup);
+    contentLayout->addWidget(laneControlGroup);
 
-    connect(laneControlCheckbox_, &QCheckBox::toggled, [this](bool checked)
-            {
-                manualLaneSpinner_->setEnabled(checked);
-            });
+    connect(laneControlCheckbox_, &QCheckBox::toggled, [this](bool checked) {
+        manualLaneSpinner_->setEnabled(checked);
+    });
 
-    mainLayout->addWidget(commonGroup);
-
-    // Type-Specific Fields Section
+    // ========== TYPE-SPECIFIC FIELDS SECTION ==========
     fieldStack_ = new QStackedWidget();
-    mainLayout->addWidget(fieldStack_);
+    contentLayout->addWidget(fieldStack_);
 
-    // Buttons
+    // ========== ATTACHMENTS SECTION (NEW) ==========
+    QGroupBox* attachmentGroup = new QGroupBox("Attachments (Optional)", contentWidget);
+    QVBoxLayout* attachmentLayout = new QVBoxLayout(attachmentGroup);
+    attachmentLayout->setSpacing(5);
+    attachmentLayout->setContentsMargins(5, 10, 5, 5);
+
+    attachmentWidget_ = new AttachmentListWidget(contentWidget);
+
+    // Set reasonable size constraints for attachment widget
+    attachmentWidget_->setMinimumHeight(120);
+    attachmentWidget_->setMaximumHeight(250);
+    attachmentWidget_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+
+    attachmentLayout->addWidget(attachmentWidget_);
+    contentLayout->addWidget(attachmentGroup);
+
+    // Add stretch to push content up
+    contentLayout->addStretch();
+
+    // Set content widget into scroll area
+    scrollArea->setWidget(contentWidget);
+
+    // ========== BUTTONS (OUTSIDE SCROLL AREA) ==========
     QDialogButtonBox* buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+
+    // ========== MAIN DIALOG LAYOUT ==========
+    QVBoxLayout* mainLayout = new QVBoxLayout(this);
+    mainLayout->setContentsMargins(0, 0, 0, 10);
+    mainLayout->setSpacing(10);
+    mainLayout->addWidget(scrollArea);
     mainLayout->addWidget(buttonBox);
 
-    // Connections
+    // ========== CONNECTIONS ==========
     connect(typeCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &AddEventDialog::onTypeChanged);
     connect(buttonBox, &QDialogButtonBox::accepted, this, &AddEventDialog::validateAndAccept);
     connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
+
+    // Set reasonable initial size
+    resize(500, 650);
+
+    // Ensure dialog fits on screen
+    adjustSize();
+    QSize screenSize = QGuiApplication::primaryScreen()->availableSize();
+    if (height() > screenSize.height() * 0.9) {
+        resize(width(), static_cast<int>(screenSize.height() * 0.9));
+    }
 }
+
 
 // createFieldGroups and all create*Fields methods remain the same
 void AddEventDialog::createFieldGroups()
@@ -123,6 +173,7 @@ void AddEventDialog::createFieldGroups()
     fieldStack_->addWidget(createReminderFields());
     fieldStack_->addWidget(createJiraTicketFields());
 }
+
 
 QWidget* AddEventDialog::createMeetingFields()
 {

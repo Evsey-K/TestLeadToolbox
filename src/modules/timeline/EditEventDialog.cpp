@@ -1,6 +1,8 @@
-// EditEventDialog.cpp - Updated to use QDateTime for startDate/endDate
+// EditEventDialog.cpp
+
 
 #include "EditEventDialog.h"
+
 
 // Constructor and destructor remain the same
 EditEventDialog::EditEventDialog(const QString& eventId,
@@ -30,21 +32,33 @@ EditEventDialog::EditEventDialog(const QString& eventId,
     }
 }
 
+
 EditEventDialog::~EditEventDialog()
 {
     // Qt parent-child hierarchy handles cleanup
 }
 
-// setupUi and createFieldGroups remain exactly the same as AddEventDialog
-// (No changes - they just create the UI)
 
 void EditEventDialog::setupUi()
 {
     setWindowTitle("Edit Timeline Event");
-    setMinimumWidth(500);
+    setMinimumWidth(400);
+    setMaximumWidth(600);
 
-    QVBoxLayout* mainLayout = new QVBoxLayout(this);
+    // ========== CREATE SCROLL AREA ==========
+    QScrollArea* scrollArea = new QScrollArea(this);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setFrameShape(QFrame::NoFrame);
+    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 
+    // Content widget inside scroll area
+    QWidget* contentWidget = new QWidget();
+    QVBoxLayout* contentLayout = new QVBoxLayout(contentWidget);
+    contentLayout->setSpacing(10);
+    contentLayout->setContentsMargins(10, 10, 10, 10);
+
+    // ========== COMMON FIELDS SECTION ==========
     QGroupBox* commonGroup = new QGroupBox("Event Information");
     QFormLayout* commonLayout = new QFormLayout(commonGroup);
 
@@ -70,6 +84,9 @@ void EditEventDialog::setupUi()
     descriptionEdit_->setMaximumHeight(100);
     commonLayout->addRow("Description:", descriptionEdit_);
 
+    contentLayout->addWidget(commonGroup);
+
+    // ========== LANE CONTROL SECTION ==========
     QGroupBox* laneControlGroup = new QGroupBox("Lane Control (Advanced)");
     QVBoxLayout* laneControlLayout = new QVBoxLayout(laneControlGroup);
 
@@ -96,42 +113,80 @@ void EditEventDialog::setupUi()
     laneControlWarningLabel_->setStyleSheet("QLabel { color: #666; }");
     laneControlLayout->addWidget(laneControlWarningLabel_);
 
-    mainLayout->addWidget(laneControlGroup);
+    contentLayout->addWidget(laneControlGroup);
 
     connect(laneControlCheckbox_, &QCheckBox::toggled, [this](bool checked) {
         manualLaneSpinner_->setEnabled(checked);
     });
 
-    mainLayout->addWidget(commonGroup);
-
+    // ========== TYPE-SPECIFIC FIELDS (STACKED WIDGET) ==========
     fieldStack_ = new QStackedWidget();
-    mainLayout->addWidget(fieldStack_);
+    contentLayout->addWidget(fieldStack_);
 
-    QGroupBox* attachmentGroup = new QGroupBox("Attachments", this);
+    // ========== ATTACHMENTS SECTION ==========
+    QGroupBox* attachmentGroup = new QGroupBox("Attachments", contentWidget);
     QVBoxLayout* attachmentLayout = new QVBoxLayout(attachmentGroup);
+    attachmentLayout->setSpacing(5);
+    attachmentLayout->setContentsMargins(5, 10, 5, 5);
 
-    attachmentWidget_ = new AttachmentListWidget(this);
+    attachmentWidget_ = new AttachmentListWidget(contentWidget);
     attachmentWidget_->setEventId(eventId_);
-    attachmentLayout->addWidget(attachmentWidget_);
 
-    mainLayout->addWidget(attachmentGroup);
+    // Set reasonable size constraints for attachment widget
+    attachmentWidget_->setMinimumHeight(150);
+    attachmentWidget_->setMaximumHeight(300);
+    attachmentWidget_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+
+    attachmentLayout->addWidget(attachmentWidget_);
+    contentLayout->addWidget(attachmentGroup);
+
+    qDebug() << "═══════════════════════════════════════════════════════";
+    qDebug() << "EditEventDialog::setupUi() - Attachment Widget Setup";
+    qDebug() << "  Event ID (UUID):" << eventId_;
+    qDebug() << "  Numeric Hash:" << qHash(eventId_);
+    qDebug() << "  Attachment Count:" << AttachmentManager::instance().getAttachmentCount(qHash(eventId_));
+    qDebug() << "═══════════════════════════════════════════════════════";
 
     // Connect to update signal
     connect(attachmentWidget_, &AttachmentListWidget::attachmentsChanged, this, &EditEventDialog::onAttachmentsChanged);
 
+    // Add stretch to push content up
+    contentLayout->addStretch();
+
+    // Set content widget into scroll area
+    scrollArea->setWidget(contentWidget);
+
+    // ========== BUTTON BOX (OUTSIDE SCROLL AREA) ==========
     QDialogButtonBox* buttonBox = new QDialogButtonBox();
 
     QPushButton* saveButton = buttonBox->addButton("Save", QDialogButtonBox::AcceptRole);
     deleteButton_ = buttonBox->addButton("Delete", QDialogButtonBox::DestructiveRole);
     QPushButton* cancelButton = buttonBox->addButton("Cancel", QDialogButtonBox::RejectRole);
 
+    // ========== MAIN DIALOG LAYOUT ==========
+    QVBoxLayout* mainLayout = new QVBoxLayout(this);
+    mainLayout->setContentsMargins(0, 0, 0, 10);
+    mainLayout->setSpacing(10);
+    mainLayout->addWidget(scrollArea);
     mainLayout->addWidget(buttonBox);
 
+    // ========== CONNECTIONS ==========
     connect(typeCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &EditEventDialog::onTypeChanged);
     connect(saveButton, &QPushButton::clicked, this, &EditEventDialog::validateAndAccept);
     connect(deleteButton_, &QPushButton::clicked, this, &EditEventDialog::onDeleteClicked);
     connect(cancelButton, &QPushButton::clicked, this, &QDialog::reject);
+
+    // Set reasonable initial size
+    resize(500, 700);
+
+    // Ensure dialog fits on screen
+    adjustSize();
+    QSize screenSize = QGuiApplication::primaryScreen()->availableSize();
+    if (height() > screenSize.height() * 0.9) {
+        resize(width(), static_cast<int>(screenSize.height() * 0.9));
+    }
 }
+
 
 void EditEventDialog::createFieldGroups()
 {
@@ -142,10 +197,6 @@ void EditEventDialog::createFieldGroups()
     fieldStack_->addWidget(createJiraTicketFields());
 }
 
-// All create*Fields methods are identical to AddEventDialog
-// (createMeetingFields, createActionFields, createTestEventFields,
-//  createReminderFields, createJiraTicketFields)
-// I'll skip them for brevity - they're exactly the same
 
 QWidget* EditEventDialog::createMeetingFields()
 {
@@ -202,6 +253,7 @@ QWidget* EditEventDialog::createMeetingFields()
     return widget;
 }
 
+
 QWidget* EditEventDialog::createActionFields()
 {
     QWidget* widget = new QWidget();
@@ -238,6 +290,7 @@ QWidget* EditEventDialog::createActionFields()
 
     return widget;
 }
+
 
 QWidget* EditEventDialog::createTestEventFields()
 {
@@ -310,6 +363,7 @@ QWidget* EditEventDialog::createTestEventFields()
     return widget;
 }
 
+
 QWidget* EditEventDialog::createReminderFields()
 {
     QWidget* widget = new QWidget();
@@ -355,6 +409,7 @@ QWidget* EditEventDialog::createReminderFields()
 
     return widget;
 }
+
 
 QWidget* EditEventDialog::createJiraTicketFields()
 {
@@ -413,7 +468,8 @@ QWidget* EditEventDialog::createJiraTicketFields()
     return widget;
 }
 
-// UPDATED: populateFromEvent - Extract time from QDateTime fields
+
+// PopulateFromEvent - Extract time from QDateTime fields
 void EditEventDialog::populateFromEvent(const TimelineEvent& event)
 {
     // Set type combo
@@ -577,6 +633,7 @@ void EditEventDialog::populateFromEvent(const TimelineEvent& event)
     }
 }
 
+
 // onTypeChanged, showFieldsForType, validation methods remain the same
 void EditEventDialog::onTypeChanged(int index)
 {
@@ -610,6 +667,7 @@ void EditEventDialog::onTypeChanged(int index)
     showFieldsForType(newType);
 }
 
+
 void EditEventDialog::showFieldsForType(TimelineEventType type)
 {
     switch (type)
@@ -634,6 +692,7 @@ void EditEventDialog::showFieldsForType(TimelineEventType type)
     adjustSize();
 }
 
+
 bool EditEventDialog::validateCommonFields()
 {
     if (titleEdit_->text().trimmed().isEmpty())
@@ -645,6 +704,7 @@ bool EditEventDialog::validateCommonFields()
     }
     return true;
 }
+
 
 bool EditEventDialog::validateTypeSpecificFields()
 {
@@ -715,6 +775,7 @@ bool EditEventDialog::validateTypeSpecificFields()
     return true;
 }
 
+
 void EditEventDialog::validateAndAccept()
 {
     if (!validateCommonFields() || !validateTypeSpecificFields())
@@ -723,6 +784,7 @@ void EditEventDialog::validateAndAccept()
     }
     accept();
 }
+
 
 void EditEventDialog::onDeleteClicked()
 {
@@ -739,6 +801,7 @@ void EditEventDialog::onDeleteClicked()
         accept();
     }
 }
+
 
 TimelineEvent EditEventDialog::getEvent() const
 {
@@ -758,6 +821,7 @@ TimelineEvent EditEventDialog::getEvent() const
     return event;
 }
 
+
 void EditEventDialog::populateCommonFields(TimelineEvent& event) const
 {
     event.type = static_cast<TimelineEventType>(typeCombo_->currentData().toInt());
@@ -765,6 +829,7 @@ void EditEventDialog::populateCommonFields(TimelineEvent& event) const
     event.priority = prioritySpinner_->value();
     event.description = descriptionEdit_->toPlainText().trimmed();
 }
+
 
 // UPDATED: populateTypeSpecificFields - Create QDateTime objects (same as AddEventDialog)
 void EditEventDialog::populateTypeSpecificFields(TimelineEvent& event) const
