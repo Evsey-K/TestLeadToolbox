@@ -51,25 +51,18 @@ AddEventDialog::~AddEventDialog()
 void AddEventDialog::setupUi()
 {
     setWindowTitle("Add Timeline Event");
-    setMinimumWidth(500);
-    setMaximumWidth(600);
+    setFixedWidth(850);
+    setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
 
-    // ========== CREATE SCROLL AREA ==========
-    QScrollArea* scrollArea = new QScrollArea(this);
-    scrollArea->setWidgetResizable(false);
-    scrollArea->setFrameShape(QFrame::NoFrame);
-    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    // ========== MAIN CONTENT WIDGET ==========
+    QWidget* contentWidget = new QWidget(this);
 
-    // Content widget inside scroll area
-    QWidget* contentWidget = new QWidget();
-    contentWidget->setMinimumWidth(480);
-    QVBoxLayout* contentLayout = new QVBoxLayout(contentWidget);
-    contentLayout->setSpacing(10);
-    contentLayout->setContentsMargins(10, 10, 10, 10);
-    contentLayout->setSizeConstraint(QLayout::SetMinimumSize);
+    // ========== CREATE 2x2 GRID LAYOUT ==========
+    QGridLayout* gridLayout = new QGridLayout();
+    gridLayout->setSpacing(10);
+    gridLayout->setContentsMargins(10, 10, 10, 10);
 
-    // ========== COMMON FIELDS SECTION ==========
+    // ========== TOP LEFT: EVENT INFORMATION ==========
     QGroupBox* commonGroup = new QGroupBox("Event Information");
     QFormLayout* commonLayout = new QFormLayout(commonGroup);
 
@@ -100,10 +93,29 @@ void AddEventDialog::setupUi()
     descriptionEdit_->setMaximumHeight(100);
     commonLayout->addRow("Description:", descriptionEdit_);
 
-    contentLayout->addWidget(commonGroup);
+    gridLayout->addWidget(commonGroup, 0, 0);
 
-    // ========== TYPE-SPECIFIC FIELDS SECTION ==========
+    commonGroup->setMinimumWidth(560);
+    commonGroup->setMaximumWidth(560);
+
+    // ========== TOP RIGHT: ATTACHMENTS ==========
+    QGroupBox* attachmentGroup = new QGroupBox("Attachments (Optional)");
+    attachmentGroup->setMinimumWidth(240);
+    attachmentGroup->setMaximumWidth(240);
+    QVBoxLayout* attachmentLayout = new QVBoxLayout(attachmentGroup);
+    attachmentLayout->setSpacing(5);
+    attachmentLayout->setContentsMargins(5, 10, 5, 5);
+
+    attachmentWidget_ = new AttachmentListWidget(contentWidget);
+    attachmentWidget_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+
+    attachmentLayout->addWidget(attachmentWidget_);
+    gridLayout->addWidget(attachmentGroup, 0, 1);
+
+    // ========== BOTTOM LEFT: TYPE-SPECIFIC FIELDS ==========
     QGroupBox* typeSpecificGroup = new QGroupBox("Type-Specific Details");
+    typeSpecificGroup->setMinimumWidth(560);
+    typeSpecificGroup->setMaximumWidth(560);
     QVBoxLayout* typeSpecificLayout = new QVBoxLayout(typeSpecificGroup);
     typeSpecificLayout->setContentsMargins(5, 10, 5, 5);
 
@@ -111,10 +123,12 @@ void AddEventDialog::setupUi()
     fieldStack_->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
     typeSpecificLayout->addWidget(fieldStack_);
 
-    contentLayout->addWidget(typeSpecificGroup);
+    gridLayout->addWidget(typeSpecificGroup, 1, 0);
 
-    // ========== LANE CONTROL SECTION ==========
+    // ========== BOTTOM RIGHT: LANE CONTROL ==========
     QGroupBox* laneControlGroup = new QGroupBox("Lane Control (Advanced)");
+    laneControlGroup->setMinimumWidth(240);
+    laneControlGroup->setMaximumWidth(240);
     QVBoxLayout* laneControlLayout = new QVBoxLayout(laneControlGroup);
 
     laneControlCheckbox_ = new QCheckBox("Enable manual lane control");
@@ -140,38 +154,25 @@ void AddEventDialog::setupUi()
     laneControlWarningLabel_->setStyleSheet("QLabel { color: #666; }");
     laneControlLayout->addWidget(laneControlWarningLabel_);
 
-    contentLayout->addWidget(laneControlGroup);
+    laneControlLayout->addStretch();
+
+    gridLayout->addWidget(laneControlGroup, 1, 1);
 
     connect(laneControlCheckbox_, &QCheckBox::toggled, [this](bool checked) {
         manualLaneSpinner_->setEnabled(checked);
     });
 
-    // ========== ATTACHMENTS SECTION (NEW) ==========
-    QGroupBox* attachmentGroup = new QGroupBox("Attachments (Optional)", contentWidget);
-    QVBoxLayout* attachmentLayout = new QVBoxLayout(attachmentGroup);
-    attachmentLayout->setSpacing(5);
-    attachmentLayout->setContentsMargins(5, 10, 5, 5);
+    // Set content widget layout
+    contentWidget->setLayout(gridLayout);
 
-    attachmentWidget_ = new AttachmentListWidget(contentWidget);
-
-    // Set flexible size constraints - allow widget to shrink when compact
-    // Note: AttachmentListWidget internally has listWidget with min 80px, max 150px
-    attachmentWidget_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
-
-    attachmentLayout->addWidget(attachmentWidget_);
-    contentLayout->addWidget(attachmentGroup);
-
-    // Set content widget into scroll area
-    scrollArea->setWidget(contentWidget);
-
-    // ========== BUTTONS (OUTSIDE SCROLL AREA) ==========
+    // ========== BUTTONS ==========
     QDialogButtonBox* buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
 
     // ========== MAIN DIALOG LAYOUT ==========
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
     mainLayout->setContentsMargins(0, 0, 0, 10);
     mainLayout->setSpacing(10);
-    mainLayout->addWidget(scrollArea);
+    mainLayout->addWidget(contentWidget);
     mainLayout->addWidget(buttonBox);
 
     // ========== CONNECTIONS ==========
@@ -179,18 +180,19 @@ void AddEventDialog::setupUi()
     connect(buttonBox, &QDialogButtonBox::accepted, this, &AddEventDialog::validateAndAccept);
     connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
 
-    // Set minimum width but allow height to adjust to content
-    setMinimumWidth(500);
-
     // Let Qt calculate optimal size based on content
     adjustSize();
 
     // Ensure dialog fits on screen
     QSize screenSize = QGuiApplication::primaryScreen()->availableSize();
     int maxHeight = static_cast<int>(screenSize.height() * 0.9);
+    int maxWidth = static_cast<int>(screenSize.width() * 0.9);
 
     if (height() > maxHeight) {
         resize(width(), maxHeight);
+    }
+    if (width() > maxWidth) {
+        resize(maxWidth, height());
     }
 }
 
@@ -495,9 +497,13 @@ void AddEventDialog::onTypeChanged(int index)
         // Ensure dialog still fits on screen
         QSize screenSize = QGuiApplication::primaryScreen()->availableSize();
         int maxHeight = static_cast<int>(screenSize.height() * 0.9);
+        int maxWidth = static_cast<int>(screenSize.width() * 0.9);
 
         if (height() > maxHeight) {
             resize(width(), maxHeight);
+        }
+        if (width() > maxWidth) {
+            resize(maxWidth, height());
         }
     });
 }

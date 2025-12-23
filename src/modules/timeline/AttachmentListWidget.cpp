@@ -50,33 +50,41 @@ void AttachmentListWidget::setupUI()
 
     mainLayout->addWidget(listWidget_);
 
-    // Button row
+    // Button row - using icon-only buttons for compact display
     QHBoxLayout* buttonLayout = new QHBoxLayout();
     buttonLayout->setSpacing(5);
 
-    addButton_ = new QPushButton("Add...");
+    addButton_ = new QPushButton();
+    addButton_->setIcon(QIcon::fromTheme("list-add", style()->standardIcon(QStyle::SP_FileDialogNewFolder)));
     addButton_->setToolTip("Add attachment from file system");
+    addButton_->setMaximumWidth(32);
     buttonLayout->addWidget(addButton_);
 
-    removeButton_ = new QPushButton("Remove");
+    removeButton_ = new QPushButton();
+    removeButton_->setIcon(QIcon::fromTheme("list-remove", style()->standardIcon(QStyle::SP_TrashIcon)));
     removeButton_->setToolTip("Remove selected attachment(s)");
     removeButton_->setEnabled(false);
+    removeButton_->setMaximumWidth(32);
     buttonLayout->addWidget(removeButton_);
 
-    openButton_ = new QPushButton("Open");
+    openButton_ = new QPushButton();
+    openButton_->setIcon(QIcon::fromTheme("document-open", style()->standardIcon(QStyle::SP_FileDialogContentsView)));
     openButton_->setToolTip("Open selected attachment with default application");
     openButton_->setEnabled(false);
+    openButton_->setMaximumWidth(32);
     buttonLayout->addWidget(openButton_);
 
-    revealButton_ = new QPushButton("Show in Folder");
+    revealButton_ = new QPushButton();
+    revealButton_->setIcon(QIcon::fromTheme("folder-open", style()->standardIcon(QStyle::SP_DirIcon)));
     revealButton_->setToolTip("Reveal attachment location in file explorer");
     revealButton_->setEnabled(false);
+    revealButton_->setMaximumWidth(32);
     buttonLayout->addWidget(revealButton_);
 
     buttonLayout->addStretch();
 
     statusLabel_ = new QLabel("No attachments");
-    statusLabel_->setStyleSheet("QLabel { color: #666; font-style: italic; }");
+    statusLabel_->setStyleSheet("QLabel { color: #666; font-style: italic; font-size: 9pt; }");
     buttonLayout->addWidget(statusLabel_);
 
     mainLayout->addLayout(buttonLayout);
