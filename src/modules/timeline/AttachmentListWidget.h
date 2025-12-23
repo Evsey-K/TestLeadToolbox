@@ -10,10 +10,6 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QGroupBox>
-#include <QCheckBox>
-#include <QTextEdit>
-#include <QStackedWidget>
-#include <QScrollArea>
 
 
 /**
@@ -25,7 +21,6 @@
  * - Add/Remove/Open/Reveal in Explorer buttons
  * - Drag-and-drop file addition
  * - Double-click to open files
- * - Preview pane for images and text files
  * - Real-time updates when attachments change
  *
  * Usage:
@@ -62,14 +57,11 @@ private slots:
     void onRevealClicked();
     void onItemDoubleClicked(QListWidgetItem* item);
     void onSelectionChanged();
-    void onShowPreviewToggled(bool checked);
 
 private:
     void setupUI();
     void updateButtons();
     void addAttachmentToList(const Attachment& attachment, int index);
-    void showPreview(const Attachment& attachment);
-    void clearPreview();
 
     QString eventId_;
     uint numericEventId_ = -1;  // Cached hash of eventId_
@@ -81,15 +73,7 @@ private:
     QPushButton* openButton_;
     QPushButton* revealButton_;
     QLabel* statusLabel_;
-    QCheckBox* showPreviewCheckbox_;
-
-    // Preview pane
-    QWidget* previewPane_;
-    QLabel* previewLabel_;
-    QTextEdit* previewTextEdit_;
-    QStackedWidget* previewStack_;
 
     // Constants
     static constexpr int ICON_SIZE = 32;
-    static constexpr int PREVIEW_HEIGHT = 200;
 };

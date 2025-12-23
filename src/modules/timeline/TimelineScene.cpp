@@ -631,4 +631,11 @@ void TimelineScene::onFilesDropped(const QString& eventId, const QStringList& fi
         QString message = "Failed to add attachments:\n\n" + errors.join("\n");
         QMessageBox::critical(nullptr, "Attachment Error", message);
     }
+
+    // Manually trigger attachment indicator update
+    if (anySuccess)
+    {
+        onEventAttachmentsChanged(eventId);
+        qDebug() << "TimelineScene: Manually triggered attachment indicator update for" << eventId;
+    }
 }

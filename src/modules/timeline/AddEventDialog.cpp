@@ -1,6 +1,29 @@
-// AddEventDialog.cpp - Updated to use QDateTime for startDate/endDate
+// AddEventDialog.cpp
+
 
 #include "AddEventDialog.h"
+#include <qtimer.h>
+
+
+// Custom QStackedWidget that only reports current page size
+class DynamicStackedWidget : public QStackedWidget
+{
+public:
+    explicit DynamicStackedWidget(QWidget* parent = nullptr) : QStackedWidget(parent) {}
+
+    QSize sizeHint() const override
+    {
+        QWidget* current = currentWidget();
+        return current ? current->sizeHint() : QStackedWidget::sizeHint();
+    }
+
+    QSize minimumSizeHint() const override
+    {
+        QWidget* current = currentWidget();
+        return current ? current->minimumSizeHint() : QStackedWidget::minimumSizeHint();
+    }
+};
+
 
 // Constructor and destructor remain the same
 AddEventDialog::AddEventDialog(const QDate& versionStart,
@@ -18,13 +41,12 @@ AddEventDialog::AddEventDialog(const QDate& versionStart,
     onTypeChanged(0);
 }
 
+
 AddEventDialog::~AddEventDialog()
 {
     // Qt parent-child hierarchy handles cleanup
 }
 
-// setupUi, createFieldGroups, create*Fields methods remain exactly the same
-// (No changes needed - they just set up the UI)
 
 void AddEventDialog::setupUi()
 {
@@ -34,16 +56,18 @@ void AddEventDialog::setupUi()
 
     // ========== CREATE SCROLL AREA ==========
     QScrollArea* scrollArea = new QScrollArea(this);
-    scrollArea->setWidgetResizable(true);
+    scrollArea->setWidgetResizable(false);
     scrollArea->setFrameShape(QFrame::NoFrame);
     scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 
     // Content widget inside scroll area
     QWidget* contentWidget = new QWidget();
+    contentWidget->setMinimumWidth(480);
     QVBoxLayout* contentLayout = new QVBoxLayout(contentWidget);
     contentLayout->setSpacing(10);
     contentLayout->setContentsMargins(10, 10, 10, 10);
+    contentLayout->setSizeConstraint(QLayout::SetMinimumSize);
 
     // ========== COMMON FIELDS SECTION ==========
     QGroupBox* commonGroup = new QGroupBox("Event Information");
@@ -78,6 +102,17 @@ void AddEventDialog::setupUi()
 
     contentLayout->addWidget(commonGroup);
 
+    // ========== TYPE-SPECIFIC FIELDS SECTION ==========
+    QGroupBox* typeSpecificGroup = new QGroupBox("Type-Specific Details");
+    QVBoxLayout* typeSpecificLayout = new QVBoxLayout(typeSpecificGroup);
+    typeSpecificLayout->setContentsMargins(5, 10, 5, 5);
+
+    fieldStack_ = new DynamicStackedWidget();
+    fieldStack_->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
+    typeSpecificLayout->addWidget(fieldStack_);
+
+    contentLayout->addWidget(typeSpecificGroup);
+
     // ========== LANE CONTROL SECTION ==========
     QGroupBox* laneControlGroup = new QGroupBox("Lane Control (Advanced)");
     QVBoxLayout* laneControlLayout = new QVBoxLayout(laneControlGroup);
@@ -111,10 +146,6 @@ void AddEventDialog::setupUi()
         manualLaneSpinner_->setEnabled(checked);
     });
 
-    // ========== TYPE-SPECIFIC FIELDS SECTION ==========
-    fieldStack_ = new QStackedWidget();
-    contentLayout->addWidget(fieldStack_);
-
     // ========== ATTACHMENTS SECTION (NEW) ==========
     QGroupBox* attachmentGroup = new QGroupBox("Attachments (Optional)", contentWidget);
     QVBoxLayout* attachmentLayout = new QVBoxLayout(attachmentGroup);
@@ -123,16 +154,12 @@ void AddEventDialog::setupUi()
 
     attachmentWidget_ = new AttachmentListWidget(contentWidget);
 
-    // Set reasonable size constraints for attachment widget
-    attachmentWidget_->setMinimumHeight(120);
-    attachmentWidget_->setMaximumHeight(250);
-    attachmentWidget_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    // Set flexible size constraints - allow widget to shrink when compact
+    // Note: AttachmentListWidget internally has listWidget with min 80px, max 150px
+    attachmentWidget_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
 
     attachmentLayout->addWidget(attachmentWidget_);
     contentLayout->addWidget(attachmentGroup);
-
-    // Add stretch to push content up
-    contentLayout->addStretch();
 
     // Set content widget into scroll area
     scrollArea->setWidget(contentWidget);
@@ -152,14 +179,18 @@ void AddEventDialog::setupUi()
     connect(buttonBox, &QDialogButtonBox::accepted, this, &AddEventDialog::validateAndAccept);
     connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
 
-    // Set reasonable initial size
-    resize(500, 650);
+    // Set minimum width but allow height to adjust to content
+    setMinimumWidth(500);
+
+    // Let Qt calculate optimal size based on content
+    adjustSize();
 
     // Ensure dialog fits on screen
-    adjustSize();
     QSize screenSize = QGuiApplication::primaryScreen()->availableSize();
-    if (height() > screenSize.height() * 0.9) {
-        resize(width(), static_cast<int>(screenSize.height() * 0.9));
+    int maxHeight = static_cast<int>(screenSize.height() * 0.9);
+
+    if (height() > maxHeight) {
+        resize(width(), maxHeight);
     }
 }
 
@@ -449,8 +480,6 @@ QWidget* AddEventDialog::createJiraTicketFields()
     return widget;
 }
 
-// onTypeChanged, showFieldsForType, validateCommonFields, validateTypeSpecificFields
-// remain the same - no changes needed
 
 void AddEventDialog::onTypeChanged(int index)
 {
@@ -458,7 +487,21 @@ void AddEventDialog::onTypeChanged(int index)
         typeCombo_->itemData(index).toInt());
 
     showFieldsForType(type);
+
+    // Resize dialog to fit new content
+    QTimer::singleShot(0, this, [this]() {
+        adjustSize();
+
+        // Ensure dialog still fits on screen
+        QSize screenSize = QGuiApplication::primaryScreen()->availableSize();
+        int maxHeight = static_cast<int>(screenSize.height() * 0.9);
+
+        if (height() > maxHeight) {
+            resize(width(), maxHeight);
+        }
+    });
 }
+
 
 void AddEventDialog::showFieldsForType(TimelineEventType type)
 {

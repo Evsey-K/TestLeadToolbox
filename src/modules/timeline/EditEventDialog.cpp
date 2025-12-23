@@ -2,6 +2,27 @@
 
 
 #include "EditEventDialog.h"
+#include <qtimer.h>
+
+
+// Custom QStackedWidget that only reports current page size
+class DynamicStackedWidget : public QStackedWidget
+{
+public:
+    explicit DynamicStackedWidget(QWidget* parent = nullptr) : QStackedWidget(parent) {}
+
+    QSize sizeHint() const override
+    {
+        QWidget* current = currentWidget();
+        return current ? current->sizeHint() : QStackedWidget::sizeHint();
+    }
+
+    QSize minimumSizeHint() const override
+    {
+        QWidget* current = currentWidget();
+        return current ? current->minimumSizeHint() : QStackedWidget::minimumSizeHint();
+    }
+};
 
 
 // Constructor and destructor remain the same
@@ -47,16 +68,18 @@ void EditEventDialog::setupUi()
 
     // ========== CREATE SCROLL AREA ==========
     QScrollArea* scrollArea = new QScrollArea(this);
-    scrollArea->setWidgetResizable(true);
+    scrollArea->setWidgetResizable(false);
     scrollArea->setFrameShape(QFrame::NoFrame);
     scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 
     // Content widget inside scroll area
     QWidget* contentWidget = new QWidget();
+    contentWidget->setMinimumWidth(480);
     QVBoxLayout* contentLayout = new QVBoxLayout(contentWidget);
     contentLayout->setSpacing(10);
     contentLayout->setContentsMargins(10, 10, 10, 10);
+    contentLayout->setSizeConstraint(QLayout::SetMinimumSize);
 
     // ========== COMMON FIELDS SECTION ==========
     QGroupBox* commonGroup = new QGroupBox("Event Information");
@@ -85,6 +108,17 @@ void EditEventDialog::setupUi()
     commonLayout->addRow("Description:", descriptionEdit_);
 
     contentLayout->addWidget(commonGroup);
+
+    // ========== TYPE-SPECIFIC FIELDS SECTION ==========
+    QGroupBox* typeSpecificGroup = new QGroupBox("Type-Specific Details");
+    QVBoxLayout* typeSpecificLayout = new QVBoxLayout(typeSpecificGroup);
+    typeSpecificLayout->setContentsMargins(5, 10, 5, 5);
+
+    fieldStack_ = new DynamicStackedWidget();
+    fieldStack_->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
+    typeSpecificLayout->addWidget(fieldStack_);
+
+    contentLayout->addWidget(typeSpecificGroup);
 
     // ========== LANE CONTROL SECTION ==========
     QGroupBox* laneControlGroup = new QGroupBox("Lane Control (Advanced)");
@@ -119,10 +153,6 @@ void EditEventDialog::setupUi()
         manualLaneSpinner_->setEnabled(checked);
     });
 
-    // ========== TYPE-SPECIFIC FIELDS (STACKED WIDGET) ==========
-    fieldStack_ = new QStackedWidget();
-    contentLayout->addWidget(fieldStack_);
-
     // ========== ATTACHMENTS SECTION ==========
     QGroupBox* attachmentGroup = new QGroupBox("Attachments", contentWidget);
     QVBoxLayout* attachmentLayout = new QVBoxLayout(attachmentGroup);
@@ -132,10 +162,9 @@ void EditEventDialog::setupUi()
     attachmentWidget_ = new AttachmentListWidget(contentWidget);
     attachmentWidget_->setEventId(eventId_);
 
-    // Set reasonable size constraints for attachment widget
-    attachmentWidget_->setMinimumHeight(150);
-    attachmentWidget_->setMaximumHeight(300);
-    attachmentWidget_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    // Set flexible size constraints - allow widget to shrink when compact
+    // Note: AttachmentListWidget internally has listWidget with min 80px, max 150px
+    attachmentWidget_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
 
     attachmentLayout->addWidget(attachmentWidget_);
     contentLayout->addWidget(attachmentGroup);
@@ -149,9 +178,6 @@ void EditEventDialog::setupUi()
 
     // Connect to update signal
     connect(attachmentWidget_, &AttachmentListWidget::attachmentsChanged, this, &EditEventDialog::onAttachmentsChanged);
-
-    // Add stretch to push content up
-    contentLayout->addStretch();
 
     // Set content widget into scroll area
     scrollArea->setWidget(contentWidget);
@@ -176,14 +202,18 @@ void EditEventDialog::setupUi()
     connect(deleteButton_, &QPushButton::clicked, this, &EditEventDialog::onDeleteClicked);
     connect(cancelButton, &QPushButton::clicked, this, &QDialog::reject);
 
-    // Set reasonable initial size
-    resize(500, 700);
+    // Dynamic resizing logic
+    setMinimumWidth(500);
+
+    // Let Qt calculate optimal size based on content
+    adjustSize();
 
     // Ensure dialog fits on screen
-    adjustSize();
     QSize screenSize = QGuiApplication::primaryScreen()->availableSize();
-    if (height() > screenSize.height() * 0.9) {
-        resize(width(), static_cast<int>(screenSize.height() * 0.9));
+    int maxHeight = static_cast<int>(screenSize.height() * 0.9);
+
+    if (height() > maxHeight) {
+        resize(width(), maxHeight);
     }
 }
 
@@ -634,7 +664,6 @@ void EditEventDialog::populateFromEvent(const TimelineEvent& event)
 }
 
 
-// onTypeChanged, showFieldsForType, validation methods remain the same
 void EditEventDialog::onTypeChanged(int index)
 {
     TimelineEventType newType = static_cast<TimelineEventType>(
@@ -665,6 +694,19 @@ void EditEventDialog::onTypeChanged(int index)
     }
 
     showFieldsForType(newType);
+
+    // Resize dialog to fit new content
+    QTimer::singleShot(0, this, [this]() {
+        adjustSize();
+
+        // Ensure dialog still fits on screen
+        QSize screenSize = QGuiApplication::primaryScreen()->availableSize();
+        int maxHeight = static_cast<int>(screenSize.height() * 0.9);
+
+        if (height() > maxHeight) {
+            resize(width(), maxHeight);
+        }
+    });
 }
 
 

@@ -8,11 +8,6 @@
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QUrl>
-#include <QCheckBox>
-#include <QStackedWidget>
-#include <QTextEdit>
-#include <QScrollArea>
-#include <QSplitter>
 #include <QDebug>
 
 
@@ -86,50 +81,6 @@ void AttachmentListWidget::setupUI()
 
     mainLayout->addLayout(buttonLayout);
 
-    // Preview pane (collapsible)
-    showPreviewCheckbox_ = new QCheckBox("Show Preview");
-    showPreviewCheckbox_->setChecked(false);
-    mainLayout->addWidget(showPreviewCheckbox_);
-
-    previewPane_ = new QWidget();
-    QVBoxLayout* previewLayout = new QVBoxLayout(previewPane_);
-    previewLayout->setContentsMargins(5, 5, 5, 5);
-    previewLayout->setSpacing(5);
-
-    QLabel* previewTitle = new QLabel("<b>Preview:</b>");
-    previewLayout->addWidget(previewTitle);
-
-    previewStack_ = new QStackedWidget();
-
-    // Image preview page
-    QWidget* imagePage = new QWidget();
-    QVBoxLayout* imageLayout = new QVBoxLayout(imagePage);
-    imageLayout->setContentsMargins(0, 0, 0, 0);
-    previewLabel_ = new QLabel("No preview available");
-    previewLabel_->setAlignment(Qt::AlignCenter);
-    previewLabel_->setMinimumHeight(100);
-    previewLabel_->setMaximumHeight(150);  // Limit preview height
-    previewLabel_->setScaledContents(false);
-    previewLabel_->setStyleSheet("QLabel { border: 1px solid #ccc; background-color: #f5f5f5; }");
-    imageLayout->addWidget(previewLabel_);
-    previewStack_->addWidget(imagePage);
-
-    // Text preview page
-    QWidget* textPage = new QWidget();
-    QVBoxLayout* textLayout = new QVBoxLayout(textPage);
-    textLayout->setContentsMargins(0, 0, 0, 0);
-    previewTextEdit_ = new QTextEdit();
-    previewTextEdit_->setReadOnly(true);
-    previewTextEdit_->setMaximumHeight(150);  // Limit preview height
-    previewTextEdit_->setStyleSheet("QTextEdit { border: 1px solid #ccc; background-color: #f5f5f5; }");
-    textLayout->addWidget(previewTextEdit_);
-    previewStack_->addWidget(textPage);
-
-    previewLayout->addWidget(previewStack_);
-    previewPane_->setVisible(false);  // Hidden by default
-
-    mainLayout->addWidget(previewPane_);
-
     // Connect signals
     connect(addButton_, &QPushButton::clicked, this, &AttachmentListWidget::onAddClicked);
     connect(removeButton_, &QPushButton::clicked, this, &AttachmentListWidget::onRemoveClicked);
@@ -137,7 +88,6 @@ void AttachmentListWidget::setupUI()
     connect(revealButton_, &QPushButton::clicked, this, &AttachmentListWidget::onRevealClicked);
     connect(listWidget_, &QListWidget::itemDoubleClicked, this, &AttachmentListWidget::onItemDoubleClicked);
     connect(listWidget_, &QListWidget::itemSelectionChanged, this, &AttachmentListWidget::onSelectionChanged);
-    connect(showPreviewCheckbox_, &QCheckBox::toggled, this, &AttachmentListWidget::onShowPreviewToggled);
 }
 
 
@@ -163,7 +113,6 @@ void AttachmentListWidget::refresh()
     qDebug() << "║ numericEventId_ < 0:" << (numericEventId_ < 0);
 
     listWidget_->clear();
-    clearPreview();
 
     if (eventId_.isEmpty() || numericEventId_ == 0)
     {
@@ -211,7 +160,6 @@ void AttachmentListWidget::clear()
     eventId_.clear();
     numericEventId_ = 0;
     listWidget_->clear();
-    clearPreview();
     statusLabel_->setText("No attachments");
     updateButtons();
 }
@@ -446,42 +394,6 @@ void AttachmentListWidget::onItemDoubleClicked(QListWidgetItem* item)
 void AttachmentListWidget::onSelectionChanged()
 {
     updateButtons();
-
-    // Update preview if enabled
-    if (showPreviewCheckbox_->isChecked())
-    {
-        QList<QListWidgetItem*> selectedItems = listWidget_->selectedItems();
-
-        if (!selectedItems.isEmpty())
-        {
-            int index = listWidget_->row(selectedItems[0]);
-            QList<Attachment> attachments = AttachmentManager::instance().getAttachments(numericEventId_);
-
-            if (index >= 0 && index < attachments.size())
-            {
-                showPreview(attachments[index]);
-            }
-        }
-        else
-        {
-            clearPreview();
-        }
-    }
-}
-
-
-void AttachmentListWidget::onShowPreviewToggled(bool checked)
-{
-    previewPane_->setVisible(checked);
-
-    if (checked)
-    {
-        onSelectionChanged();  // Show preview for current selection
-    }
-    else
-    {
-        clearPreview();
-    }
 }
 
 
@@ -533,48 +445,4 @@ void AttachmentListWidget::addAttachmentToList(const Attachment& attachment, int
     item->setData(Qt::UserRole, index);
 
     listWidget_->addItem(item);
-}
-
-
-void AttachmentListWidget::showPreview(const Attachment& attachment)
-{
-    if (attachment.isImage() && AttachmentPreviewGenerator::canGenerateThumbnail(attachment))
-    {
-        // Show image preview
-        QPixmap thumbnail = AttachmentPreviewGenerator::generateThumbnail(
-            attachment,
-            QSize(PREVIEW_HEIGHT, PREVIEW_HEIGHT)
-            );
-
-        if (!thumbnail.isNull())
-        {
-            previewLabel_->setPixmap(thumbnail);
-            previewStack_->setCurrentIndex(0);
-            return;
-        }
-    }
-    else if (attachment.isTextFile() && AttachmentPreviewGenerator::canGenerateTextPreview(attachment))
-    {
-        // Show text preview
-        QString preview = AttachmentPreviewGenerator::generateTextPreview(attachment, 1000);
-
-        if (!preview.isEmpty())
-        {
-            previewTextEdit_->setPlainText(preview);
-            previewStack_->setCurrentIndex(1);
-            return;
-        }
-    }
-
-    // No preview available
-    clearPreview();
-}
-
-
-void AttachmentListWidget::clearPreview()
-{
-    previewLabel_->setText("No preview available");
-    previewLabel_->setPixmap(QPixmap());
-    previewTextEdit_->clear();
-    previewStack_->setCurrentIndex(0);
 }

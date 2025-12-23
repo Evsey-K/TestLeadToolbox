@@ -39,7 +39,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # REQUIRED means the build will fail immediately if Qt6 is not installed
 # or cannot be located by CMake.
 
-find_package(Qt6 COMPONENTS Core Gui Widgets PrintSupport REQUIRED)
+find_package(Qt6 REQUIRED COMPONENTS
+                Core
+                Gui
+                Svg
+                Xml
+                Widgets
+                PrintSupport)
 
 # ----------------------------------------------------------------------------
 # Qt Auto-Generation Settings
@@ -199,6 +205,8 @@ target_link_libraries(${PROJECT_NAME}
     PRIVATE
         Qt6::Core
         Qt6::Gui
+        Qt6::Svg
+        Qt6::Xml
         Qt6::Widgets
         Qt6::PrintSupport
 )
