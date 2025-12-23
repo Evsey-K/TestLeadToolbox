@@ -239,13 +239,11 @@ QWidget* AddEventDialog::createMeetingFields()
     meetingEndDate_->setMinimumDate(versionStart_);
     meetingEndDate_->setMaximumDate(versionEnd_);
     meetingEndTime_ = new QTimeEdit(QTime(10, 0));
+    meetingAllDayCheckbox_ = new QCheckBox("All-day event");
     endLayout->addWidget(meetingEndDate_);
     endLayout->addWidget(meetingEndTime_);
+    endLayout->addWidget(meetingAllDayCheckbox_);
     layout->addRow("End:", endLayout);
-
-    // All-Day Event Checkbox
-    meetingAllDayCheckbox_ = new QCheckBox("All-day event");
-    layout->addRow("", meetingAllDayCheckbox_);
 
     // Location
     locationEdit_ = new QLineEdit();
@@ -276,6 +274,10 @@ QWidget* AddEventDialog::createActionFields()
     QWidget* widget = new QWidget();
     QFormLayout* layout = new QFormLayout(widget);
 
+    layout->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
+    layout->setVerticalSpacing(6);
+    layout->setHorizontalSpacing(10);
+
     QHBoxLayout* startLayout = new QHBoxLayout();
     actionStartDate_ = new QDateEdit(QDate::currentDate());
     actionStartDate_->setCalendarPopup(true);
@@ -292,12 +294,11 @@ QWidget* AddEventDialog::createActionFields()
     actionDueDate_->setMinimumDate(versionStart_);
     actionDueDate_->setMaximumDate(versionEnd_);
     actionDueTime_ = new QTimeEdit(QTime::currentTime());
+    actionAllDayCheckbox_ = new QCheckBox("All-day event");
     dueLayout->addWidget(actionDueDate_);
     dueLayout->addWidget(actionDueTime_);
+    dueLayout->addWidget(actionAllDayCheckbox_);
     layout->addRow("Due:", dueLayout);
-
-    actionAllDayCheckbox_ = new QCheckBox("All-day event");
-    layout->addRow("", actionAllDayCheckbox_);
 
     statusCombo_ = new QComboBox();
     statusCombo_->addItems({"Not Started", "In Progress", "Blocked", "Completed"});
@@ -312,6 +313,10 @@ QWidget* AddEventDialog::createTestEventFields()
 {
     QWidget* widget = new QWidget();
     QFormLayout* layout = new QFormLayout(widget);
+
+    layout->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
+    layout->setVerticalSpacing(6);
+    layout->setHorizontalSpacing(10);
 
     QHBoxLayout* startLayout = new QHBoxLayout();
     startLayout->setSpacing(5);
@@ -333,19 +338,20 @@ QWidget* AddEventDialog::createTestEventFields()
     testEndDate_->setMinimumDate(versionStart_);
     testEndDate_->setMaximumDate(versionEnd_);
     testEndTime_ = new QTimeEdit(QTime(17, 0));
+    testAllDayCheckbox_ = new QCheckBox("All-day event");
     endLayout->addWidget(testEndDate_);
     endLayout->addWidget(testEndTime_);
+    endLayout->addWidget(testAllDayCheckbox_);
     layout->addRow("End:", endLayout);
-
-    testAllDayCheckbox_ = new QCheckBox("All-day event");
-    layout->addRow("", testAllDayCheckbox_);
 
     testCategoryCombo_ = new QComboBox();
     testCategoryCombo_->addItems({"Dry Run", "Preliminary", "Formal"});
     layout->addRow("Category:", testCategoryCombo_);
 
     QGroupBox* checklistGroup = new QGroupBox("Preparation Checklist");
-    QVBoxLayout* checklistLayout = new QVBoxLayout(checklistGroup);
+    QGridLayout* checklistLayout = new QGridLayout(checklistGroup);
+    checklistLayout->setSpacing(8);
+    checklistLayout->setContentsMargins(10, 10, 10, 10);
 
     QStringList checklistItemNames = {
         "IAVM Installation (C/U)",
@@ -361,11 +367,20 @@ QWidget* AddEventDialog::createTestEventFields()
         "Test Event Meetings Established"
     };
 
+    // Arrange checkboxes in a 2-column grid
+    int row = 0;
+    int col = 0;
     for (const QString& itemName : checklistItemNames)
     {
         QCheckBox* checkbox = new QCheckBox(itemName);
-        checklistLayout->addWidget(checkbox);
+        checklistLayout->addWidget(checkbox, row, col);
         checklistItems_[itemName] = checkbox;
+
+        col++;
+        if (col >= 2) {
+            col = 0;
+            row++;
+        }
     }
 
     layout->addRow(checklistGroup);
@@ -383,6 +398,10 @@ QWidget* AddEventDialog::createReminderFields()
 {
     QWidget* widget = new QWidget();
     QFormLayout* layout = new QFormLayout(widget);
+
+    layout->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
+    layout->setVerticalSpacing(6);
+    layout->setHorizontalSpacing(10);
 
     QHBoxLayout* startLayout = new QHBoxLayout();
     startLayout->setSpacing(5);
@@ -404,12 +423,11 @@ QWidget* AddEventDialog::createReminderFields()
     reminderEndDate_->setMinimumDate(versionStart_);
     reminderEndDate_->setMaximumDate(versionEnd_);
     reminderEndTime_ = new QTimeEdit(QTime::currentTime());
+    reminderAllDayCheckbox_ = new QCheckBox("All-day event");
     endLayout->addWidget(reminderEndDate_);
     endLayout->addWidget(reminderEndTime_);
+    endLayout->addWidget(reminderAllDayCheckbox_);
     layout->addRow("End:", endLayout);
-
-    reminderAllDayCheckbox_ = new QCheckBox("All-day event");
-    layout->addRow("", reminderAllDayCheckbox_);
 
     recurringRuleCombo_ = new QComboBox();
     recurringRuleCombo_->addItems({"None", "Daily", "Weekly", "Monthly"});
@@ -429,6 +447,10 @@ QWidget* AddEventDialog::createJiraTicketFields()
 {
     QWidget* widget = new QWidget();
     QFormLayout* layout = new QFormLayout(widget);
+
+    layout->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
+    layout->setVerticalSpacing(6);
+    layout->setHorizontalSpacing(10);
 
     jiraKeyEdit_ = new QLineEdit();
     jiraKeyEdit_->setPlaceholderText("e.g., ABC-123");
@@ -466,12 +488,11 @@ QWidget* AddEventDialog::createJiraTicketFields()
     jiraDueDate_->setMinimumDate(versionStart_);
     jiraDueDate_->setMaximumDate(versionEnd_);
     jiraDueTime_ = new QTimeEdit(QTime(17, 0));
+    jiraAllDayCheckbox_ = new QCheckBox("All-day event");
     dueLayout->addWidget(jiraDueDate_);
     dueLayout->addWidget(jiraDueTime_);
+    dueLayout->addWidget(jiraAllDayCheckbox_);
     layout->addRow("Due:", dueLayout);
-
-    jiraAllDayCheckbox_ = new QCheckBox("All-day event");
-    layout->addRow("", jiraAllDayCheckbox_);
 
     connect(jiraStartDate_, &QDateEdit::dateChanged, [this](const QDate& date) {
         if (jiraDueDate_->date() < date)

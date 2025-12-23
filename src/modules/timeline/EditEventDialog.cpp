@@ -206,10 +206,11 @@ void EditEventDialog::setupUi()
     // Let Qt calculate optimal size based on content
     adjustSize();
 
-    // Ensure dialog fits on screen
-    QSize screenSize = QGuiApplication::primaryScreen()->availableSize();
-    int maxHeight = static_cast<int>(screenSize.height() * 0.9);
-    int maxWidth = static_cast<int>(screenSize.width() * 0.9);
+    // Ensure dialog fits on screen and is positioned properly
+    QScreen* screen = QGuiApplication::primaryScreen();
+    QRect availableGeometry = screen->availableGeometry();
+    int maxHeight = static_cast<int>(availableGeometry.height() * 0.9);
+    int maxWidth = static_cast<int>(availableGeometry.width() * 0.9);
 
     if (height() > maxHeight) {
         resize(width(), maxHeight);
@@ -217,6 +218,22 @@ void EditEventDialog::setupUi()
     if (width() > maxWidth) {
         resize(maxWidth, height());
     }
+
+    // Center the dialog on screen to ensure it's fully visible
+    QRect dialogGeometry = geometry();
+    dialogGeometry.moveCenter(availableGeometry.center());
+
+    // Ensure top is not off-screen
+    if (dialogGeometry.top() < availableGeometry.top()) {
+        dialogGeometry.moveTop(availableGeometry.top());
+    }
+
+    // Ensure bottom is not off-screen
+    if (dialogGeometry.bottom() > availableGeometry.bottom()) {
+        dialogGeometry.moveBottom(availableGeometry.bottom());
+    }
+
+    setGeometry(dialogGeometry);
 }
 
 
@@ -259,12 +276,11 @@ QWidget* EditEventDialog::createMeetingFields()
     meetingEndDate_->setMinimumDate(versionStart_);
     meetingEndDate_->setMaximumDate(versionEnd_);
     meetingEndTime_ = new QTimeEdit(QTime(10, 0));
+    meetingAllDayCheckbox_ = new QCheckBox("All-day event");
     endLayout->addWidget(meetingEndDate_);
     endLayout->addWidget(meetingEndTime_);
+    endLayout->addWidget(meetingAllDayCheckbox_);
     layout->addRow("End:", endLayout);
-
-    meetingAllDayCheckbox_ = new QCheckBox("All-day event");
-    layout->addRow("", meetingAllDayCheckbox_);
 
     locationEdit_ = new QLineEdit();
     locationEdit_->setPlaceholderText("Physical location or virtual link");
@@ -291,6 +307,10 @@ QWidget* EditEventDialog::createActionFields()
     QWidget* widget = new QWidget();
     QFormLayout* layout = new QFormLayout(widget);
 
+    layout->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
+    layout->setVerticalSpacing(6);
+    layout->setHorizontalSpacing(10);
+
     QHBoxLayout* startLayout = new QHBoxLayout();
     actionStartDate_ = new QDateEdit(QDate::currentDate());
     actionStartDate_->setCalendarPopup(true);
@@ -307,12 +327,11 @@ QWidget* EditEventDialog::createActionFields()
     actionDueDate_->setMinimumDate(versionStart_);
     actionDueDate_->setMaximumDate(versionEnd_);
     actionDueTime_ = new QTimeEdit(QTime::currentTime());
+    actionAllDayCheckbox_ = new QCheckBox("All-day event");
     dueLayout->addWidget(actionDueDate_);
     dueLayout->addWidget(actionDueTime_);
+    dueLayout->addWidget(actionAllDayCheckbox_);
     layout->addRow("Due:", dueLayout);
-
-    actionAllDayCheckbox_ = new QCheckBox("All-day event");
-    layout->addRow("", actionAllDayCheckbox_);
 
     statusCombo_ = new QComboBox();
     statusCombo_->addItems({"Not Started", "In Progress", "Blocked", "Completed"});
@@ -328,6 +347,10 @@ QWidget* EditEventDialog::createTestEventFields()
 {
     QWidget* widget = new QWidget();
     QFormLayout* layout = new QFormLayout(widget);
+
+    layout->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
+    layout->setVerticalSpacing(6);
+    layout->setHorizontalSpacing(10);
 
     QHBoxLayout* startLayout = new QHBoxLayout();
     startLayout->setSpacing(5);
@@ -349,19 +372,20 @@ QWidget* EditEventDialog::createTestEventFields()
     testEndDate_->setMinimumDate(versionStart_);
     testEndDate_->setMaximumDate(versionEnd_);
     testEndTime_ = new QTimeEdit(QTime(17, 0));
+    testAllDayCheckbox_ = new QCheckBox("All-day event");
     endLayout->addWidget(testEndDate_);
     endLayout->addWidget(testEndTime_);
+    endLayout->addWidget(testAllDayCheckbox_);
     layout->addRow("End:", endLayout);
-
-    testAllDayCheckbox_ = new QCheckBox("All-day event");
-    layout->addRow("", testAllDayCheckbox_);
 
     testCategoryCombo_ = new QComboBox();
     testCategoryCombo_->addItems({"Dry Run", "Preliminary", "Formal"});
     layout->addRow("Category:", testCategoryCombo_);
 
     QGroupBox* checklistGroup = new QGroupBox("Preparation Checklist");
-    QVBoxLayout* checklistLayout = new QVBoxLayout(checklistGroup);
+    QGridLayout* checklistLayout = new QGridLayout(checklistGroup);
+    checklistLayout->setSpacing(8);
+    checklistLayout->setContentsMargins(10, 10, 10, 10);
 
     QStringList checklistItemNames = {
         "IAVM Installation (C/U)",
@@ -377,11 +401,20 @@ QWidget* EditEventDialog::createTestEventFields()
         "Test Event Meetings Established"
     };
 
+    // Arrange checkboxes in a 2-column grid
+    int row = 0;
+    int col = 0;
     for (const QString& itemName : checklistItemNames)
     {
         QCheckBox* checkbox = new QCheckBox(itemName);
-        checklistLayout->addWidget(checkbox);
+        checklistLayout->addWidget(checkbox, row, col);
         checklistItems_[itemName] = checkbox;
+
+        col++;
+        if (col >= 2) {
+            col = 0;
+            row++;
+        }
     }
 
     layout->addRow(checklistGroup);
@@ -400,6 +433,10 @@ QWidget* EditEventDialog::createReminderFields()
 {
     QWidget* widget = new QWidget();
     QFormLayout* layout = new QFormLayout(widget);
+
+    layout->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
+    layout->setVerticalSpacing(6);
+    layout->setHorizontalSpacing(10);
 
     QHBoxLayout* startLayout = new QHBoxLayout();
     startLayout->setSpacing(5);
@@ -420,13 +457,12 @@ QWidget* EditEventDialog::createReminderFields()
     reminderEndDate_->setCalendarPopup(true);
     reminderEndDate_->setMinimumDate(versionStart_);
     reminderEndDate_->setMaximumDate(versionEnd_);
-    reminderEndTime_ = new QTimeEdit(QDateTime::currentDateTime().time());
+    reminderEndTime_ = new QTimeEdit(QTime::currentTime());
+    reminderAllDayCheckbox_ = new QCheckBox("All-day event");
     endLayout->addWidget(reminderEndDate_);
     endLayout->addWidget(reminderEndTime_);
+    endLayout->addWidget(reminderAllDayCheckbox_);
     layout->addRow("End:", endLayout);
-
-    reminderAllDayCheckbox_ = new QCheckBox("All-day event");
-    layout->addRow("", reminderAllDayCheckbox_);
 
     recurringRuleCombo_ = new QComboBox();
     recurringRuleCombo_->addItems({"None", "Daily", "Weekly", "Monthly"});
@@ -447,6 +483,10 @@ QWidget* EditEventDialog::createJiraTicketFields()
 {
     QWidget* widget = new QWidget();
     QFormLayout* layout = new QFormLayout(widget);
+
+    layout->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
+    layout->setVerticalSpacing(6);
+    layout->setHorizontalSpacing(10);
 
     jiraKeyEdit_ = new QLineEdit();
     jiraKeyEdit_->setPlaceholderText("e.g., ABC-123");
@@ -484,12 +524,11 @@ QWidget* EditEventDialog::createJiraTicketFields()
     jiraDueDate_->setMinimumDate(versionStart_);
     jiraDueDate_->setMaximumDate(versionEnd_);
     jiraDueTime_ = new QTimeEdit(QTime(17, 0));
+    jiraAllDayCheckbox_ = new QCheckBox("All-day event");
     dueLayout->addWidget(jiraDueDate_);
     dueLayout->addWidget(jiraDueTime_);
+    dueLayout->addWidget(jiraAllDayCheckbox_);
     layout->addRow("Due:", dueLayout);
-
-    jiraAllDayCheckbox_ = new QCheckBox("All-day event");
-    layout->addRow("", jiraAllDayCheckbox_);
 
     connect(jiraStartDate_, &QDateEdit::dateChanged, [this](const QDate& date) {
         if (jiraDueDate_->date() < date)
@@ -701,10 +740,10 @@ void EditEventDialog::onTypeChanged(int index)
     QTimer::singleShot(0, this, [this]() {
         adjustSize();
 
-        // Ensure dialog still fits on screen
-        QSize screenSize = QGuiApplication::primaryScreen()->availableSize();
-        int maxHeight = static_cast<int>(screenSize.height() * 0.9);
-        int maxWidth = static_cast<int>(screenSize.width() * 0.9);
+        QScreen* screen = QGuiApplication::primaryScreen();
+        QRect availableGeometry = screen->availableGeometry();
+        int maxHeight = static_cast<int>(availableGeometry.height() * 0.9);
+        int maxWidth = static_cast<int>(availableGeometry.width() * 0.9);
 
         if (height() > maxHeight) {
             resize(width(), maxHeight);
@@ -712,6 +751,22 @@ void EditEventDialog::onTypeChanged(int index)
         if (width() > maxWidth) {
             resize(maxWidth, height());
         }
+
+        // Center the dialog on screen to ensure it's fully visible
+        QRect dialogGeometry = geometry();
+        dialogGeometry.moveCenter(availableGeometry.center());
+
+        // Ensure top is not off-screen
+        if (dialogGeometry.top() < availableGeometry.top()) {
+            dialogGeometry.moveTop(availableGeometry.top());
+        }
+
+        // Ensure bottom is not off-screen
+        if (dialogGeometry.bottom() > availableGeometry.bottom()) {
+            dialogGeometry.moveBottom(availableGeometry.bottom());
+        }
+
+        setGeometry(dialogGeometry);
     });
 }
 
