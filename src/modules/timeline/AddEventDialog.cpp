@@ -100,8 +100,8 @@ void AddEventDialog::setupUi()
 
     // ========== TOP RIGHT: ATTACHMENTS ==========
     QGroupBox* attachmentGroup = new QGroupBox("Attachments (Optional)");
-    attachmentGroup->setMinimumWidth(240);
-    attachmentGroup->setMaximumWidth(240);
+    attachmentGroup->setMinimumWidth(260);
+    attachmentGroup->setMaximumWidth(260);
     QVBoxLayout* attachmentLayout = new QVBoxLayout(attachmentGroup);
     attachmentLayout->setSpacing(5);
     attachmentLayout->setContentsMargins(5, 10, 5, 5);
@@ -127,8 +127,8 @@ void AddEventDialog::setupUi()
 
     // ========== BOTTOM RIGHT: LANE CONTROL ==========
     QGroupBox* laneControlGroup = new QGroupBox("Lane Control (Advanced)");
-    laneControlGroup->setMinimumWidth(240);
-    laneControlGroup->setMaximumWidth(240);
+    laneControlGroup->setMinimumWidth(260);
+    laneControlGroup->setMaximumWidth(260);
     QVBoxLayout* laneControlLayout = new QVBoxLayout(laneControlGroup);
 
     laneControlCheckbox_ = new QCheckBox("Enable manual lane control");

@@ -342,6 +342,12 @@ void TimelineView::resizeEvent(QResizeEvent* event)
     {
         scene_->rebuildFromModel();
     }
+
+    // Update version name label position to stay centered in new viewport
+    if (scene_)
+    {
+        scene_->updateVersionNamePosition();
+    }
 }
 
 

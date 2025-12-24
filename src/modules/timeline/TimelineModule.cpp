@@ -1162,19 +1162,29 @@ void TimelineModule::onShowArchivedEvents()
 // Toggle side panel visibility
 void TimelineModule::onToggleSidePanelClicked()
 {
-    bool isVisible = sidePanel_->isVisible();
+    bool isCurrentlyVisible = sidePanel_->isVisible();
 
     // Toggle visibility
-    sidePanel_->setVisible(!isVisible);
+    sidePanel_->setVisible(!isCurrentlyVisible);
 
-    // Save state to settings
-    TimelineSettings::instance().setSidePanelVisible(!isVisible);
+    // Save state
+    TimelineSettings::instance().setSidePanelVisible(!isCurrentlyVisible);
 
-    // Update button text and icon
+    // Update button appearance
     updateToggleButtonState();
 
+    // Update legend position when panel visibility changes
+    // Use a small delay to ensure the view has resized
+    QTimer::singleShot(0, this, [this]() {
+        if (legend_ && legend_->isVisible())
+        {
+            updateLegendPosition();
+        }
+    });
+
     // Update status
-    QString status = sidePanel_->isVisible() ? "Side panel shown" : "Side panel hidden";
+    QString status = !isCurrentlyVisible ?
+                         "Side panel shown" : "Side panel hidden";
     statusLabel_->setText(status);
 }
 
@@ -1257,20 +1267,14 @@ void TimelineModule::setLegendVisible(bool visible)
 
 void TimelineModule::updateLegendPosition()
 {
-    if (!legend_ || !legend_->isVisible())
+    if (!legend_)
     {
         return;
     }
 
-    // Get splitter sizes to determine where the side panel begins
-    QList<int> sizes = splitter_->sizes();
-    if (sizes.size() < 2)
-    {
-        return;
-    }
-
-    // The timeline view width in pixels
-    int viewWidth = sizes[0];
+    // Calculate position based on the view's actual width
+    // The legend is a child of view_, so coordinates are relative to the view
+    int viewWidth = view_->width();
 
     // Position legend in the top-right corner of the view, with margin
     int legendX = viewWidth - legend_->width() - 10;
@@ -1281,6 +1285,10 @@ void TimelineModule::updateLegendPosition()
 
     // Ensure legend stays on top
     legend_->raise();
+
+    qDebug() << "Legend repositioned - viewWidth:" << viewWidth
+             << "legendX:" << legendX
+             << "sidePanelVisible:" << sidePanel_->isVisible();
 }
 
 
