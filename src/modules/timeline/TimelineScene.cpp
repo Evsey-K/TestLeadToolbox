@@ -14,6 +14,7 @@
 #include <QPen>
 #include <QKeyEvent>
 #include <QMessageBox>
+#include <QTimer>
 #include <qpainter.h>
 #include <qgraphicsview.h>
 
@@ -65,6 +66,18 @@ void TimelineScene::setupDateScale()
     // Create current date marker
     currentDateMarker_ = new CurrentDateMarker(mapper_);
     addItem(currentDateMarker_);
+
+    // Create timer to update current date marker periodically
+    // Update every minute to catch time changes at tick boundaries
+    currentDateTimer_ = new QTimer(this);
+    connect(currentDateTimer_, &QTimer::timeout, this, [this]() {
+        if (currentDateMarker_) {
+            currentDateMarker_->updatePosition();
+        }
+    });
+
+    // Start timer with 60 second interval (1 minute)
+    currentDateTimer_->start(60000);  // 60,000 ms = 1 minute
 }
 
 

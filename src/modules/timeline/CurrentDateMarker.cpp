@@ -1,42 +1,43 @@
 // CurrentDateMarker.cpp
 
-
 #include "CurrentDateMarker.h"
 #include "TimelineCoordinateMapper.h"
 #include "TimelineDateScale.h"
 #include <QPainter>
-#include <QDate>
-
+#include <QDateTime>
 
 CurrentDateMarker::CurrentDateMarker(TimelineCoordinateMapper* mapper, QGraphicsItem* parent)
     : QGraphicsItem(parent)
     , mapper_(mapper)
     , timelineHeight_(500.0)
-    , currentDate_(QDate::currentDate())
+    , currentDateTime_(QDateTime::currentDateTime())
+    , snappedXPosition_(0.0)
 {
     // Set Z-value to draw below date scale and events
     setZValue(0);
-}
 
+    // Calculate initial position
+    updatePosition();
+}
 
 QRectF CurrentDateMarker::boundingRect() const
 {
-    double xPos = mapper_->dateToX(currentDate_);
-
+    // Use snappedXPosition_ for bounding rect
     // Make bounding rect wide enough for the line and label
-    return QRectF(xPos - 50, -60, 100, timelineHeight_);
+    return QRectF(snappedXPosition_ - 50, -60, 100, timelineHeight_);
 }
-
 
 void CurrentDateMarker::paint(QPainter* painter, const QStyleOptionGraphicsItem* /*option*/, QWidget* /*widget*/)
 {
     // Only draw if current date is within version range
-    if (currentDate_ < mapper_->versionStart() || currentDate_ > mapper_->versionEnd())
+    if (currentDateTime_.date() < mapper_->versionStart() ||
+        currentDateTime_.date() > mapper_->versionEnd())
     {
         return;
     }
 
-    double xPos = mapper_->dateToX(currentDate_);
+    // Use the exact current time position (not snapped)
+    double xPos = snappedXPosition_;
 
     painter->setRenderHint(QPainter::Antialiasing, true);
 
@@ -67,14 +68,18 @@ void CurrentDateMarker::paint(QPainter* painter, const QStyleOptionGraphicsItem*
     painter->drawText(labelRect, Qt::AlignCenter, label);
 }
 
-
 void CurrentDateMarker::updatePosition()
 {
-    currentDate_ = QDate::currentDate();
+    // Get current date and time
+    currentDateTime_ = QDateTime::currentDateTime();
+
+    // Use exact current time position - DO NOT snap
+    // The marker should show the actual current time, not round to nearest tick
+    snappedXPosition_ = mapper_->dateTimeToX(currentDateTime_);
+
     prepareGeometryChange();
     update();
 }
-
 
 void CurrentDateMarker::setTimelineHeight(double height)
 {

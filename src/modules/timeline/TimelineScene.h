@@ -91,6 +91,8 @@ private:
     VersionBoundaryMarker* versionEndMarker_;           ///< Version end marker (owned by scene)
     QGraphicsTextItem* versionNameLabel_;               ///< Version name label (owned by scene)
 
+    QTimer* currentDateTimer_;                          ///< Timer for updating current date marker
+
     // Lane-based layout constants
     static constexpr double ITEM_HEIGHT = 30.0;         ///< Default height of timeline bars
     static constexpr double LANE_SPACING = 5.0;         ///< Vertical spacing between lanes
