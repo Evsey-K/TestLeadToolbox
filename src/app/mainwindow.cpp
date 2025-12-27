@@ -1,4 +1,5 @@
-// src/app/MainWindow.cpp
+// MainWindow.cpp - COMPLETE CORRECTED VERSION
+// Key fix: Use moduleStack_->currentWidget() to get the actual widget instance
 
 #include "MainWindow.h"
 #include "ModuleManager.h"
@@ -107,19 +108,22 @@ void MainWindow::setupFileMenu()
 
     fileMenu_->addSeparator();
 
-    // Save
+    // Save - Delegates to active module
     saveAction_ = fileMenu_->addAction("&Save");
     saveAction_->setShortcut(QKeySequence::Save);
+    saveAction_->setEnabled(false);  // Disabled until module active
     connect(saveAction_, &QAction::triggered, this, &MainWindow::onSave);
 
-    // Save As
+    // Save As - Delegates to active module
     saveAsAction_ = fileMenu_->addAction("Save &As...");
     saveAsAction_->setShortcut(QKeySequence::SaveAs);
+    saveAsAction_->setEnabled(false);  // Disabled until module active
     connect(saveAsAction_, &QAction::triggered, this, &MainWindow::onSaveAs);
 
-    // Load
-    loadAction_ = fileMenu_->addAction("&Load...");
+    // Load - Delegates to active module
+    loadAction_ = fileMenu_->addAction("&Open...");
     loadAction_->setShortcut(QKeySequence::Open);
+    loadAction_->setEnabled(false);  // Disabled until module active
     connect(loadAction_, &QAction::triggered, this, &MainWindow::onLoad);
 
     fileMenu_->addSeparator();
@@ -134,15 +138,15 @@ void MainWindow::setupEditMenu()
 {
     editMenu_ = menuBar()->addMenu("&Edit");
 
-    // Undo action
+    // Undo action - Will be connected to module's undo stack
     undoAction_ = editMenu_->addAction("&Undo");
     undoAction_->setShortcut(QKeySequence::Undo);
-    undoAction_->setEnabled(false); // Module will enable when appropriate
+    undoAction_->setEnabled(false);
 
-    // Redo action
+    // Redo action - Will be connected to module's undo stack
     redoAction_ = editMenu_->addAction("&Redo");
     redoAction_->setShortcut(QKeySequence::Redo);
-    redoAction_->setEnabled(false); // Module will enable when appropriate
+    redoAction_->setEnabled(false);
 
     editMenu_->addSeparator();
 
@@ -155,10 +159,8 @@ void MainWindow::setupViewMenu()
 {
     viewMenu_ = menuBar()->addMenu("&View");
 
-    // This menu will be populated by active modules as needed
-    showArchivedAction_ = viewMenu_->addAction("Show &Archived Events");
-    connect(showArchivedAction_, &QAction::triggered, this, &MainWindow::onShowArchivedEvents);
-    showArchivedAction_->setEnabled(false); // Only enabled when timeline is active
+    // REMOVED: showArchivedAction - use toolbar Ctrl+Shift+A instead
+    // This was causing issues and is redundant with the Timeline toolbar button
 }
 
 void MainWindow::setupHelpMenu()
@@ -199,8 +201,12 @@ void MainWindow::onModuleLaunchRequested(const QString& moduleId)
 
             if (reply == QMessageBox::Save) {
                 if (!currentMod->save()) {
-                    QMessageBox::warning(this, "Save Failed", "Failed to save module data");
-                    return;
+                    // Need Save As - get widget and call saveAs()
+                    QWidget* currentWidget = moduleStack_->currentWidget();
+                    TimelineModule* timelineModule = qobject_cast<TimelineModule*>(currentWidget);
+                    if (timelineModule) {
+                        timelineModule->saveAs();
+                    }
                 }
             } else if (reply == QMessageBox::Cancel) {
                 return; // Don't switch modules
@@ -233,17 +239,104 @@ void MainWindow::onModuleActivated(const QString& moduleId)
     qDebug() << "MainWindow: Module activated:" << moduleId;
 
     IModule* mod = moduleManager_->module(moduleId);
-    if (mod) {
-        statusBar()->showMessage("Active: " + mod->name());
-
-        // Enable/disable menu items based on module
-        // Timeline-specific actions
-        bool isTimeline = (moduleId == "timeline");
-        showArchivedAction_->setEnabled(isTimeline);
-
-        // Update window title
-        setWindowTitle("TestLeadToolbox - " + mod->name());
+    if (!mod) {
+        qWarning() << "MainWindow: Module not found:" << moduleId;
+        return;
     }
+
+    // Update status and title
+    statusBar()->showMessage("Active: " + mod->name());
+    setWindowTitle("TestLeadToolbox - " + mod->name());
+
+    // Disconnect previous module's actions and connect new module
+    disconnectModuleActions();
+    connectModuleActions();
+
+    // Notify module it's been activated
+    mod->onActivate();
+}
+
+void MainWindow::connectModuleActions()
+{
+    QString currentId = moduleManager_->currentModuleId();
+    if (currentId.isEmpty()) return;
+
+    // Enable file menu actions
+    saveAction_->setEnabled(true);
+    saveAsAction_->setEnabled(true);
+    loadAction_->setEnabled(true);
+
+    // Get the current widget from the stack
+    QWidget* currentWidget = moduleStack_->currentWidget();
+    if (!currentWidget) return;
+
+    // Try to cast to TimelineModule for undo/redo support
+    TimelineModule* timelineModule = qobject_cast<TimelineModule*>(currentWidget);
+
+    if (timelineModule && timelineModule->undoStack()) {
+        QUndoStack* stack = timelineModule->undoStack();
+
+        // Connect undo/redo actions directly to stack
+        moduleConnections_.append(
+            connect(undoAction_, &QAction::triggered, stack, &QUndoStack::undo)
+            );
+        moduleConnections_.append(
+            connect(redoAction_, &QAction::triggered, stack, &QUndoStack::redo)
+            );
+
+        // Update enabled state dynamically
+        moduleConnections_.append(
+            connect(stack, &QUndoStack::canUndoChanged,
+                    undoAction_, &QAction::setEnabled)
+            );
+        moduleConnections_.append(
+            connect(stack, &QUndoStack::canRedoChanged,
+                    redoAction_, &QAction::setEnabled)
+            );
+
+        // Update action text with command names
+        moduleConnections_.append(
+            connect(stack, &QUndoStack::undoTextChanged, [this](const QString& text) {
+                undoAction_->setText(text.isEmpty() ? "&Undo" : QString("&Undo %1").arg(text));
+            })
+            );
+        moduleConnections_.append(
+            connect(stack, &QUndoStack::redoTextChanged, [this](const QString& text) {
+                redoAction_->setText(text.isEmpty() ? "&Redo" : QString("&Redo %1").arg(text));
+            })
+            );
+
+        // Set initial state
+        undoAction_->setEnabled(stack->canUndo());
+        redoAction_->setEnabled(stack->canRedo());
+        undoAction_->setText(stack->undoText().isEmpty() ? "&Undo" : QString("&Undo %1").arg(stack->undoText()));
+        redoAction_->setText(stack->redoText().isEmpty() ? "&Redo" : QString("&Redo %1").arg(stack->redoText()));
+
+        qDebug() << "MainWindow: Connected undo/redo to module's undo stack";
+    } else {
+        // No undo stack available
+        undoAction_->setEnabled(false);
+        redoAction_->setEnabled(false);
+        undoAction_->setText("&Undo");
+        redoAction_->setText("&Redo");
+        qDebug() << "MainWindow: Module does not provide undo stack";
+    }
+}
+
+void MainWindow::disconnectModuleActions()
+{
+    // Disconnect all previous module connections
+    for (const QMetaObject::Connection& conn : moduleConnections_) {
+        disconnect(conn);
+    }
+    moduleConnections_.clear();
+
+    // Disable actions when no module connected
+    saveAction_->setEnabled(false);
+    saveAsAction_->setEnabled(false);
+    loadAction_->setEnabled(false);
+    undoAction_->setEnabled(false);
+    redoAction_->setEnabled(false);
 }
 
 void MainWindow::onSave()
@@ -255,11 +348,21 @@ void MainWindow::onSave()
     }
 
     IModule* mod = moduleManager_->module(currentId);
-    if (mod) {
-        if (mod->save()) {
-            statusBar()->showMessage("Saved successfully", 3000);
+    if (!mod) return;
+
+    // Try to save using module's save() method
+    bool success = mod->save();
+
+    if (success) {
+        statusBar()->showMessage("Saved successfully", 3000);
+    } else {
+        // Module doesn't have a file path yet, trigger Save As
+        QWidget* currentWidget = moduleStack_->currentWidget();
+        TimelineModule* timelineModule = qobject_cast<TimelineModule*>(currentWidget);
+        if (timelineModule) {
+            timelineModule->saveAs();
         } else {
-            QMessageBox::warning(this, "Save Failed", "Failed to save module data");
+            QMessageBox::warning(this, "Save Failed", "Module cannot be saved (no file path)");
         }
     }
 }
@@ -272,8 +375,14 @@ void MainWindow::onSaveAs()
         return;
     }
 
-    // Module-specific save as logic would go here
-    QMessageBox::information(this, "Save As", "Save As for current module coming soon");
+    // Get the current widget and try to cast to TimelineModule
+    QWidget* currentWidget = moduleStack_->currentWidget();
+    TimelineModule* timelineModule = qobject_cast<TimelineModule*>(currentWidget);
+    if (timelineModule) {
+        timelineModule->saveAs();
+    } else {
+        QMessageBox::information(this, "Save As", "Save As not implemented for this module");
+    }
 }
 
 void MainWindow::onLoad()
@@ -284,8 +393,14 @@ void MainWindow::onLoad()
         return;
     }
 
-    // Module-specific load logic would go here
-    QMessageBox::information(this, "Load", "Load for current module coming soon");
+    // Get the current widget and try to cast to TimelineModule
+    QWidget* currentWidget = moduleStack_->currentWidget();
+    TimelineModule* timelineModule = qobject_cast<TimelineModule*>(currentWidget);
+    if (timelineModule) {
+        timelineModule->load();
+    } else {
+        QMessageBox::information(this, "Load", "Load not implemented for this module");
+    }
 }
 
 void MainWindow::closeEvent(QCloseEvent* event)
@@ -322,8 +437,9 @@ void MainWindow::closeEvent(QCloseEvent* event)
 
 void MainWindow::onShowArchivedEvents()
 {
-    // This is timeline-specific, would need to be refactored
-    QMessageBox::information(this, "Archived Events", "Feature available in Timeline module");
+    // This method is no longer used - archived events accessible via toolbar Ctrl+Shift+A
+    QMessageBox::information(this, "Archived Events",
+                             "Use the Archive button in the Timeline toolbar (Ctrl+Shift+A)");
 }
 
 void MainWindow::onShowPreferences()

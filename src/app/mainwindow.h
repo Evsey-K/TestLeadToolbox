@@ -1,7 +1,11 @@
 // src/app/MainWindow.h
-#pragma once
 
+
+#pragma once
 #include <QMainWindow>
+#include <QList>
+#include <QMetaObject>
+
 
 class ModuleManager;
 class ModuleLauncherPanel;
@@ -10,6 +14,7 @@ class QSplitter;
 class QAction;
 class QMenu;
 
+
 /**
  * @class MainWindow
  * @brief Main application window with module navigation and switching
@@ -17,6 +22,9 @@ class QMenu;
  * MainWindow now serves as a shell that hosts multiple application modules.
  * It provides a navigation panel for module selection and a central area
  * that displays the active module's widget.
+ *
+ * MainWindow owns standard File and Edit menu shortcuts (Ctrl+S, Ctrl+Z, etc.)
+ * and delegates their execution to the currently active module.
  */
 class MainWindow : public QMainWindow
 {
@@ -38,6 +46,9 @@ private:
     void setupViewMenu();
     void setupHelpMenu();
     void connectSignals();
+
+    void connectModuleActions();      ///< @brief Connect MainWindow actions to active module
+    void disconnectModuleActions();   ///< @brief Disconnect previous module's actions
 
 private slots:
     void onModuleLaunchRequested(const QString& moduleId);
@@ -74,4 +85,7 @@ private:
     QMenu* editMenu_;
     QMenu* viewMenu_;
     QMenu* helpMenu_;
+
+    // Connection tracking for current module
+    QList<QMetaObject::Connection> moduleConnections_;  ///< @brief Active module's signal/slot connections
 };

@@ -77,6 +77,7 @@ private slots:
 
     void onZoomIn();                                            ///< @brief Handle zoom in button click
     void onZoomOut();                                           ///< @brief Handle zoom out button click
+    void onResetZoom();                                         ///< @brief Handle reset zoom to default (Ctrl+0)
 
     void onEditEventRequested(const QString& eventId);          ///< @brief Handle edit event request from scene or side panel
     void onDeleteEventRequested(const QString& eventId);        ///< @brief Handle delete event request from scene or side panel

@@ -161,56 +161,80 @@ QToolBar* TimelineModule::createToolbar()
     auto toolbar = new QToolBar();
     toolbar->setIconSize(QSize(24, 24));
 
-    // Add the 'Save' button
-    auto saveAction = toolbar->addAction("💾 Save");
-    saveAction->setToolTip("Save timeline to current file");
-    saveAction->setShortcut(QKeySequence::Save);
-    connect(saveAction, &QAction::triggered, this, &TimelineModule::onSaveClicked);
+    // ========== FILE OPERATIONS ==========
+    // NOTE: These buttons NO LONGER have shortcuts - MainWindow handles File menu shortcuts
+    // Users will use Ctrl+S from menu, or click these buttons
 
-    // Add the 'Save As' button
-    auto saveAsAction = toolbar->addAction("💾 Save As");
-    saveAsAction->setToolTip("Save timeline to new file");
-    saveAsAction->setShortcut(QKeySequence::SaveAs);
-    connect(saveAsAction, &QAction::triggered, this, &TimelineModule::onSaveAsClicked);
+    // Save button (NO shortcut - MainWindow handles Ctrl+S)
+    auto saveButton = new QPushButton("💾 Save");
+    saveButton->setToolTip("Save timeline to current file (Ctrl+S from menu)");
+    toolbar->addWidget(saveButton);
+    connect(saveButton, &QPushButton::clicked, this, &TimelineModule::onSaveClicked);
 
-    // Add the 'Load' button
-    auto loadAction = toolbar->addAction("📂 Load");
-    loadAction->setToolTip("Load timeline data");
-    loadAction->setShortcut(QKeySequence::Open);
-    connect(loadAction, &QAction::triggered, this, &TimelineModule::onLoadClicked);
+    // Save As button (NO shortcut - MainWindow handles Ctrl+Shift+S)
+    auto saveAsButton = new QPushButton("💾 Save As");
+    saveAsButton->setToolTip("Save timeline to new file (Ctrl+Shift+S from menu)");
+    toolbar->addWidget(saveAsButton);
+    connect(saveAsButton, &QPushButton::clicked, this, &TimelineModule::onSaveAsClicked);
 
+    // Load button (NO shortcut - MainWindow handles Ctrl+O)
+    auto loadButton = new QPushButton("📂 Load");
+    loadButton->setToolTip("Load timeline data (Ctrl+O from menu)");
+    toolbar->addWidget(loadButton);
+    connect(loadButton, &QPushButton::clicked, this, &TimelineModule::onLoadClicked);
 
     toolbar->addSeparator();
 
+    // ========== EVENT OPERATIONS (MODULE-SPECIFIC) ==========
 
-    // Add the 'Version Settings' button
+    // Version Settings Button (Ctrl+V) - MODULE-SPECIFIC
     versionSettingsButton_ = new QPushButton("⚙️ Version Settings");
+    versionSettingsButton_->setToolTip("Configure version settings (Ctrl+V)");
     toolbar->addWidget(versionSettingsButton_);
 
-    // Add the 'Add Event' button Event operations
+    auto versionSettingsAction = new QAction(this);
+    versionSettingsAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_V));
+    versionSettingsAction->setShortcutContext(Qt::WidgetShortcut);  // IMPORTANT: Only active when timeline focused
+    connect(versionSettingsAction, &QAction::triggered, this, &TimelineModule::onVersionSettingsClicked);
+    addAction(versionSettingsAction);
+
+    // Add Event Button (Ctrl+A) - MODULE-SPECIFIC
     addEventButton_ = new QPushButton("➕ Add Event");
+    addEventButton_->setToolTip("Add new event (Ctrl+A)");
     toolbar->addWidget(addEventButton_);
 
-    // Add the 'Edit Event' button (context-sensitive, disabled when no selection)
+    auto addEventAction = new QAction(this);
+    addEventAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_A));
+    addEventAction->setShortcutContext(Qt::WidgetShortcut);  // IMPORTANT: Only active when timeline focused
+    connect(addEventAction, &QAction::triggered, this, &TimelineModule::onAddEventClicked);
+    addAction(addEventAction);
+
+    // Edit Event (Ctrl+E) - MODULE-SPECIFIC
     editAction_ = toolbar->addAction("✏️ Edit");
-    editAction_->setToolTip("Edit selected event");
-    editAction_->setEnabled(false);  // Initially disabled
+    editAction_->setToolTip("Edit selected event (Ctrl+E)");
+    editAction_->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_E));
+    editAction_->setShortcutContext(Qt::WidgetShortcut);  // IMPORTANT: Only active when timeline focused
+    editAction_->setEnabled(false);
     connect(editAction_, &QAction::triggered, this, &TimelineModule::onEditActionTriggered);
 
-    // Add the 'Delete Event' button (context-sensitive, disabled when no selection)
+    // Delete Event (Delete key) - MODULE-SPECIFIC
     deleteAction_ = toolbar->addAction("🗑️ Delete");
-    deleteAction_->setToolTip("Delete selected event(s)");
-    deleteAction_->setEnabled(false);  // Initially disabled
+    deleteAction_->setToolTip("Delete selected event(s) (Delete)");
+    deleteAction_->setShortcut(QKeySequence::Delete);
+    deleteAction_->setShortcutContext(Qt::WidgetShortcut);  // IMPORTANT: Only active when timeline focused
+    deleteAction_->setEnabled(false);
     connect(deleteAction_, &QAction::triggered, this, &TimelineModule::onDeleteActionTriggered);
 
-    // Add the 'Archive' button
+    // Archive (Ctrl+Shift+A) - MODULE-SPECIFIC
     auto archiveAction = toolbar->addAction("📦 Archive");
-    archiveAction->setToolTip("View archived events");
+    archiveAction->setToolTip("View archived events (Ctrl+Shift+A)");
+    archiveAction->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_A));
+    archiveAction->setShortcutContext(Qt::WidgetShortcut);  // IMPORTANT: Only active when timeline focused
     connect(archiveAction, &QAction::triggered, this, &TimelineModule::onShowArchivedEvents);
-
 
     toolbar->addSeparator();
 
+    // ========== EXPORT OPERATIONS ==========
 
     auto exportMenu = new QMenu();
     auto exportScreenshotAction = exportMenu->addAction("Export Screenshot (PNG)");
@@ -221,27 +245,30 @@ QToolBar* TimelineModule::createToolbar()
     connect(exportCSVAction, &QAction::triggered, this, &TimelineModule::onExportCSV);
     connect(exportPDFAction, &QAction::triggered, this, &TimelineModule::onExportPDF);
 
-    // Add the 'Export' button with drop down options
     auto exportButton = new QPushButton("📤 Export");
     exportButton->setMenu(exportMenu);
     toolbar->addWidget(exportButton);
 
-
     toolbar->addSeparator();
 
+    // ========== NAVIGATION OPERATIONS (MODULE-SPECIFIC) ==========
 
-    // Navigation - Replace single action with button + menu
     auto goToDateMenu = new QMenu();
-    auto goToDateDialogAction = goToDateMenu->addAction("📅 Go to Date...");
-    goToDateDialogAction->setToolTip("Scroll to specific date");
-    connect(goToDateDialogAction, &QAction::triggered, this, &TimelineModule::onScrollToDate);
 
+    // Go to Date Dialog (Ctrl+G) - MODULE-SPECIFIC
+    auto goToDateDialogAction = goToDateMenu->addAction("📅 Go to Date...");
+    goToDateDialogAction->setToolTip("Scroll to specific date (Ctrl+G)");
+    goToDateDialogAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_G));
+    goToDateDialogAction->setShortcutContext(Qt::WidgetShortcut);  // IMPORTANT: Only active when timeline focused
+    connect(goToDateDialogAction, &QAction::triggered, this, &TimelineModule::onScrollToDate);
 
     goToDateMenu->addSeparator();
 
-
+    // Go to Current Day (Ctrl+T) - MODULE-SPECIFIC
     auto goToCurrentDayAction = goToDateMenu->addAction("📍 Current Day");
-    goToCurrentDayAction->setToolTip("Zoom and center on current day");
+    goToCurrentDayAction->setToolTip("Zoom and center on current day (Ctrl+T)");
+    goToCurrentDayAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_T));
+    goToCurrentDayAction->setShortcutContext(Qt::WidgetShortcut);  // IMPORTANT: Only active when timeline focused
     connect(goToCurrentDayAction, &QAction::triggered, this, &TimelineModule::onGoToCurrentDay);
 
     auto goToCurrentWeekAction = goToDateMenu->addAction("📆 Current Week");
@@ -252,36 +279,68 @@ QToolBar* TimelineModule::createToolbar()
     goToDateButton->setMenu(goToDateMenu);
     toolbar->addWidget(goToDateButton);
 
-    // Add zoom in button
+    // ========== ZOOM OPERATIONS (MODULE-SPECIFIC) ==========
+
+    // Zoom In Button (Ctrl++) - MODULE-SPECIFIC
     zoomInButton_ = new QPushButton("+");
-    zoomInButton_->setToolTip("Zoom in");
+    zoomInButton_->setToolTip("Zoom in (Ctrl++)");
     zoomInButton_->setFixedSize(32, 32);
     toolbar->addWidget(zoomInButton_);
     connect(zoomInButton_, &QPushButton::clicked, this, &TimelineModule::onZoomIn);
 
-    // Add zoom out button
+    auto zoomInAction = new QAction(this);
+    zoomInAction->setShortcut(QKeySequence::ZoomIn);
+    zoomInAction->setShortcutContext(Qt::WidgetShortcut);  // IMPORTANT: Only active when timeline focused
+    connect(zoomInAction, &QAction::triggered, this, &TimelineModule::onZoomIn);
+    addAction(zoomInAction);
+
+    // Zoom Out Button (Ctrl+-) - MODULE-SPECIFIC
     zoomOutButton_ = new QPushButton("−");
-    zoomOutButton_->setToolTip("Zoom out");
+    zoomOutButton_->setToolTip("Zoom out (Ctrl+-)");
     zoomOutButton_->setFixedSize(32, 32);
     toolbar->addWidget(zoomOutButton_);
     connect(zoomOutButton_, &QPushButton::clicked, this, &TimelineModule::onZoomOut);
 
-    // Add legend checkbox after "Go to Date"
+    auto zoomOutAction = new QAction(this);
+    zoomOutAction->setShortcut(QKeySequence::ZoomOut);
+    zoomOutAction->setShortcutContext(Qt::WidgetShortcut);  // IMPORTANT: Only active when timeline focused
+    connect(zoomOutAction, &QAction::triggered, this, &TimelineModule::onZoomOut);
+    addAction(zoomOutAction);
+
+    // Reset Zoom (Ctrl+0) - MODULE-SPECIFIC
+    auto resetZoomAction = new QAction(this);
+    resetZoomAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_0));
+    resetZoomAction->setShortcutContext(Qt::WidgetShortcut);  // IMPORTANT: Only active when timeline focused
+    connect(resetZoomAction, &QAction::triggered, this, &TimelineModule::onResetZoom);
+    addAction(resetZoomAction);
+
+    // ========== VIEW OPERATIONS (MODULE-SPECIFIC) ==========
+
+    // Legend Checkbox (Ctrl+L) - MODULE-SPECIFIC
     legendCheckbox_ = new QCheckBox("Legend");
-    legendCheckbox_->setToolTip("Show/Hide event type color legend");
-    legendCheckbox_->setChecked(false);  // Initially unchecked (legend hidden)
+    legendCheckbox_->setToolTip("Show/Hide event type color legend (Ctrl+L)");
+    legendCheckbox_->setChecked(false);
     toolbar->addWidget(legendCheckbox_);
     connect(legendCheckbox_, &QCheckBox::toggled, this, &TimelineModule::onLegendToggled);
 
-    // Add spacer to push toggle button to the right
+    auto legendAction = new QAction(this);
+    legendAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_L));
+    legendAction->setShortcutContext(Qt::WidgetShortcut);  // IMPORTANT: Only active when timeline focused
+    connect(legendAction, &QAction::triggered, [this]() {
+        legendCheckbox_->setChecked(!legendCheckbox_->isChecked());
+    });
+    addAction(legendAction);
+
+    // Add spacer
     QWidget* spacer = new QWidget();
     spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     toolbar->addWidget(spacer);
 
-    // Add side panel toggle button at the right end
+    // Side Panel Toggle (Ctrl+P) - MODULE-SPECIFIC
     toggleSidePanelAction_ = toolbar->addAction("◀ Hide Panel");
-    toggleSidePanelAction_->setToolTip("Show/Hide event list panel");
-    toggleSidePanelAction_->setShortcut(QKeySequence("Ctrl+P"));
+    toggleSidePanelAction_->setToolTip("Show/Hide event list panel (Ctrl+P)");
+    toggleSidePanelAction_->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_P));
+    toggleSidePanelAction_->setShortcutContext(Qt::WidgetShortcut);  // IMPORTANT: Only active when timeline focused
     connect(toggleSidePanelAction_, &QAction::triggered, this, &TimelineModule::onToggleSidePanelClicked);
 
     return toolbar;
@@ -585,6 +644,27 @@ void TimelineModule::onZoomOut()
     view_->centerOn(newSceneX, scenePosBefore.y());
 
     statusLabel_->setText(QString("Zoomed out to %1 pixels/day").arg(newZoom, 0, 'f', 1));
+}
+
+
+void TimelineModule::onResetZoom()
+{
+    // Reset to a comfortable default zoom level (e.g., weekly view)
+    const double defaultPixelsPerDay = 40.0;  // Approximately weekly view
+
+    mapper_->setPixelsPerDay(defaultPixelsPerDay);
+
+    // Rebuild scene with new scale
+    view_->timelineScene()->rebuildFromModel();
+
+    // Center on today's date
+    QDate today = QDate::currentDate();
+    QDateTime todayDateTime(today, QTime(12, 0));  // Noon
+    double sceneX = mapper_->dateTimeToX(todayDateTime);
+
+    view_->centerOn(sceneX, view_->sceneRect().center().y());
+
+    statusLabel_->setText(QString("Zoom reset to default (%1 pixels/day)").arg(defaultPixelsPerDay, 0, 'f', 1));
 }
 
 
