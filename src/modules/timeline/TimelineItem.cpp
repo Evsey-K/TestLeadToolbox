@@ -6,6 +6,7 @@
 #include "TimelineCoordinateMapper.h"
 #include "TimelineCommands.h"
 #include "LaneAssigner.h"
+#include <QApplication>
 #include <QCursor>
 #include <QGraphicsSceneContextMenuEvent>
 #include <QGraphicsSceneMouseEvent>
@@ -176,6 +177,61 @@ void TimelineItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* opti
 }
 
 
+void TimelineItem::drawLockIcon(QPainter* painter) {
+    QRectF itemRect = rect();
+
+    // Position in top-right corner
+    QRectF lockIconRect(itemRect.width() - 20, 2, 16, 16);
+
+    painter->save();
+    painter->setPen(QPen(Qt::white, 2));
+    painter->setBrush(QColor(60, 60, 60));
+
+    // Draw padlock body
+    QRectF body(lockIconRect.x() + 3, lockIconRect.y() + 8, 10, 7);
+    painter->drawRect(body);
+
+    // Draw padlock shackle
+    QPainterPath shackle;
+    shackle.arcMoveTo(lockIconRect.adjusted(4, 2, -4, 8), 0);
+    shackle.arcTo(lockIconRect.adjusted(4, 2, -4, 8), 0, 180);
+    painter->setBrush(Qt::NoBrush);
+    painter->drawPath(shackle);
+
+    painter->restore();
+}
+
+
+void TimelineItem::drawPinIcon(QPainter* painter) {
+    QRectF itemRect = rect();
+
+    // Position in top-left corner
+    QRectF pinIconRect(2, 2, 16, 16);
+
+    painter->save();
+    painter->setPen(QPen(QColor(70, 130, 180), 2)); // Steel blue
+    painter->setBrush(QColor(70, 130, 180));
+
+    // Draw pin/thumbtack shape
+    // Pin head (circle)
+    QPointF pinHead(pinIconRect.center().x(), pinIconRect.y() + 5);
+    painter->drawEllipse(pinHead, 3, 3);
+
+    // Pin shaft (line going down)
+    QLineF shaft(pinHead.x(), pinHead.y() + 3, pinHead.x(), pinIconRect.bottom() - 2);
+    painter->drawLine(shaft);
+
+    // Pin point (small triangle)
+    QPolygonF point;
+    point << QPointF(shaft.x2() - 2, shaft.y2() - 2)
+          << QPointF(shaft.x2() + 2, shaft.y2() - 2)
+          << QPointF(shaft.x2(), shaft.y2() + 2);
+    painter->drawPolygon(point);
+
+    painter->restore();
+}
+
+
 void TimelineItem::setRect(const QRectF& rect)
 {
     qDebug() << "⚠️ setRect called - FROM" << rect_.left() << "-" << rect_.right()
@@ -186,10 +242,62 @@ void TimelineItem::setRect(const QRectF& rect)
 }
 
 
+void TimelineItem::updateLockState() {
+    updateItemFlags();
+    updateVisualState();
+}
+
+
+void TimelineItem::updateItemFlags()
+{
+    if (!model_ || eventId_.isEmpty()) {
+        return;
+    }
+
+    const TimelineEvent* event = model_->getEvent(eventId_);
+    if (!event) {
+        return;
+    }
+
+    QGraphicsItem::GraphicsItemFlags flags = QGraphicsItem::ItemSendsGeometryChanges;
+
+    if (!event->isLocked) {
+        flags |= QGraphicsItem::ItemIsSelectable;
+    }
+
+    if (event->canManipulateInView()) {
+        flags |= QGraphicsItem::ItemIsMovable;
+    }
+
+    // Enable hover events for cursor feedback
+    setAcceptHoverEvents(true);
+
+    setFlags(flags);
+}
+
+
+void TimelineItem::updateVisualState() {
+    update(); // Trigger repaint
+}
+
+
 QVariant TimelineItem::itemChange(GraphicsItemChange change, const QVariant& value)
 {
     if (change == ItemPositionChange && scene())
     {
+        // Block position changes for fixed or locked items**
+        if (model_ && !eventId_.isEmpty())
+        {
+            const TimelineEvent* event = model_->getEvent(eventId_);
+            if (event && (event->isFixed || event->isLocked))
+            {
+                // Reject position change - return current position
+                qDebug() << "TimelineItem: Blocked position change for event" << eventId_
+                         << "(event is" << (event->isLocked ? "locked" : "fixed") << ")";
+                return pos(); // Keep current position
+            }
+        }
+
         static int changeCounter = 0;
         changeCounter++;
 
@@ -217,15 +325,29 @@ QVariant TimelineItem::itemChange(GraphicsItemChange change, const QVariant& val
                 {
                     TimelineItem* timelineItem = qgraphicsitem_cast<TimelineItem*>(item);
 
-                    // Check lane control for EACH item individually
+                    // Skip fixed/locked items during multi-drag**
+                    bool itemIsLocked = false;
+                    bool itemIsFixed = false;
                     bool itemLaneControlEnabled = false;
+
                     if (timelineItem && model_ && !timelineItem->eventId().isEmpty())
                     {
                         const TimelineEvent* event = model_->getEvent(timelineItem->eventId());
                         if (event)
                         {
+                            itemIsLocked = event->isLocked;
+                            itemIsFixed = event->isFixed;
                             itemLaneControlEnabled = event->laneControlEnabled;
                         }
+                    }
+
+                    // Skip this item if it's locked or fixed
+                    if (itemIsLocked || itemIsFixed)
+                    {
+                        qDebug() << "TimelineItem: Skipping"
+                                 << (itemIsLocked ? "locked" : "fixed")
+                                 << "item during multi-drag:" << timelineItem->eventId();
+                        continue; // Don't move this item
                     }
 
                     QPointF newItemPos = it.value() + delta;
@@ -430,6 +552,9 @@ void TimelineItem::mousePressEvent(QGraphicsSceneMouseEvent* event)
 
     QGraphicsObject::mousePressEvent(event);
 }
+
+
+
 
 
 void TimelineItem::mouseMoveEvent(QGraphicsSceneMouseEvent* event)
@@ -1333,10 +1458,37 @@ void TimelineItem::hoverMoveEvent(QGraphicsSceneHoverEvent* event)
 }
 
 
-void TimelineItem::hoverLeaveEvent(QGraphicsSceneHoverEvent* event)
+void TimelineItem::hoverEnterEvent(QGraphicsSceneHoverEvent* hoverEvent)
 {
-    setCursor(Qt::ArrowCursor);
-    QGraphicsObject::hoverLeaveEvent(event);
+    Q_UNUSED(hoverEvent)
+    isHovered_ = true;
+
+    // Change cursor based on lock state
+    if (model_ && !eventId_.isEmpty()) {
+        const TimelineEvent* event = model_->getEvent(eventId_);
+        if (event && (event->isLocked || event->isFixed)) {
+            QApplication::setOverrideCursor(Qt::ForbiddenCursor);
+        }
+    }
+
+    QGraphicsObject::hoverEnterEvent(hoverEvent);
+}
+
+
+void TimelineItem::hoverLeaveEvent(QGraphicsSceneHoverEvent* hoverEvent)
+{
+    Q_UNUSED(hoverEvent)
+    isHovered_ = false;
+
+    // Restore cursor
+    if (model_ && !eventId_.isEmpty()) {
+        const TimelineEvent* event = model_->getEvent(eventId_);
+        if (event && (event->isLocked || event->isFixed)) {
+            QApplication::restoreOverrideCursor();
+        }
+    }
+
+    QGraphicsObject::hoverLeaveEvent(hoverEvent);
 }
 
 

@@ -139,4 +139,7 @@ private:
     QCheckBox* laneControlCheckbox_;
     QSpinBox* manualLaneSpinner_;
     QLabel* laneControlWarningLabel_;
+
+    QCheckBox* fixedCheckbox_;
+    QCheckBox* lockedCheckbox_;
 };

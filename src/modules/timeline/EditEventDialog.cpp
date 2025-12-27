@@ -172,6 +172,17 @@ void EditEventDialog::setupUi()
     laneControlWarningLabel_->setStyleSheet("QLabel { color: #666; }");
     laneControlLayout->addWidget(laneControlWarningLabel_);
 
+    // ========== LOCK STATE CONTROLS ==========
+    laneControlLayout->addSpacing(15);
+
+    fixedCheckbox_ = new QCheckBox("Fixed");
+    fixedCheckbox_->setToolTip("Prevent dragging and resizing in timeline view");
+    laneControlLayout->addWidget(fixedCheckbox_);
+
+    lockedCheckbox_ = new QCheckBox("Locked");
+    lockedCheckbox_->setToolTip("Prevent all editing (includes Fixed)");
+    laneControlLayout->addWidget(lockedCheckbox_);
+
     laneControlLayout->addStretch();
 
     gridLayout->addWidget(laneControlGroup, 1, 1);
@@ -237,6 +248,25 @@ void EditEventDialog::setupUi()
     connect(saveButton, &QPushButton::clicked, this, &EditEventDialog::validateAndAccept);
     connect(deleteButton_, &QPushButton::clicked, this, &EditEventDialog::onDeleteClicked);
     connect(cancelButton, &QPushButton::clicked, this, &QDialog::reject);
+    connect(laneControlCheckbox_, &QCheckBox::toggled, [this](bool checked) { manualLaneSpinner_->setEnabled(checked); });
+
+    // Lock state checkbox connections
+    connect(lockedCheckbox_, &QCheckBox::toggled, this, [this](bool checked) {
+        if (checked) {
+            // Auto-check fixed when locked
+            fixedCheckbox_->setChecked(true);
+            fixedCheckbox_->setEnabled(false);
+        } else {
+            // Re-enable fixed checkbox when unlocked
+            fixedCheckbox_->setEnabled(true);
+        }
+        updateFieldsEnabledState();
+    });
+
+    connect(fixedCheckbox_, &QCheckBox::toggled, this, [this](bool checked) {
+        Q_UNUSED(checked);
+        // Fixed state doesn't affect other fields, only view manipulation
+    });
 
     // Let Qt calculate optimal size based on content
     adjustSize();
@@ -595,6 +625,13 @@ void EditEventDialog::populateFromEvent(const TimelineEvent& event)
     manualLaneSpinner_->setValue(event.manualLane);
     manualLaneSpinner_->setEnabled(event.laneControlEnabled);
     descriptionEdit_->setPlainText(event.description);
+
+    // Load lock state
+    fixedCheckbox_->setChecked(event.isFixed);
+    lockedCheckbox_->setChecked(event.isLocked);
+
+    // Update field states based on lock status
+    updateFieldsEnabledState();
 
     // Set type-specific fields
     switch (event.type)
@@ -1028,7 +1065,11 @@ TimelineEvent EditEventDialog::getEvent() const
     event.laneControlEnabled = laneControlCheckbox_->isChecked();
     event.manualLane = manualLaneSpinner_->value();
 
-    // FIX: When lane control is enabled, set lane to match manualLane
+    // Save lock state
+    event.isFixed = fixedCheckbox_->isChecked();
+    event.isLocked = lockedCheckbox_->isChecked();
+
+    // When lane control is enabled, set lane to match manualLane
     if (event.laneControlEnabled)
     {
         event.lane = event.manualLane;
@@ -1195,4 +1236,93 @@ void EditEventDialog::onAttachmentsChanged()
     // The attachment count will update automatically through the signal chain:
     // AttachmentManager -> TimelineModel -> TimelineScene -> TimelineItem
     // No additional action needed here
+}
+
+
+void EditEventDialog::updateFieldsEnabledState()
+{
+    bool locked = lockedCheckbox_->isChecked();
+    bool enabled = !locked;
+
+    // Disable all input fields when locked
+    titleEdit_->setEnabled(enabled);
+    typeCombo_->setEnabled(enabled);
+    prioritySpinner_->setEnabled(enabled);
+    descriptionEdit_->setEnabled(enabled);
+
+    // Lane control fields
+    laneControlCheckbox_->setEnabled(enabled);
+    manualLaneSpinner_->setEnabled(enabled && laneControlCheckbox_->isChecked());
+
+    // Type-specific fields - Meeting
+    if (meetingStartDate_) {
+        meetingStartDate_->setEnabled(enabled);
+        meetingStartTime_->setEnabled(enabled);
+        meetingEndDate_->setEnabled(enabled);
+        meetingEndTime_->setEnabled(enabled);
+        meetingAllDayCheckbox_->setEnabled(enabled);
+        locationEdit_->setEnabled(enabled);
+        participantsEdit_->setEnabled(enabled);
+    }
+
+    // Type-specific fields - Action
+    if (actionStartDate_) {
+        actionStartDate_->setEnabled(enabled);
+        actionStartTime_->setEnabled(enabled);
+        actionDueDate_->setEnabled(enabled);
+        actionDueTime_->setEnabled(enabled);
+        actionAllDayCheckbox_->setEnabled(enabled);
+        statusCombo_->setEnabled(enabled);
+    }
+
+    // Type-specific fields - Test Event
+    if (testStartDate_) {
+        testStartDate_->setEnabled(enabled);
+        testStartTime_->setEnabled(enabled);
+        testEndDate_->setEnabled(enabled);
+        testEndTime_->setEnabled(enabled);
+        testAllDayCheckbox_->setEnabled(enabled);
+        testCategoryCombo_->setEnabled(enabled);
+
+        // Disable all checklist items
+        for (auto* checkbox : checklistItems_) {
+            checkbox->setEnabled(enabled);
+        }
+    }
+
+    // Type-specific fields - Reminder
+    if (reminderDate_) {
+        reminderDate_->setEnabled(enabled);
+        reminderTime_->setEnabled(enabled);
+        reminderEndDate_->setEnabled(enabled);
+        reminderEndTime_->setEnabled(enabled);
+        reminderAllDayCheckbox_->setEnabled(enabled);
+        recurringRuleCombo_->setEnabled(enabled);
+    }
+
+    // Type-specific fields - Jira Ticket
+    if (jiraStartDate_) {
+        jiraKeyEdit_->setEnabled(enabled);
+        jiraSummaryEdit_->setEnabled(enabled);
+        jiraTypeCombo_->setEnabled(enabled);
+        jiraStatusCombo_->setEnabled(enabled);
+        jiraStartDate_->setEnabled(enabled);
+        jiraStartTime_->setEnabled(enabled);
+        jiraDueDate_->setEnabled(enabled);
+        jiraDueTime_->setEnabled(enabled);
+        jiraAllDayCheckbox_->setEnabled(enabled);
+    }
+
+    // Attachment widget
+    if (attachmentWidget_) {
+        attachmentWidget_->setEnabled(enabled);
+    }
+
+    // Keep unlock checkboxes enabled
+    lockedCheckbox_->setEnabled(true);
+    fixedCheckbox_->setEnabled(!locked);
+
+    // Apply and Delete buttons
+    applyButton_->setEnabled(enabled);
+    deleteButton_->setEnabled(enabled);
 }

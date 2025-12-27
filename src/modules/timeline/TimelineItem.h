@@ -70,6 +70,9 @@ public:
     int attachmentCount() const { return attachmentCount_; }                            ///<
     bool hasAttachments() const { return attachmentCount_ > 0; }                        ///<
 
+    void updateLockState();
+    void updateVisualState();
+
 signals:
     void editRequested(const QString& eventId);
     void deleteRequested(const QString& eventId);
@@ -83,6 +86,7 @@ protected:
     void mouseMoveEvent(QGraphicsSceneMouseEvent* event) override;                      ///< @brief Handle mouse move for dragging and resizing
     void mouseReleaseEvent(QGraphicsSceneMouseEvent* event) override;                   ///< @brief Track when drag ends
     void hoverMoveEvent(QGraphicsSceneHoverEvent* event) override;                      ///< @brief Update cursor based on mouse position (for resize handles)
+    void hoverEnterEvent(QGraphicsSceneHoverEvent* event) override;                     ///<
     void hoverLeaveEvent(QGraphicsSceneHoverEvent* event) override;                     ///< @brief Restore cursor when leaving item
 
     void contextMenuEvent(QGraphicsSceneContextMenuEvent* event) override;              ///< @brief Show context menu
@@ -127,6 +131,12 @@ private:
 
     int attachmentCount_ = 0;                               ///<
     bool showAttachmentIndicator_ = false;                  ///<
+
+    void drawLockIcon(QPainter* painter);
+    void drawPinIcon(QPainter* painter);
+    void updateItemFlags();
+
+    bool isHovered_ = false;
 
     static constexpr double RESIZE_HANDLE_WIDTH = 8.0;      ///< Width of resize hit area
 };

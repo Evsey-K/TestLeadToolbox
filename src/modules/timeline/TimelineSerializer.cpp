@@ -202,6 +202,8 @@ QJsonObject TimelineSerializer::serializeEvent(const TimelineEvent& event)
     obj["archived"] = event.archived;
     obj["laneControlEnabled"] = event.laneControlEnabled;
     obj["manualLane"] = event.manualLane;
+    obj["isFixed"] = event.isFixed;
+    obj["isLocked"] = event.isLocked;
     obj["color"] = event.color.name();
 
     // NEW: Save startDate and endDate as QDateTime (ISO format includes time)
@@ -289,6 +291,13 @@ TimelineEvent TimelineSerializer::deserializeEvent(const QJsonObject& json)
     event.archived = json["archived"].toBool();
     event.laneControlEnabled = json.contains("laneControlEnabled") ? json["laneControlEnabled"].toBool() : false;
     event.manualLane = json.contains("manualLane") ? json["manualLane"].toInt() : 0;
+    event.isFixed = json.contains("isFixed") ? json["isFixed"].toBool() : false;
+    event.isLocked = json.contains("isLocked") ? json["isLocked"].toBool() : false;
+
+    if (event.isLocked)
+    {
+        event.isFixed = true;
+    }
 
     QString colorStr = json["color"].toString();
     if (!colorStr.isEmpty())

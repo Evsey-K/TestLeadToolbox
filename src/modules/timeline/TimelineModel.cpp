@@ -481,4 +481,35 @@ void TimelineModel::onAttachmentsChanged(int eventId)
 }
 
 
+bool TimelineModel::setEventLockState(const QString& eventId, bool fixed, bool locked)
+{
+    TimelineEvent* event = getEvent(eventId);
+    if (!event)
+    {
+        return false;
+    }
 
+    // Store old state
+    bool oldFixed = event->isFixed;
+    bool oldLocked = event->isLocked;
+
+    // Apply new state
+    event->isLocked = locked;
+    event->isFixed = fixed;
+
+    // Ensure consistency: locked implies fixed
+    if (event->isLocked)
+    {
+        event->isFixed = true;
+    }
+
+    // Only emit if actually changed
+    if (oldFixed != event->isFixed || oldLocked != event->isLocked)
+    {
+        emit eventLockStateChanged(eventId);
+        emit eventUpdated(eventId);
+        return true;
+    }
+
+    return false;
+}

@@ -81,6 +81,7 @@ private:
     bool validateTypeSpecificFields();                              ///< @brief Validate type-specific fields
     void populateCommonFields(TimelineEvent& event) const;          /// <@brief Populate event from common fields
     void populateTypeSpecificFields(TimelineEvent& event) const;    ///< @brief Populate event from type-specific fields
+    void updateFieldsEnabledState();                                ///<
 
     // Helper methods for creating field groups
     QWidget* createMeetingFields();
@@ -154,6 +155,9 @@ private:
     QCheckBox* laneControlCheckbox_;
     QSpinBox* manualLaneSpinner_;
     QLabel* laneControlWarningLabel_;
+
+    QCheckBox* fixedCheckbox_;
+    QCheckBox* lockedCheckbox_;
 
     // Attachment widget
     AttachmentListWidget* attachmentWidget_ = nullptr;

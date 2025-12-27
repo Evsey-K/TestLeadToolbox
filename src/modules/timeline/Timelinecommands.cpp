@@ -319,3 +319,78 @@ void RestoreEventCommand::undo()
 
     qDebug() << "RestoreEventCommand::undo() - Re-archived event:" << eventId_;
 }
+
+
+// ============================================================================
+// SetEventLockStateCommand Implementation
+// ============================================================================
+
+
+SetEventLockStateCommand::SetEventLockStateCommand(TimelineModel* model,
+                                                   const QString& eventId,
+                                                   bool newFixed,
+                                                   bool newLocked,
+                                                   bool oldFixed,
+                                                   bool oldLocked,
+                                                   QUndoCommand* parent)
+    : QUndoCommand(parent)
+    , model_(model)
+    , eventId_(eventId)
+    , newFixed_(newFixed)
+    , newLocked_(newLocked)
+    , oldFixed_(oldFixed)
+    , oldLocked_(oldLocked)
+{
+    // Create descriptive command text
+    QString lockState;
+    if (newLocked)
+    {
+        lockState = "locked";
+    }
+    else if (newFixed)
+    {
+        lockState = "fixed";
+    }
+    else
+    {
+        lockState = "unlocked";
+    }
+
+    const TimelineEvent* event = model_->getEvent(eventId_);
+    if (event)
+    {
+        setText(QString("Set '%1' to %2").arg(event->title).arg(lockState));
+    }
+    else
+    {
+        setText(QString("Set event to %1").arg(lockState));
+    }
+}
+
+
+void SetEventLockStateCommand::redo()
+{
+    bool success = model_->setEventLockState(eventId_, newFixed_, newLocked_);
+
+    if (!success)
+    {
+        qWarning() << "SetEventLockStateCommand::redo() - Failed to set lock state for event:" << eventId_;
+    }
+
+    qDebug() << "SetEventLockStateCommand::redo() - Set event" << eventId_
+             << "to fixed=" << newFixed_ << "locked=" << newLocked_;
+}
+
+
+void SetEventLockStateCommand::undo()
+{
+    bool success = model_->setEventLockState(eventId_, oldFixed_, oldLocked_);
+
+    if (!success)
+    {
+        qWarning() << "SetEventLockStateCommand::undo() - Failed to restore lock state for event:" << eventId_;
+    }
+
+    qDebug() << "SetEventLockStateCommand::undo() - Restored event" << eventId_
+             << "to fixed=" << oldFixed_ << "locked=" << oldLocked_;
+}

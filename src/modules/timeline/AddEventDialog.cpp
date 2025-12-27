@@ -154,6 +154,17 @@ void AddEventDialog::setupUi()
     laneControlWarningLabel_->setStyleSheet("QLabel { color: #666; }");
     laneControlLayout->addWidget(laneControlWarningLabel_);
 
+    // ========== LOCK STATE CONTROLS ==========
+    laneControlLayout->addSpacing(15);
+
+    fixedCheckbox_ = new QCheckBox("Fixed");
+    fixedCheckbox_->setToolTip("Prevent dragging and resizing in timeline view");
+    laneControlLayout->addWidget(fixedCheckbox_);
+
+    lockedCheckbox_ = new QCheckBox("Locked");
+    lockedCheckbox_->setToolTip("Prevent all editing (includes Fixed)");
+    laneControlLayout->addWidget(lockedCheckbox_);
+
     laneControlLayout->addStretch();
 
     gridLayout->addWidget(laneControlGroup, 1, 1);
@@ -179,6 +190,19 @@ void AddEventDialog::setupUi()
     connect(typeCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &AddEventDialog::onTypeChanged);
     connect(buttonBox, &QDialogButtonBox::accepted, this, &AddEventDialog::validateAndAccept);
     connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    connect(laneControlCheckbox_, &QCheckBox::toggled, [this](bool checked) { manualLaneSpinner_->setEnabled(checked); });
+
+    // Lock state checkbox connections
+    connect(lockedCheckbox_, &QCheckBox::toggled, this, [this](bool checked) {
+        if (checked) {
+            // Auto-check fixed when locked
+            fixedCheckbox_->setChecked(true);
+            fixedCheckbox_->setEnabled(false);
+        } else {
+            // Re-enable fixed checkbox when unlocked
+            fixedCheckbox_->setEnabled(true);
+        }
+    });
 
     // Let Qt calculate optimal size based on content
     adjustSize();
@@ -663,6 +687,10 @@ TimelineEvent AddEventDialog::getEvent() const
 
     event.laneControlEnabled = laneControlCheckbox_->isChecked();
     event.manualLane = manualLaneSpinner_->value();
+
+    // Save lock state (new events default to unlocked)
+    event.isFixed = fixedCheckbox_->isChecked();
+    event.isLocked = lockedCheckbox_->isChecked();
 
     populateTypeSpecificFields(event);
 

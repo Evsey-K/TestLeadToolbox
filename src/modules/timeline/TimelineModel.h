@@ -25,32 +25,6 @@ constexpr TimelineEventType TimelineEventType_JiraTicket = 5;
 /**
  * @struct TimelineEvent
  * @brief Extended timeline event structure with type-specific fields
- *
- * NOTE: startDate and endDate are QDateTime objects that store both date and time.
- * For all-day events, the time component is set to 00:00:00 for start and 23:59:59 for end.
- * For events with hour precision, the exact time is stored.
- *
- * Field Usage by Type:
- *
- * Meeting:
- *   - title, startDate (QDateTime), endDate (QDateTime), location,
- *     participants, priority, description
- *
- * Action:
- *   - title, startDate (QDateTime), dueDateTime, status, priority, description
- *     Note: endDate is set to dueDateTime.date() with time 23:59:59 for rendering
- *
- * Test Event:
- *   - title, startDate (QDateTime), endDate (QDateTime), testCategory,
- *     preparationChecklist, priority, description
- *
- * Reminder:
- *   - title, reminderDateTime, recurringRule, description
- *     Note: startDate and endDate are derived from reminderDateTime for rendering
- *
- * Jira Ticket:
- *   - title, jiraKey, jiraSummary, jiraType, jiraStatus, startDate (QDateTime),
- *     endDate (QDateTime), priority, description
  */
 struct TimelineEvent
 {
@@ -67,6 +41,10 @@ struct TimelineEvent
     // ========== LANE CONTROL FIELDS ==========
     bool laneControlEnabled = false;    ///< If true, user has manually set the lane
     int manualLane = 0;                 ///< User-specified lane number (when laneControlEnabled is true)
+
+    // ========== LOCK STATE FIELDS ==========
+    bool isFixed = false;       ///< If true, prevents view manipulation (drag/resize)
+    bool isLocked = false;      ///< If true, prevents all editing (implies fixed)
 
     // ========== DATE/TIME FIELDS ==========
     // CHANGED: These are now QDateTime instead of QDate
@@ -102,34 +80,22 @@ struct TimelineEvent
 
     TimelineEvent() = default;
 
-    /**
-     * @brief Checks if this event occurs on a specific date
-     */
-    bool occursOnDate(const QDate& date) const
+     bool occursOnDate(const QDate& date) const                                  ///< Checks if this event occurs on a specific date
     {
         return date >= startDate.date() && date <= endDate.date();
     }
 
-    /**
-     * @brief Checks if this event overlaps with another
-     */
-    bool overlaps(const TimelineEvent& other) const
+    bool overlaps(const TimelineEvent& other) const                             ///< Checks if this event overlaps with another
     {
         return !(endDate < other.startDate || startDate > other.endDate);
     }
 
-    /**
-     * @brief Returns duration in days (inclusive)
-     */
-    int durationDays() const
+    int durationDays() const                                                    ///< Returns duration in days (inclusive)
     {
         return startDate.date().daysTo(endDate.date()) + 1;
     }
 
-    /**
-     * @brief Get the primary display date range string
-     */
-    QString displayDateRange() const
+    QString displayDateRange() const                                            ///< Get the primary display date range string
     {
         if (type == TimelineEventType_Reminder)
         {
@@ -162,6 +128,9 @@ struct TimelineEvent
                 .arg(endDate.toString("yyyy-MM-dd HH:mm"));
         }
     }
+
+    bool canManipulateInView() const    { return !isFixed && !isLocked; }       ///< Check if event can be manipulated in the timeline view
+    bool canEditInDialog() const        { return !isLocked; }                   ///< Check if event can be edited in dialog
 };
 
 
@@ -175,6 +144,8 @@ class TimelineModel : public QObject
 
 public:
     explicit TimelineModel(QObject* parent = nullptr);
+
+    bool setEventLockState(const QString& eventId, bool fixed, bool locked);
 
     void setVersionDates(const QDate& start, const QDate& end);
     QDate versionStartDate() const { return versionStart_; }
@@ -218,6 +189,7 @@ signals:
     void lanesRecalculated();
     void eventsCleared();
     void eventAttachmentsChanged(const QString& eventId);
+    void eventLockStateChanged(const QString& eventId);
 
 private slots:
     void onAttachmentsChanged(int eventId);
