@@ -1,6 +1,7 @@
 // TimelineModule.cpp
 
 
+#include "shared/interfaces/IModule.h"
 #include "TimelineModule.h"
 #include "TimelineModel.h"
 #include "TimelineCoordinateMapper.h"
@@ -32,6 +33,8 @@
 #include <QAction>
 #include <QMenu>
 #include <QLabel>
+#include <QPainter>
+#include <QPixmap>
 
 
 TimelineModule::TimelineModule(QWidget* parent)
@@ -44,6 +47,7 @@ TimelineModule::TimelineModule(QWidget* parent)
     , legendCheckbox_(nullptr)
     , splitter_(nullptr)
     , currentFilePath_("")
+    , hasUnsavedChanges_(false)
 {
     // Create model
     model_ = new TimelineModel(this);
@@ -85,7 +89,6 @@ TimelineModule::~TimelineModule()
 }
 
 
-void TimelineModule::save() { onSaveClicked(); }        ///<
 void TimelineModule::saveAs() { onSaveAsClicked(); }    ///<
 void TimelineModule::load() { onLoadClicked(); }        ///<
 
@@ -274,16 +277,19 @@ void TimelineModule::setupConnections()
     connect(view_->timelineScene(), &TimelineScene::batchDeleteRequested, this, &TimelineModule::onBatchDeleteRequested);           //
     connect(sidePanel_, &TimelineSidePanel::editEventRequested, this, &TimelineModule::onEditEventRequested);                       //
     connect(sidePanel_, &TimelineSidePanel::deleteEventRequested, this, &TimelineModule::onDeleteEventRequested);                   //
-    connect(model_, &TimelineModel::versionDatesChanged, [this]()                                                                   // Update mapper when version dates change
-            {
-                mapper_->setVersionDates(model_->versionStartDate(), model_->versionEndDate());
-            });
+
+    connect(model_, &TimelineModel::versionDatesChanged, [this]()
+    {
+        mapper_->setVersionDates(model_->versionStartDate(), model_->versionEndDate());
+        hasUnsavedChanges_ = true;
+    });
+
+    // Track unsaved changes through undo stack instead
+    connect(undoStack_, &QUndoStack::indexChanged, [this]() { hasUnsavedChanges_ = true; });
 
     // Connect selection change signals to update delete button state
-    connect(view_->timelineScene(), &QGraphicsScene::selectionChanged,
-            this, &TimelineModule::updateDeleteActionState);
-    connect(sidePanel_, &TimelineSidePanel::selectionChanged,
-            this, &TimelineModule::updateDeleteActionState);
+    connect(view_->timelineScene(), &QGraphicsScene::selectionChanged, this, &TimelineModule::updateDeleteActionState);
+    connect(sidePanel_, &TimelineSidePanel::selectionChanged, this, &TimelineModule::updateDeleteActionState);
 
     // Scroll animator completion
     connect(scrollAnimator_, &TimelineScrollAnimator::scrollCompleted, [this](const QDate& date)
@@ -466,6 +472,7 @@ bool TimelineModule::saveToFile(const QString& filePath)
     {
         setCurrentFilePath(filePath);
         autoSaveManager_->markClean();
+        hasUnsavedChanges_ = false;
         statusLabel_->setText("Timeline saved to: " + filePath);
         return true;
     }
@@ -1321,4 +1328,82 @@ void TimelineModule::resizeEvent(QResizeEvent* event)
     {
         updateLegendPosition();
     }
+}
+
+
+QWidget* TimelineModule::createWidget(QWidget* parent)
+{
+    if (parent && parent != parentWidget()) {
+        setParent(parent);
+    }
+    return this;
+}
+
+
+QString TimelineModule::name() const
+{
+    return "Timeline Manager";
+}
+
+
+QString TimelineModule::description() const
+{
+    return "Visualize and manage project timelines with events, milestones, and deadlines";
+}
+
+
+QIcon TimelineModule::icon() const
+{
+    QPixmap pixmap(32, 32);
+    pixmap.fill(Qt::transparent);
+
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing);
+
+    painter.setPen(QPen(QColor(0, 120, 215), 2));
+    painter.drawLine(4, 16, 28, 16);
+
+    painter.setBrush(QColor(0, 120, 215));
+    painter.drawEllipse(6, 12, 8, 8);
+    painter.drawEllipse(16, 12, 8, 8);
+    painter.drawEllipse(22, 12, 8, 8);
+
+    return QIcon(pixmap);
+}
+
+
+QString TimelineModule::moduleId() const
+{
+    return "timeline";
+}
+
+void TimelineModule::onActivate()
+{
+    qDebug() << "TimelineModule: Activated";
+}
+
+void TimelineModule::onDeactivate()
+{
+    qDebug() << "TimelineModule: Deactivated";
+}
+
+bool TimelineModule::hasUnsavedChanges() const
+{
+    // Delegate to AutoSaveManager
+    if (autoSaveManager_)
+    {
+        return autoSaveManager_->hasUnsavedChanges();
+    }
+
+    return hasUnsavedChanges_;
+}
+
+bool TimelineModule::save()
+{
+    if (currentFilePath_.isEmpty())
+    {
+        return false; // Caller should invoke saveAs()
+    }
+
+    return saveToFile(currentFilePath_);
 }

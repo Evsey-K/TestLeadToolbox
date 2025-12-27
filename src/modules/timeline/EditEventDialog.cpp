@@ -885,6 +885,38 @@ void EditEventDialog::validateAndAccept()
     {
         return;
     }
+
+    // NEW: Check for lane conflicts if lane control is enabled
+    if (laneControlCheckbox_->isChecked())
+    {
+        // Build a temporary event to get the updated dates/times
+        TimelineEvent tempEvent;
+        populateCommonFields(tempEvent);
+        populateTypeSpecificFields(tempEvent);
+
+        int manualLane = manualLaneSpinner_->value();
+
+        bool hasConflict = model_->hasLaneConflict(
+            tempEvent.startDate,
+            tempEvent.endDate,
+            manualLane,
+            eventId_  // Exclude current event from conflict check
+            );
+
+        if (hasConflict)
+        {
+            QMessageBox::warning(
+                this,
+                "Lane Conflict",
+                QString("Another manually-controlled event already occupies lane %1 "
+                        "during this time period.\n\n"
+                        "Please choose a different lane number or adjust the event dates.")
+                    .arg(manualLane)
+                );
+            return;  // Don't accept the dialog
+        }
+    }
+
     accept();
 }
 

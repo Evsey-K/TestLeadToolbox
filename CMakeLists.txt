@@ -70,10 +70,20 @@ set(CMAKE_AUTORCC ON)
 # ----------------------------------------------------------------------------
 
 set(SRC
-    # App Shell
+    # -------------------- APP SHELL -----------------------------
+    # ------------------------------------------------------------
+
+    # App Shell - Main Entry Point
     src/app/main.cpp
     src/app/MainWindow.cpp
     src/app/MainWindow.h
+    src/app/mainwindow.ui
+
+    # App Shell - Module Management
+    src/app/ModuleManager.h
+    src/app/ModuleManager.cpp
+    src/app/ModuleLauncherPanel.h
+    src/app/ModuleLauncherPanel.cpp
 
     # -------------------- TIMELINE MODULE -----------------------
     # ------------------------------------------------------------
@@ -163,9 +173,22 @@ set(SRC
     src/modules/timeline/SetLookaheadRangeDialog.cpp
     src/modules/timeline/SetLookaheadRangeDialog.ui
 
+    # -------------------- LINK BUDGET MODULE --------------------
+    # ------------------------------------------------------------
+
+    # Link Budget Module - Core
+    src/modules/linkbudget/LinkBudgetModule.h
+    src/modules/linkbudget/LinkBudgetModule.cpp
+    src/modules/linkbudget/LinkBudgetModel.h
+    src/modules/linkbudget/LinkBudgetModel.cpp
+
     # -------------------- SHARED COMPONENTS ---------------------
     # ------------------------------------------------------------
 
+    # Shared - Interfaces
+    src/shared/interfaces/IModule.h
+
+    # Shared - Models
     src/shared/models/AttachmentModel.h
     src/shared/models/AttachmentModel.cpp
 )

@@ -1,52 +1,90 @@
-// MainWindow.cpp
-
+// src/app/MainWindow.cpp
 
 #include "MainWindow.h"
+#include "ModuleManager.h"
+#include "ModuleLauncherPanel.h"
 #include "modules/timeline/TimelineModule.h"
-#include "modules/timeline/ArchivedEventsDialog.h"
-#include "modules/timeline/TimelineSettings.h"
+#include "modules/linkbudget/LinkBudgetModule.h"
 #include <QMenuBar>
 #include <QMenu>
 #include <QAction>
 #include <QMessageBox>
 #include <QCloseEvent>
-#include <QDialog>
-#include <QVBoxLayout>
-#include <QCheckBox>
-#include <QPushButton>
-#include <QLabel>
-#include <QGroupBox>
 #include <QStatusBar>
-
+#include <QStackedWidget>
+#include <QSplitter>
+#include <QVBoxLayout>
+#include <QDebug>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
-    , timelineModule_(nullptr)
+    , moduleManager_(nullptr)
+    , launcherPanel_(nullptr)
+    , moduleStack_(nullptr)
+    , mainSplitter_(nullptr)
     , undoAction_(nullptr)
     , redoAction_(nullptr)
 {
-    setWindowTitle("Test Lead Toolbox");
-    resize(1200, 800);
+    setWindowTitle("TestLeadToolbox");
+    resize(1400, 900);
 
-    // Create timeline module and set as central widget
-    timelineModule_ = new TimelineModule(this);
-    setCentralWidget(timelineModule_);
+    // Create module manager
+    moduleManager_ = new ModuleManager(this);
+
+    // Register modules
+    setupModules();
+
+    // Setup UI
+    setupUI();
 
     // Setup menu bar
     setupMenuBar();
 
-    // Connect undo stack to menu actions
-    connectUndoStack();
+    // Connect signals
+    connectSignals();
 
     // Status bar
-    statusBar()->showMessage("Ready");
+    statusBar()->showMessage("Ready - Select a module to begin");
 }
-
 
 MainWindow::~MainWindow()
 {
 }
 
+void MainWindow::setupModules()
+{
+    // Register Timeline Module
+    auto timelineModule = std::make_unique<TimelineModule>();
+    moduleManager_->registerModule(std::move(timelineModule));
+
+    // Register Link Budget Calculator Module
+    auto linkBudgetModule = std::make_unique<LinkBudgetModule>();
+    moduleManager_->registerModule(std::move(linkBudgetModule));
+
+    qDebug() << "MainWindow: Registered" << moduleManager_->moduleIds().count() << "modules";
+}
+
+void MainWindow::setupUI()
+{
+    // Create main splitter (launcher panel | module area)
+    mainSplitter_ = new QSplitter(Qt::Horizontal, this);
+
+    // Create launcher panel
+    launcherPanel_ = new ModuleLauncherPanel(moduleManager_, this);
+    mainSplitter_->addWidget(launcherPanel_);
+
+    // Create stacked widget for modules
+    moduleStack_ = new QStackedWidget(this);
+    moduleStack_->setContentsMargins(0, 0, 0, 0);
+    mainSplitter_->addWidget(moduleStack_);
+
+    // Set splitter sizes (launcher gets 250px, rest goes to module)
+    mainSplitter_->setSizes({250, 1150});
+    mainSplitter_->setCollapsible(0, false); // Don't allow collapsing launcher
+    mainSplitter_->setCollapsible(1, false); // Don't allow collapsing module area
+
+    setCentralWidget(mainSplitter_);
+}
 
 void MainWindow::setupMenuBar()
 {
@@ -56,46 +94,33 @@ void MainWindow::setupMenuBar()
     setupHelpMenu();
 }
 
-
 void MainWindow::setupFileMenu()
 {
     fileMenu_ = menuBar()->addMenu("&File");
 
-    // New Timeline
-    auto newAction = fileMenu_->addAction("&New Timeline");
+    // New
+    auto newAction = fileMenu_->addAction("&New");
     newAction->setShortcut(QKeySequence::New);
     connect(newAction, &QAction::triggered, [this]() {
-        QMessageBox::information(this, "New Timeline", "New timeline feature coming soon!");
+        QMessageBox::information(this, "New", "New feature depends on active module");
     });
 
     fileMenu_->addSeparator();
 
     // Save
-    auto saveAction = fileMenu_->addAction("&Save");
-    saveAction->setShortcut(QKeySequence::Save);
-    connect(saveAction, &QAction::triggered, [this]() {
-        if (timelineModule_) {
-            timelineModule_->save();
-        }
-    });
+    saveAction_ = fileMenu_->addAction("&Save");
+    saveAction_->setShortcut(QKeySequence::Save);
+    connect(saveAction_, &QAction::triggered, this, &MainWindow::onSave);
 
     // Save As
-    auto saveAsAction = fileMenu_->addAction("Save &As...");
-    saveAsAction->setShortcut(QKeySequence::SaveAs);
-    connect(saveAsAction, &QAction::triggered, [this]() {
-        if (timelineModule_) {
-            timelineModule_->saveAs();
-        }
-    });
+    saveAsAction_ = fileMenu_->addAction("Save &As...");
+    saveAsAction_->setShortcut(QKeySequence::SaveAs);
+    connect(saveAsAction_, &QAction::triggered, this, &MainWindow::onSaveAs);
 
     // Load
-    auto loadAction = fileMenu_->addAction("&Load...");
-    loadAction->setShortcut(QKeySequence::Open);
-    connect(loadAction, &QAction::triggered, [this]() {
-        if (timelineModule_) {
-            timelineModule_->load();
-        }
-    });
+    loadAction_ = fileMenu_->addAction("&Load...");
+    loadAction_->setShortcut(QKeySequence::Open);
+    connect(loadAction_, &QAction::triggered, this, &MainWindow::onLoad);
 
     fileMenu_->addSeparator();
 
@@ -105,251 +130,215 @@ void MainWindow::setupFileMenu()
     connect(exitAction, &QAction::triggered, this, &QWidget::close);
 }
 
-
 void MainWindow::setupEditMenu()
 {
     editMenu_ = menuBar()->addMenu("&Edit");
 
     // Undo action
     undoAction_ = editMenu_->addAction("&Undo");
-    undoAction_->setShortcut(QKeySequence::Undo);  // Ctrl+Z
-    undoAction_->setEnabled(false);
+    undoAction_->setShortcut(QKeySequence::Undo);
+    undoAction_->setEnabled(false); // Module will enable when appropriate
 
     // Redo action
     redoAction_ = editMenu_->addAction("&Redo");
-    redoAction_->setShortcut(QKeySequence::Redo);  // Ctrl+Y or Ctrl+Shift+Z
-    redoAction_->setEnabled(false);
+    redoAction_->setShortcut(QKeySequence::Redo);
+    redoAction_->setEnabled(false); // Module will enable when appropriate
 
     editMenu_->addSeparator();
 
     // Preferences
     preferencesAction_ = editMenu_->addAction("&Preferences...");
-    preferencesAction_->setShortcut(QKeySequence::Preferences);
     connect(preferencesAction_, &QAction::triggered, this, &MainWindow::onShowPreferences);
 }
-
 
 void MainWindow::setupViewMenu()
 {
     viewMenu_ = menuBar()->addMenu("&View");
 
-    // Show Archived Events
-    showArchivedAction_ = viewMenu_->addAction("📦 &Archived Events...");
-    showArchivedAction_->setShortcut(QKeySequence("Ctrl+Shift+A"));
-    showArchivedAction_->setToolTip("View and restore archived events");
+    // This menu will be populated by active modules as needed
+    showArchivedAction_ = viewMenu_->addAction("Show &Archived Events");
     connect(showArchivedAction_, &QAction::triggered, this, &MainWindow::onShowArchivedEvents);
-
-    viewMenu_->addSeparator();
-
-    // Refresh View
-    auto refreshAction = viewMenu_->addAction("&Refresh");
-    refreshAction->setShortcut(QKeySequence::Refresh);
-    connect(refreshAction, &QAction::triggered, [this]() {
-        if (timelineModule_)
-        {
-            statusBar()->showMessage("View refreshed", 2000);
-        }
-    });
+    showArchivedAction_->setEnabled(false); // Only enabled when timeline is active
 }
-
 
 void MainWindow::setupHelpMenu()
 {
     helpMenu_ = menuBar()->addMenu("&Help");
 
-    // About
-    auto aboutAction = helpMenu_->addAction("&About...");
+    auto aboutAction = helpMenu_->addAction("&About");
     connect(aboutAction, &QAction::triggered, this, &MainWindow::onShowAbout);
-
-    // Keyboard Shortcuts
-    auto shortcutsAction = helpMenu_->addAction("&Keyboard Shortcuts");
-    connect(shortcutsAction, &QAction::triggered, [this]() {
-        QString shortcuts =
-            "<h3>Keyboard Shortcuts</h3>"
-            "<table>"
-            "<tr><td><b>Ctrl+Z</b></td><td>Undo</td></tr>"
-            "<tr><td><b>Ctrl+Y</b></td><td>Redo</td></tr>"
-            "<tr><td><b>Ctrl+Shift+A</b></td><td>View Archived Events</td></tr>"
-            "<tr><td><b>Delete</b></td><td>Delete selected event(s)</td></tr>"
-            "<tr><td><b>Ctrl+Wheel</b></td><td>Zoom timeline</td></tr>"
-            "</table>";
-
-        QMessageBox::information(this, "Keyboard Shortcuts", shortcuts);
-    });
 }
 
-
-void MainWindow::connectUndoStack()
+void MainWindow::connectSignals()
 {
-    if (!timelineModule_)
-    {
+    // Launcher panel requests module activation
+    connect(launcherPanel_, &ModuleLauncherPanel::moduleLaunchRequested,
+            this, &MainWindow::onModuleLaunchRequested);
+
+    // Module manager notifies of activation
+    connect(moduleManager_, &ModuleManager::moduleActivated,
+            this, &MainWindow::onModuleActivated);
+}
+
+void MainWindow::onModuleLaunchRequested(const QString& moduleId)
+{
+    qDebug() << "MainWindow: Module launch requested:" << moduleId;
+
+    // Check for unsaved changes in current module
+    QString currentId = moduleManager_->currentModuleId();
+    if (!currentId.isEmpty()) {
+        IModule* currentMod = moduleManager_->module(currentId);
+        if (currentMod && currentMod->hasUnsavedChanges()) {
+            auto reply = QMessageBox::question(
+                this,
+                "Unsaved Changes",
+                QString("Module '%1' has unsaved changes. Do you want to save before switching?")
+                    .arg(currentMod->name()),
+                QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel
+                );
+
+            if (reply == QMessageBox::Save) {
+                if (!currentMod->save()) {
+                    QMessageBox::warning(this, "Save Failed", "Failed to save module data");
+                    return;
+                }
+            } else if (reply == QMessageBox::Cancel) {
+                return; // Don't switch modules
+            }
+        }
+    }
+
+    // Get or create module widget
+    QWidget* moduleWidget = moduleManager_->getModuleWidget(moduleId, moduleStack_);
+    if (!moduleWidget) {
+        QMessageBox::critical(this, "Error", "Failed to load module: " + moduleId);
         return;
     }
 
-    QUndoStack* undoStack = timelineModule_->undoStack();
-    if (!undoStack)
-    {
-        qWarning() << "TimelineModule has no undo stack!";
+    // Add to stack if not already present
+    int index = moduleStack_->indexOf(moduleWidget);
+    if (index == -1) {
+        index = moduleStack_->addWidget(moduleWidget);
+    }
+
+    // Switch to module
+    moduleStack_->setCurrentIndex(index);
+
+    // Activate module
+    moduleManager_->activateModule(moduleId);
+}
+
+void MainWindow::onModuleActivated(const QString& moduleId)
+{
+    qDebug() << "MainWindow: Module activated:" << moduleId;
+
+    IModule* mod = moduleManager_->module(moduleId);
+    if (mod) {
+        statusBar()->showMessage("Active: " + mod->name());
+
+        // Enable/disable menu items based on module
+        // Timeline-specific actions
+        bool isTimeline = (moduleId == "timeline");
+        showArchivedAction_->setEnabled(isTimeline);
+
+        // Update window title
+        setWindowTitle("TestLeadToolbox - " + mod->name());
+    }
+}
+
+void MainWindow::onSave()
+{
+    QString currentId = moduleManager_->currentModuleId();
+    if (currentId.isEmpty()) {
+        QMessageBox::information(this, "Save", "No active module to save");
         return;
     }
 
-    // Connect undo/redo actions to stack
-    connect(undoAction_, &QAction::triggered, undoStack, &QUndoStack::undo);
-    connect(redoAction_, &QAction::triggered, undoStack, &QUndoStack::redo);
-
-    // Update action states based on stack
-    connect(undoStack, &QUndoStack::canUndoChanged, undoAction_, &QAction::setEnabled);
-    connect(undoStack, &QUndoStack::canRedoChanged, redoAction_, &QAction::setEnabled);
-
-    // Update action text with command description
-    connect(undoStack, &QUndoStack::undoTextChanged, [this](const QString& text) {
-        if (text.isEmpty())
-        {
-            undoAction_->setText("&Undo");
+    IModule* mod = moduleManager_->module(currentId);
+    if (mod) {
+        if (mod->save()) {
+            statusBar()->showMessage("Saved successfully", 3000);
+        } else {
+            QMessageBox::warning(this, "Save Failed", "Failed to save module data");
         }
-        else
-        {
-            undoAction_->setText(QString("&Undo %1").arg(text));
-        }
-    });
-
-    connect(undoStack, &QUndoStack::redoTextChanged, [this](const QString& text) {
-        if (text.isEmpty())
-        {
-            redoAction_->setText("&Redo");
-        }
-        else
-        {
-            redoAction_->setText(QString("&Redo %1").arg(text));
-        }
-    });
-
-    // Initial state update
-    undoAction_->setEnabled(undoStack->canUndo());
-    redoAction_->setEnabled(undoStack->canRedo());
+    }
 }
 
-
-void MainWindow::onShowArchivedEvents()
+void MainWindow::onSaveAs()
 {
-    if (!timelineModule_)
-    {
+    QString currentId = moduleManager_->currentModuleId();
+    if (currentId.isEmpty()) {
+        QMessageBox::information(this, "Save As", "No active module");
         return;
     }
 
-    ArchivedEventsDialog dialog(
-        timelineModule_->model(),
-        timelineModule_->undoStack(),
-        this
-        );
-
-    dialog.exec();
+    // Module-specific save as logic would go here
+    QMessageBox::information(this, "Save As", "Save As for current module coming soon");
 }
 
-
-void MainWindow::onShowPreferences()
+void MainWindow::onLoad()
 {
-    QDialog dialog(this);
-    dialog.setWindowTitle("Preferences");
-    dialog.setMinimumWidth(400);
-
-    auto layout = new QVBoxLayout(&dialog);
-
-    // Deletion preferences group
-    auto deletionGroup = new QGroupBox("Deletion");
-    auto deletionLayout = new QVBoxLayout(deletionGroup);
-
-    auto confirmCheckbox = new QCheckBox("Show confirmation dialog when deleting events");
-    confirmCheckbox->setChecked(TimelineSettings::instance().showDeleteConfirmation());
-
-    auto softDeleteCheckbox = new QCheckBox("Use archive mode (soft delete) - allows event restoration");
-    softDeleteCheckbox->setChecked(TimelineSettings::instance().useSoftDelete());
-
-    deletionLayout->addWidget(confirmCheckbox);
-    deletionLayout->addWidget(softDeleteCheckbox);
-    layout->addWidget(deletionGroup);
-
-    // Auto-save preferences group
-    auto autoSaveGroup = new QGroupBox("Auto-Save");
-    auto autoSaveLayout = new QVBoxLayout(autoSaveGroup);
-
-    auto autoSaveCheckbox = new QCheckBox("Enable auto-save");
-    autoSaveCheckbox->setChecked(TimelineSettings::instance().autoSaveEnabled());
-
-    autoSaveLayout->addWidget(autoSaveCheckbox);
-    autoSaveLayout->addWidget(new QLabel("Auto-save occurs every 5 minutes when enabled"));
-    layout->addWidget(autoSaveGroup);
-
-    layout->addStretch();
-
-    // Buttons
-    auto buttonLayout = new QHBoxLayout();
-    auto okButton = new QPushButton("OK");
-    auto cancelButton = new QPushButton("Cancel");
-    auto resetButton = new QPushButton("Reset to Defaults");
-
-    buttonLayout->addWidget(resetButton);
-    buttonLayout->addStretch();
-    buttonLayout->addWidget(okButton);
-    buttonLayout->addWidget(cancelButton);
-    layout->addLayout(buttonLayout);
-
-    // Connections
-    connect(okButton, &QPushButton::clicked, &dialog, &QDialog::accept);
-    connect(cancelButton, &QPushButton::clicked, &dialog, &QDialog::reject);
-    connect(resetButton, &QPushButton::clicked, [&]() {
-        auto result = QMessageBox::question(
-            &dialog,
-            "Reset Preferences",
-            "Are you sure you want to reset all preferences to defaults?",
-            QMessageBox::Yes | QMessageBox::No
-            );
-
-        if (result == QMessageBox::Yes)
-        {
-            TimelineSettings::instance().resetToDefaults();
-
-            confirmCheckbox->setChecked(TimelineSettings::instance().showDeleteConfirmation());
-            softDeleteCheckbox->setChecked(TimelineSettings::instance().useSoftDelete());
-            autoSaveCheckbox->setChecked(TimelineSettings::instance().autoSaveEnabled());
-        }
-    });
-
-    // Execute dialog
-    if (dialog.exec() == QDialog::Accepted)
-    {
-        TimelineSettings::instance().setShowDeleteConfirmation(confirmCheckbox->isChecked());
-        TimelineSettings::instance().setUseSoftDelete(softDeleteCheckbox->isChecked());
-        TimelineSettings::instance().setAutoSaveEnabled(autoSaveCheckbox->isChecked());
-
-        statusBar()->showMessage("Preferences saved", 2000);
+    QString currentId = moduleManager_->currentModuleId();
+    if (currentId.isEmpty()) {
+        QMessageBox::information(this, "Load", "No active module");
+        return;
     }
+
+    // Module-specific load logic would go here
+    QMessageBox::information(this, "Load", "Load for current module coming soon");
 }
-
-
-void MainWindow::onShowAbout()
-{
-    QString aboutText =
-        "<h2>Test Lead Toolbox</h2>"
-        "<p>Version 1.0</p>"
-        "<p>A comprehensive timeline management tool for test leads.</p>"
-        "<p>&copy; 2025 Test Lead Toolbox Team</p>"
-        "<br>"
-        "<p><b>Features:</b></p>"
-        "<ul>"
-        "<li>Interactive timeline visualization</li>"
-        "<li>Event management with drag &amp; drop</li>"
-        "<li>Undo/Redo support</li>"
-        "<li>Archive and restore events</li>"
-        "<li>Export to CSV, PDF, PNG</li>"
-        "</ul>";
-
-    QMessageBox::about(this, "About Test Lead Toolbox", aboutText);
-}
-
 
 void MainWindow::closeEvent(QCloseEvent* event)
 {
-    // TimelineModule handles auto-save on destruction
+    // Check all modules for unsaved changes
+    QStringList modulesWithChanges;
+    for (const QString& moduleId : moduleManager_->moduleIds()) {
+        IModule* mod = moduleManager_->module(moduleId);
+        if (mod && mod->hasUnsavedChanges()) {
+            modulesWithChanges.append(mod->name());
+        }
+    }
+
+    if (!modulesWithChanges.isEmpty()) {
+        QString message = "The following modules have unsaved changes:\n\n";
+        message += modulesWithChanges.join("\n");
+        message += "\n\nDo you want to quit without saving?";
+
+        auto reply = QMessageBox::question(
+            this,
+            "Unsaved Changes",
+            message,
+            QMessageBox::Yes | QMessageBox::No
+            );
+
+        if (reply == QMessageBox::No) {
+            event->ignore();
+            return;
+        }
+    }
+
     event->accept();
+}
+
+void MainWindow::onShowArchivedEvents()
+{
+    // This is timeline-specific, would need to be refactored
+    QMessageBox::information(this, "Archived Events", "Feature available in Timeline module");
+}
+
+void MainWindow::onShowPreferences()
+{
+    QMessageBox::information(this, "Preferences", "Global preferences dialog coming soon");
+}
+
+void MainWindow::onShowAbout()
+{
+    QMessageBox::about(
+        this,
+        "About TestLeadToolbox",
+        "<h2>TestLeadToolbox</h2>"
+        "<p>A modular engineering utility suite for test leads</p>"
+        "<p>Version 2.0</p>"
+        "<p>Built with Qt6 and C++20</p>"
+        );
 }

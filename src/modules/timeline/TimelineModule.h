@@ -2,6 +2,7 @@
 
 
 #pragma once
+#include "shared/interfaces/IModule.h"
 #include <QWidget>
 #include <qundostack.h>
 #include "DateRangeHighlight.h"
@@ -25,35 +26,30 @@ class QSplitter;
 /**
  * @class TimelineModule
  * @brief Main container for the timeline feature with Phase 5 Tier 2 enhancements
- *
- * Integrates:
- * - TimelineModel (data)
- * - TimelineView with Scene (visualization)
- * - TimelineSidePanel (event list)
- * - Add Event button and dialog
- * - Version Settings button and dialog
- * - Auto-save/load timeline data (JSON)
- * - Export screenshot
- * - Export list view to CSV/PDF
- * - Drag resizing for multi-day events
- * - Smart scroll-to-date functionality
- * - Toolbar delete button (context-sensitive)
- * - Multi-selection support
- * - Focus management after deletion
  */
-class TimelineModule : public QWidget {
+class TimelineModule : public QWidget, public IModule {
     Q_OBJECT
 
 public:
     explicit TimelineModule(QWidget* parent = nullptr);     ///< @brief Constructs a TimelineModule instance
-    ~TimelineModule();                                      ///< @brief Destructor
+    ~TimelineModule() override;                             ///< @brief Destructor
 
-    TimelineModel* model() const { return model_; }         ///< @brief Get access to the model (useful for testing or external integration)
-    QUndoStack* undoStack() const { return undoStack_; }    ///<
+    // IModule interface implementation
+    QWidget* createWidget(QWidget* parent = nullptr) override;
+    QString name() const override;
+    QString description() const override;
+    QIcon icon() const override;
+    QString moduleId() const override;
+    void onActivate() override;
+    void onDeactivate() override;
+    bool hasUnsavedChanges() const override;
+    bool save() override;
+
+    TimelineModel* model() const { return model_; }
+    QUndoStack* undoStack() const { return undoStack_; }
 
 public slots:
     // File menu
-    void save();                                                ///< @brief Public slot to trigger save operation (exposed for MainWindow)
     void saveAs();                                              ///< @brief Public slot to trigger save-as operation (exposed for MainWindow)
     void load();                                                ///< @brief Public slot to trigger load operation (exposed for MainWindow)
 
@@ -133,4 +129,5 @@ private:
     QCheckBox* legendCheckbox_;                 ///< Legend visibility checkbox
     QSplitter* splitter_;                       ///< Splitter between view and panel
     QString currentFilePath_;                   ///< Path to currently opened/saved file (empty if not saved yet)
+    bool hasUnsavedChanges_;
 };
