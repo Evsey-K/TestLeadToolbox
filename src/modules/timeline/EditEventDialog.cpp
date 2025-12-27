@@ -184,21 +184,56 @@ void EditEventDialog::setupUi()
     contentWidget->setLayout(gridLayout);
 
     // ========== BUTTON BOX ==========
-    QDialogButtonBox* buttonBox = new QDialogButtonBox();
 
-    QPushButton* saveButton = buttonBox->addButton("Save", QDialogButtonBox::AcceptRole);
-    deleteButton_ = buttonBox->addButton("Delete", QDialogButtonBox::DestructiveRole);
-    QPushButton* cancelButton = buttonBox->addButton("Cancel", QDialogButtonBox::RejectRole);
+    // Custom horizontal layout for buttons instead of QDialogButtonBox
+    QHBoxLayout* buttonLayout = new QHBoxLayout();
+    buttonLayout->setSpacing(10);
+
+    // Delete button on the LEFT side
+    deleteButton_ = new QPushButton("Delete");
+    deleteButton_->setStyleSheet(
+        "QPushButton { "
+        "    background-color: #dc3545; "
+        "    color: white; "
+        "    font-weight: bold; "
+        "    padding: 6px 12px; "
+        "} "
+        "QPushButton:hover { "
+        "    background-color: #c82333; "
+        "} "
+        "QPushButton:pressed { "
+        "    background-color: #bd2130; "
+        "}"
+        );
+
+    buttonLayout->addWidget(deleteButton_);
+    buttonLayout->addStretch();  // Push remaining buttons to the right
+
+    // Apply, Save, and Cancel buttons on the RIGHT side
+    applyButton_ = new QPushButton("Apply");
+    applyButton_->setToolTip("Apply changes and keep dialog open");
+
+    QPushButton* saveButton = new QPushButton("Save");
+    saveButton->setDefault(true);
+    saveButton->setToolTip("Apply changes and close dialog");
+
+    QPushButton* cancelButton = new QPushButton("Cancel");
+    cancelButton->setToolTip("Discard changes and close dialog");
+
+    buttonLayout->addWidget(applyButton_);
+    buttonLayout->addWidget(saveButton);
+    buttonLayout->addWidget(cancelButton);
 
     // ========== MAIN DIALOG LAYOUT ==========
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
     mainLayout->setContentsMargins(0, 0, 0, 10);
     mainLayout->setSpacing(10);
     mainLayout->addWidget(contentWidget);
-    mainLayout->addWidget(buttonBox);
+    mainLayout->addLayout(buttonLayout);
 
     // ========== CONNECTIONS ==========
     connect(typeCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &EditEventDialog::onTypeChanged);
+    connect(applyButton_, &QPushButton::clicked, this, &EditEventDialog::onApplyClicked);
     connect(saveButton, &QPushButton::clicked, this, &EditEventDialog::validateAndAccept);
     connect(deleteButton_, &QPushButton::clicked, this, &EditEventDialog::onDeleteClicked);
     connect(cancelButton, &QPushButton::clicked, this, &QDialog::reject);
@@ -935,6 +970,50 @@ void EditEventDialog::onDeleteClicked()
         emit deleteRequested();
         accept();
     }
+}
+
+
+void EditEventDialog::onApplyClicked()
+{
+    if (!validateCommonFields() || !validateTypeSpecificFields())
+    {
+        return;
+    }
+
+    // Check for lane conflicts if lane control is enabled
+    if (laneControlCheckbox_->isChecked())
+    {
+        // Build a temporary event to get the updated dates/times
+        TimelineEvent tempEvent;
+        populateCommonFields(tempEvent);
+        populateTypeSpecificFields(tempEvent);
+
+        int manualLane = manualLaneSpinner_->value();
+
+        bool hasConflict = model_->hasLaneConflict(
+            tempEvent.startDate,
+            tempEvent.endDate,
+            manualLane,
+            eventId_  // Exclude current event from conflict check
+            );
+
+        if (hasConflict)
+        {
+            QMessageBox::warning(
+                this,
+                "Lane Conflict",
+                QString("Another manually-controlled event already occupies lane %1 "
+                        "during this time period.\n\n"
+                        "Please choose a different lane number or adjust the event dates.")
+                    .arg(manualLane)
+                );
+            return;  // Don't apply changes
+        }
+    }
+
+    // Emit signal with updated event data (keep dialog open)
+    TimelineEvent updatedEvent = getEvent();
+    emit applyRequested(updatedEvent);
 }
 
 

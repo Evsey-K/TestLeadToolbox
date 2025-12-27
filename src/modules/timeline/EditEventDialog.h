@@ -56,11 +56,13 @@ public:
 
 signals:
     void deleteRequested();                                         ///< @brief Emitted when user requests to delete the event
+    void applyRequested(const TimelineEvent& event);                ///< @brief Emitted when user clicks Apply to update without closing
 
 private slots:
     void onTypeChanged(int index);                                  ///< @brief Handle event type selection change
     void validateAndAccept();                                       ///< @brief Validate and accept the dialog
     void onDeleteClicked();                                         ///< @brief Handle delete button click
+    void onApplyClicked();                                          ///< @brief Handle apply button click
 
     void onMeetingAllDayChanged(bool checked);
     void onActionAllDayChanged(bool checked);
@@ -94,6 +96,7 @@ private:
     QTextEdit* descriptionEdit_;
     QStackedWidget* fieldStack_;
     QPushButton* deleteButton_;
+    QPushButton* applyButton_;
 
     // UI Components - Meeting
     QDateEdit* meetingStartDate_;

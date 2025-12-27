@@ -1064,6 +1064,37 @@ void TimelineModule::onEditEventRequested(const QString& eventId)
         deleteRequested = true;
     });
 
+    // NEW: Handle Apply button (update without closing dialog)
+    connect(&dialog, &EditEventDialog::applyRequested, this, [this, eventId](const TimelineEvent& updatedEvent) {
+        // Validate lane conflicts if lane control is enabled
+        if (updatedEvent.laneControlEnabled)
+        {
+            bool hasConflict = model_->hasLaneConflict(
+                updatedEvent.startDate,
+                updatedEvent.endDate,
+                updatedEvent.manualLane,
+                eventId  // Exclude current event from conflict check
+                );
+
+            if (hasConflict)
+            {
+                QMessageBox::warning(
+                    this,
+                    "Lane Conflict",
+                    QString("Another manually-controlled event already occupies lane %1 "
+                            "during this time period.\n\n"
+                            "Please choose a different lane number or adjust the event dates.")
+                        .arg(updatedEvent.manualLane)
+                    );
+                return;  // Don't apply changes
+            }
+        }
+
+        // No conflict, proceed with update
+        undoStack_->push(new UpdateEventCommand(model_, eventId, updatedEvent));
+        statusLabel_->setText(QString("Event '%1' updated (dialog still open)").arg(updatedEvent.title));
+    });
+
     int result = dialog.exec();
 
     if (deleteRequested)
