@@ -11,6 +11,7 @@
 #include <QResizeEvent>
 #include <QScrollBar>
 #include <QGraphicsItem>
+#include <QMenu>
 
 
 TimelineView::TimelineView(TimelineModel* model,
@@ -21,6 +22,10 @@ TimelineView::TimelineView(TimelineModel* model,
     , mapper_(mapper)
     , isPanning_(false)
     , potentialClick_(false)
+    , editAction_(nullptr)
+    , deleteAction_(nullptr)
+    , legendAction_(nullptr)
+    , sidePanelAction_(nullptr)
 {
     // Create the scene with model and mapper
     scene_ = new TimelineScene(model, mapper, this);
@@ -157,10 +162,11 @@ void TimelineView::mousePressEvent(QMouseEvent* event)
 {
     if (event->button() == Qt::RightButton)
     {
-        // Start right-click panning
-        isPanning_ = true;
+        // Store press position for right-click
+        // We'll decide in mouseReleaseEvent whether this was a pan or context menu request
+        isPanning_ = false;  // Don't start panning yet
         lastPanPoint_ = event->pos();
-        setCursor(Qt::ClosedHandCursor);
+        mousePressPos_ = event->pos();  // Store for distance calculation
         event->accept();
         return;
     }
@@ -290,18 +296,37 @@ void TimelineView::mouseMoveEvent(QMouseEvent* event)
         }
     }
 
-    if (isPanning_)
+    // Check if this is a right-click drag (for panning)
+    if (event->buttons() & Qt::RightButton)
     {
-        // Calculate the delta movement
-        QPoint delta = event->pos() - lastPanPoint_;
-        lastPanPoint_ = event->pos();
+        // Calculate distance from initial press
+        QPoint delta = event->pos() - mousePressPos_;
+        int distance = delta.manhattanLength();
 
-        // Pan the view by adjusting scroll bars
-        horizontalScrollBar()->setValue(horizontalScrollBar()->value() - delta.x());
-        verticalScrollBar()->setValue(verticalScrollBar()->value() - delta.y());
+        // If moved more than 5 pixels, start panning
+        if (distance > 5)
+        {
+            if (!isPanning_)
+            {
+                // Start panning mode
+                isPanning_ = true;
+                setCursor(Qt::ClosedHandCursor);
+            }
+        }
 
-        event->accept();
-        return;
+        if (isPanning_)
+        {
+            // Calculate the delta movement from last position
+            QPoint moveDelta = event->pos() - lastPanPoint_;
+            lastPanPoint_ = event->pos();
+
+            // Pan the view by adjusting scroll bars
+            horizontalScrollBar()->setValue(horizontalScrollBar()->value() - moveDelta.x());
+            verticalScrollBar()->setValue(verticalScrollBar()->value() - moveDelta.y());
+
+            event->accept();
+            return;
+        }
     }
 
     // For left-click, use default behavior (rubber band selection)
@@ -311,20 +336,59 @@ void TimelineView::mouseMoveEvent(QMouseEvent* event)
 
 void TimelineView::mouseReleaseEvent(QMouseEvent* event)
 {
-    if (event->button() == Qt::RightButton && isPanning_)
+    if (event->button() == Qt::RightButton)
     {
-        // End right-click panning
-        isPanning_ = false;
-        setCursor(Qt::ArrowCursor);
-        event->accept();
-        return;
+        // Calculate distance from initial press
+        QPoint releasePos = event->pos();
+        int distance = (releasePos - mousePressPos_).manhattanLength();
+
+        if (isPanning_)
+        {
+            // Was panning - end panning mode
+            isPanning_ = false;
+            setCursor(Qt::ArrowCursor);
+            event->accept();
+            return;
+        }
+        else if (distance < 5)
+        {
+            // Mouse didn't move much - treat as context menu request
+            showContextMenu(event->pos());
+            event->accept();
+            return;
+        }
+        else
+        {
+            // Mouse moved but panning wasn't triggered (shouldn't happen, but handle gracefully)
+            setCursor(Qt::ArrowCursor);
+            event->accept();
+            return;
+        }
     }
 
-    // For left-click, use default behavior (rubber band selection)
-    QGraphicsView::mouseReleaseEvent(event);
+    // Detect click vs drag for selection
+    if (event->button() == Qt::LeftButton && potentialClick_)
+    {
+        QPoint releasePos = event->pos();
+        int distance = (releasePos - mousePressPos_).manhattanLength();
 
-    // Reset click tracking
+        // If mouse moved very little, treat as a click
+        if (distance < 3)
+        {
+            QPointF scenePos = mapToScene(event->pos());
+            QGraphicsItem* clickedItem = scene_->itemAt(scenePos, transform());
+            TimelineItem* timelineItem = qgraphicsitem_cast<TimelineItem*>(clickedItem);
+
+            if (!timelineItem && !(event->modifiers() & Qt::ControlModifier))
+            {
+                // Clicked on empty space without Ctrl → deselect all
+                scene_->clearSelection();
+            }
+        }
+    }
+
     potentialClick_ = false;
+    QGraphicsView::mouseReleaseEvent(event);
 }
 
 
@@ -428,4 +492,103 @@ void TimelineView::zoomToFitDateRange(const QDate& startDate, const QDate& endDa
              << "| Old zoom:" << oldZoom
              << "| New zoom:" << requiredPixelsPerDay
              << "| Center X:" << centerX;
+}
+
+
+void TimelineView::showContextMenu(const QPoint& pos)
+{
+    QMenu menu(this);
+
+    // ========== EVENT OPERATIONS ==========
+    QAction* addEventAction = menu.addAction("➕ Add Event");
+    addEventAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_A));
+    connect(addEventAction, &QAction::triggered, this, &TimelineView::addEventRequested);
+
+    editAction_ = menu.addAction("✏️ Edit");
+    editAction_->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_E));
+    editAction_->setEnabled(hasSelection());
+    connect(editAction_, &QAction::triggered, this, &TimelineView::editEventRequested);
+
+    deleteAction_ = menu.addAction("🗑️ Delete");
+    deleteAction_->setShortcut(QKeySequence::Delete);
+    deleteAction_->setEnabled(hasSelection());
+    connect(deleteAction_, &QAction::triggered, this, &TimelineView::deleteEventRequested);
+
+    menu.addSeparator();
+
+    // ========== ZOOM OPERATIONS ==========
+    QAction* zoomInAction = menu.addAction("🔍 Zoom In");
+    zoomInAction->setShortcut(QKeySequence::ZoomIn);
+    connect(zoomInAction, &QAction::triggered, this, &TimelineView::zoomInRequested);
+
+    QAction* zoomOutAction = menu.addAction("🔍 Zoom Out");
+    zoomOutAction->setShortcut(QKeySequence::ZoomOut);
+    connect(zoomOutAction, &QAction::triggered, this, &TimelineView::zoomOutRequested);
+
+    QAction* resetZoomAction = menu.addAction("↺ Reset Zoom");
+    resetZoomAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_0));
+    connect(resetZoomAction, &QAction::triggered, this, &TimelineView::resetZoomRequested);
+
+    menu.addSeparator();
+
+    // ========== NAVIGATION ==========
+    QMenu* goToMenu = menu.addMenu("📅 Go to Date");
+
+    QAction* goToTodayAction = goToMenu->addAction("📍 Today");
+    goToTodayAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_T));
+    connect(goToTodayAction, &QAction::triggered, this, &TimelineView::goToTodayRequested);
+
+    QAction* goToWeekAction = goToMenu->addAction("📆 Current Week");
+    connect(goToWeekAction, &QAction::triggered, this, &TimelineView::goToCurrentWeekRequested);
+
+    // Note: onGoToCurrentMonth doesn't exist in TimelineModule, so we'll skip it
+    // If you want to add it, you'll need to implement it in TimelineModule first
+
+    menu.addSeparator();
+
+    // ========== VIEW TOGGLES ==========
+    legendAction_ = menu.addAction("🎨 Legend");
+    legendAction_->setCheckable(true);
+    legendAction_->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_L));
+    connect(legendAction_, &QAction::triggered, this, &TimelineView::legendToggleRequested);
+
+    sidePanelAction_ = menu.addAction("◀ Hide Panel");
+    sidePanelAction_->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_P));
+    connect(sidePanelAction_, &QAction::triggered, this, &TimelineView::sidePanelToggleRequested);
+
+    // Show menu at cursor position
+    menu.exec(mapToGlobal(pos));
+}
+
+
+bool TimelineView::hasSelection() const
+{
+    return scene_ && !scene_->selectedItems().isEmpty();
+}
+
+
+void TimelineView::setLegendChecked(bool checked)
+{
+    if (legendAction_)
+    {
+        legendAction_->setChecked(checked);
+    }
+}
+
+
+void TimelineView::setSidePanelVisible(bool visible)
+{
+    if (sidePanelAction_)
+    {
+        if (visible)
+        {
+            sidePanelAction_->setText("◀ Hide Panel");
+            sidePanelAction_->setToolTip("Hide event list panel");
+        }
+        else
+        {
+            sidePanelAction_->setText("▶ Show Panel");
+            sidePanelAction_->setToolTip("Show event list panel");
+        }
+    }
 }

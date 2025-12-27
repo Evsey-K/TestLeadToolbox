@@ -360,6 +360,31 @@ void TimelineModule::setupConnections()
     connect(sidePanel_, &TimelineSidePanel::editEventRequested, this, &TimelineModule::onEditEventRequested);                       //
     connect(sidePanel_, &TimelineSidePanel::deleteEventRequested, this, &TimelineModule::onDeleteEventRequested);                   //
 
+    // ========== CONTEXT MENU CONNECTIONS ==========
+    // Event operations
+    connect(view_, &TimelineView::addEventRequested, this, &TimelineModule::onAddEventClicked);
+    connect(view_, &TimelineView::editEventRequested, this, &TimelineModule::onEditActionTriggered);
+    connect(view_, &TimelineView::deleteEventRequested, this, &TimelineModule::onDeleteActionTriggered);
+
+    // Zoom operations
+    connect(view_, &TimelineView::zoomInRequested, this, &TimelineModule::onZoomIn);
+    connect(view_, &TimelineView::zoomOutRequested, this, &TimelineModule::onZoomOut);
+    connect(view_, &TimelineView::resetZoomRequested, this, &TimelineModule::onResetZoom);
+
+    // Navigation
+    connect(view_, &TimelineView::goToTodayRequested, this, &TimelineModule::onGoToCurrentDay);
+    connect(view_, &TimelineView::goToCurrentWeekRequested, this, &TimelineModule::onGoToCurrentWeek);
+
+    // View toggles
+    connect(view_, &TimelineView::legendToggleRequested, [this]() {
+        legendCheckbox_->setChecked(!legendCheckbox_->isChecked());
+    });
+    connect(view_, &TimelineView::sidePanelToggleRequested, this, &TimelineModule::onToggleSidePanelClicked);
+
+    // Update view when legend checkbox changes
+    connect(legendCheckbox_, &QCheckBox::toggled, view_, &TimelineView::setLegendChecked);
+
+    // ========== EXISTING CONNECTIONS (UNCHANGED) ==========
     connect(model_, &TimelineModel::versionDatesChanged, [this]()
             {
                 mapper_->setVersionDates(model_->versionStartDate(), model_->versionEndDate());
@@ -1414,6 +1439,9 @@ void TimelineModule::onToggleSidePanelClicked()
     // Update button appearance
     updateToggleButtonState();
 
+    // Update view's context menu action state
+    view_->setSidePanelVisible(!isCurrentlyVisible);
+
     // Update legend position when panel visibility changes
     // Use a small delay to ensure the view has resized
     QTimer::singleShot(0, this, [this]() {
@@ -1536,6 +1564,9 @@ void TimelineModule::updateLegendPosition()
 void TimelineModule::onLegendToggled(bool checked)
 {
     setLegendVisible(checked);
+
+    // Update view's context menu action state
+    view_->setLegendChecked(checked);
 
     QString status = checked ? "Legend shown" : "Legend hidden";
     statusLabel_->setText(status);
