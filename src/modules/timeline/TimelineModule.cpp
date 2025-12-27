@@ -41,7 +41,10 @@ TimelineModule::TimelineModule(QWidget* parent)
     : QWidget(parent)
     , autoSaveManager_(nullptr)
     , scrollAnimator_(nullptr)
+    , editAction_(nullptr)
     , deleteAction_(nullptr)
+    , zoomInButton_(nullptr)
+    , zoomOutButton_(nullptr)
     , undoStack_(nullptr)
     , legend_(nullptr)
     , legendCheckbox_(nullptr)
@@ -188,6 +191,12 @@ QToolBar* TimelineModule::createToolbar()
     addEventButton_ = new QPushButton("➕ Add Event");
     toolbar->addWidget(addEventButton_);
 
+    // Add the 'Edit Event' button (context-sensitive, disabled when no selection)
+    editAction_ = toolbar->addAction("✏️ Edit");
+    editAction_->setToolTip("Edit selected event");
+    editAction_->setEnabled(false);  // Initially disabled
+    connect(editAction_, &QAction::triggered, this, &TimelineModule::onEditActionTriggered);
+
     // Add the 'Delete Event' button (context-sensitive, disabled when no selection)
     deleteAction_ = toolbar->addAction("🗑️ Delete");
     deleteAction_->setToolTip("Delete selected event(s)");
@@ -243,6 +252,20 @@ QToolBar* TimelineModule::createToolbar()
     goToDateButton->setMenu(goToDateMenu);
     toolbar->addWidget(goToDateButton);
 
+    // Add zoom in button
+    zoomInButton_ = new QPushButton("+");
+    zoomInButton_->setToolTip("Zoom in");
+    zoomInButton_->setFixedSize(32, 32);
+    toolbar->addWidget(zoomInButton_);
+    connect(zoomInButton_, &QPushButton::clicked, this, &TimelineModule::onZoomIn);
+
+    // Add zoom out button
+    zoomOutButton_ = new QPushButton("−");
+    zoomOutButton_->setToolTip("Zoom out");
+    zoomOutButton_->setFixedSize(32, 32);
+    toolbar->addWidget(zoomOutButton_);
+    connect(zoomOutButton_, &QPushButton::clicked, this, &TimelineModule::onZoomOut);
+
     // Add legend checkbox after "Go to Date"
     legendCheckbox_ = new QCheckBox("Legend");
     legendCheckbox_->setToolTip("Show/Hide event type color legend");
@@ -279,17 +302,19 @@ void TimelineModule::setupConnections()
     connect(sidePanel_, &TimelineSidePanel::deleteEventRequested, this, &TimelineModule::onDeleteEventRequested);                   //
 
     connect(model_, &TimelineModel::versionDatesChanged, [this]()
-    {
-        mapper_->setVersionDates(model_->versionStartDate(), model_->versionEndDate());
-        hasUnsavedChanges_ = true;
-    });
+            {
+                mapper_->setVersionDates(model_->versionStartDate(), model_->versionEndDate());
+                hasUnsavedChanges_ = true;
+            });
 
     // Track unsaved changes through undo stack instead
     connect(undoStack_, &QUndoStack::indexChanged, [this]() { hasUnsavedChanges_ = true; });
 
-    // Connect selection change signals to update delete button state
+    // Connect selection change signals to update delete and edit button states
     connect(view_->timelineScene(), &QGraphicsScene::selectionChanged, this, &TimelineModule::updateDeleteActionState);
+    connect(view_->timelineScene(), &QGraphicsScene::selectionChanged, this, &TimelineModule::updateEditActionState);
     connect(sidePanel_, &TimelineSidePanel::selectionChanged, this, &TimelineModule::updateDeleteActionState);
+    connect(sidePanel_, &TimelineSidePanel::selectionChanged, this, &TimelineModule::updateEditActionState);
 
     // Scroll animator completion
     connect(scrollAnimator_, &TimelineScrollAnimator::scrollCompleted, [this](const QDate& date)
@@ -431,6 +456,135 @@ void TimelineModule::onVersionSettingsClicked()
 
         statusLabel_->setText(statusMessage);
     }
+}
+
+
+void TimelineModule::onEditActionTriggered()
+{
+    // Get all selected event IDs
+    QStringList selectedEventIds = getAllSelectedEventIds();
+
+    // Only allow editing if exactly one event is selected
+    if (selectedEventIds.size() != 1)
+    {
+        statusLabel_->setText("Please select exactly one event to edit");
+        return;
+    }
+
+    // Open the edit dialog for the selected event
+    onEditEventRequested(selectedEventIds.first());
+}
+
+
+void TimelineModule::updateEditActionState()
+{
+    if (!editAction_)
+    {
+        return;
+    }
+
+    // Get all selected event IDs
+    QStringList selectedEventIds = getAllSelectedEventIds();
+
+    // Enable edit button only if exactly one event is selected
+    bool canEdit = (selectedEventIds.size() == 1);
+    editAction_->setEnabled(canEdit);
+
+    // Update tooltip
+    if (canEdit)
+    {
+        editAction_->setToolTip("Edit selected event");
+    }
+    else if (selectedEventIds.isEmpty())
+    {
+        editAction_->setToolTip("Select an event to edit");
+    }
+    else
+    {
+        editAction_->setToolTip("Select only one event to edit");
+    }
+}
+
+
+void TimelineModule::onZoomIn()
+{
+    const double zoomFactor = 1.15;
+
+    // Get the center of the viewport
+    QPointF viewportCenter(view_->viewport()->width() / 2.0, view_->viewport()->height() / 2.0);
+
+    // Map viewport center to scene coordinates
+    QPointF scenePosBefore = view_->mapToScene(viewportCenter.toPoint());
+
+    // Convert scene position to DateTime
+    QDateTime centerDateTime = mapper_->xToDateTime(scenePosBefore.x());
+
+    // Store old zoom level
+    double oldZoom = mapper_->pixelsPerday();
+
+    // Apply zoom
+    mapper_->zoom(zoomFactor);
+
+    // Check if zoom level actually changed
+    double newZoom = mapper_->pixelsPerday();
+    if (qFuzzyCompare(oldZoom, newZoom))
+    {
+        // At max zoom limit
+        statusLabel_->setText("Maximum zoom level reached");
+        return;
+    }
+
+    // Rebuild scene with new scale
+    view_->timelineScene()->rebuildFromModel();
+
+    // Convert the same datetime back to new scene coordinates
+    double newSceneX = mapper_->dateTimeToX(centerDateTime);
+
+    // Center on the target point
+    view_->centerOn(newSceneX, scenePosBefore.y());
+
+    statusLabel_->setText(QString("Zoomed in to %1 pixels/day").arg(newZoom, 0, 'f', 1));
+}
+
+
+void TimelineModule::onZoomOut()
+{
+    const double zoomFactor = 1.15;
+
+    // Get the center of the viewport
+    QPointF viewportCenter(view_->viewport()->width() / 2.0, view_->viewport()->height() / 2.0);
+
+    // Map viewport center to scene coordinates
+    QPointF scenePosBefore = view_->mapToScene(viewportCenter.toPoint());
+
+    // Convert scene position to DateTime
+    QDateTime centerDateTime = mapper_->xToDateTime(scenePosBefore.x());
+
+    // Store old zoom level
+    double oldZoom = mapper_->pixelsPerday();
+
+    // Apply zoom
+    mapper_->zoom(1.0 / zoomFactor);
+
+    // Check if zoom level actually changed
+    double newZoom = mapper_->pixelsPerday();
+    if (qFuzzyCompare(oldZoom, newZoom))
+    {
+        // At min zoom limit
+        statusLabel_->setText("Minimum zoom level reached");
+        return;
+    }
+
+    // Rebuild scene with new scale
+    view_->timelineScene()->rebuildFromModel();
+
+    // Convert the same datetime back to new scene coordinates
+    double newSceneX = mapper_->dateTimeToX(centerDateTime);
+
+    // Center on the target point
+    view_->centerOn(newSceneX, scenePosBefore.y());
+
+    statusLabel_->setText(QString("Zoomed out to %1 pixels/day").arg(newZoom, 0, 'f', 1));
 }
 
 

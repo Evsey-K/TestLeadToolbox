@@ -63,6 +63,7 @@ private slots:
     void onLoadClicked();                                       ///< @brief Handle Load button click
     void onVersionSettingsClicked();                            ///< @brief Handle Version Settings button click
     void onAddEventClicked();                                   ///< @brief Handle Add Event button click
+    void onEditActionTriggered();                               ///< @brief Handle Edit button click from toolbar
 
     void onEventSelectedInPanel(const QString& eventId);        ///< @brief Handle event selection from side panel
 
@@ -74,6 +75,9 @@ private slots:
     void onGoToCurrentDay();                                    ///< @brief Handle Go to Current Day action
     void onGoToCurrentWeek();                                   ///< @brief Handle Go to Current Week action
 
+    void onZoomIn();                                            ///< @brief Handle zoom in button click
+    void onZoomOut();                                           ///< @brief Handle zoom out button click
+
     void onEditEventRequested(const QString& eventId);          ///< @brief Handle edit event request from scene or side panel
     void onDeleteEventRequested(const QString& eventId);        ///< @brief Handle delete event request from scene or side panel
     void onBatchDeleteRequested(const QStringList& eventIds);   ///< @brief Handle batch delete request from scene
@@ -81,6 +85,7 @@ private slots:
 
     void onShowArchivedEvents();
     void updateDeleteActionState();                             ///< @brief Update delete button enabled state based on selection
+    void updateEditActionState();                               ///< @brief Update edit button enabled state based on selection
     void onToggleSidePanelClicked();                            ///< @brief Handle side panel toggle button click
     void onLegendToggled(bool checked);
     void onSplitterMoved(int pos, int index);
@@ -122,7 +127,10 @@ private:
     TimelineScrollAnimator* scrollAnimator_;
     QLabel* statusLabel_;
     QLabel* unsavedIndicator_;
+    QAction* editAction_;
     QAction* deleteAction_;
+    QPushButton* zoomInButton_;
+    QPushButton* zoomOutButton_;
     QUndoStack* undoStack_;
     QAction* toggleSidePanelAction_;
     TimelineLegend* legend_;                    ///< Color legend (nullable)
