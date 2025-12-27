@@ -194,7 +194,7 @@ QToolBar* TimelineModule::createToolbar()
 
     auto versionSettingsAction = new QAction(this);
     versionSettingsAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_V));
-    versionSettingsAction->setShortcutContext(Qt::WidgetShortcut);  // IMPORTANT: Only active when timeline focused
+    versionSettingsAction->setShortcutContext(Qt::WindowShortcut);
     connect(versionSettingsAction, &QAction::triggered, this, &TimelineModule::onVersionSettingsClicked);
     addAction(versionSettingsAction);
 
@@ -205,7 +205,7 @@ QToolBar* TimelineModule::createToolbar()
 
     auto addEventAction = new QAction(this);
     addEventAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_A));
-    addEventAction->setShortcutContext(Qt::WidgetShortcut);  // IMPORTANT: Only active when timeline focused
+    addEventAction->setShortcutContext(Qt::WindowShortcut);  // Works anywhere in module
     connect(addEventAction, &QAction::triggered, this, &TimelineModule::onAddEventClicked);
     addAction(addEventAction);
 
@@ -213,7 +213,7 @@ QToolBar* TimelineModule::createToolbar()
     editAction_ = toolbar->addAction("✏️ Edit");
     editAction_->setToolTip("Edit selected event (Ctrl+E)");
     editAction_->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_E));
-    editAction_->setShortcutContext(Qt::WidgetShortcut);  // IMPORTANT: Only active when timeline focused
+    editAction_->setShortcutContext(Qt::WindowShortcut);  // Works anywhere in module
     editAction_->setEnabled(false);
     connect(editAction_, &QAction::triggered, this, &TimelineModule::onEditActionTriggered);
 
@@ -221,7 +221,7 @@ QToolBar* TimelineModule::createToolbar()
     deleteAction_ = toolbar->addAction("🗑️ Delete");
     deleteAction_->setToolTip("Delete selected event(s) (Delete)");
     deleteAction_->setShortcut(QKeySequence::Delete);
-    deleteAction_->setShortcutContext(Qt::WidgetShortcut);  // IMPORTANT: Only active when timeline focused
+    deleteAction_->setShortcutContext(Qt::WindowShortcut);  // Works anywhere in module
     deleteAction_->setEnabled(false);
     connect(deleteAction_, &QAction::triggered, this, &TimelineModule::onDeleteActionTriggered);
 
@@ -229,7 +229,7 @@ QToolBar* TimelineModule::createToolbar()
     auto archiveAction = toolbar->addAction("📦 Archive");
     archiveAction->setToolTip("View archived events (Ctrl+Shift+A)");
     archiveAction->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_A));
-    archiveAction->setShortcutContext(Qt::WidgetShortcut);  // IMPORTANT: Only active when timeline focused
+    archiveAction->setShortcutContext(Qt::WindowShortcut);  // Works anywhere in module
     connect(archiveAction, &QAction::triggered, this, &TimelineModule::onShowArchivedEvents);
 
     toolbar->addSeparator();
@@ -259,7 +259,7 @@ QToolBar* TimelineModule::createToolbar()
     auto goToDateDialogAction = goToDateMenu->addAction("📅 Go to Date...");
     goToDateDialogAction->setToolTip("Scroll to specific date (Ctrl+G)");
     goToDateDialogAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_G));
-    goToDateDialogAction->setShortcutContext(Qt::WidgetShortcut);  // IMPORTANT: Only active when timeline focused
+    goToDateDialogAction->setShortcutContext(Qt::WindowShortcut);  // Works anywhere in module
     connect(goToDateDialogAction, &QAction::triggered, this, &TimelineModule::onScrollToDate);
 
     goToDateMenu->addSeparator();
@@ -268,11 +268,14 @@ QToolBar* TimelineModule::createToolbar()
     auto goToCurrentDayAction = goToDateMenu->addAction("📍 Current Day");
     goToCurrentDayAction->setToolTip("Zoom and center on current day (Ctrl+T)");
     goToCurrentDayAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_T));
-    goToCurrentDayAction->setShortcutContext(Qt::WidgetShortcut);  // IMPORTANT: Only active when timeline focused
+    goToCurrentDayAction->setShortcutContext(Qt::WindowShortcut);  // Works anywhere in module
     connect(goToCurrentDayAction, &QAction::triggered, this, &TimelineModule::onGoToCurrentDay);
 
+    // Go to Current Week (Ctrl+W) - MODULE-SPECIFIC
     auto goToCurrentWeekAction = goToDateMenu->addAction("📆 Current Week");
-    goToCurrentWeekAction->setToolTip("Zoom and center on current week");
+    goToCurrentWeekAction->setToolTip("Zoom and center on current week (Ctrl+W)");
+    goToCurrentWeekAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_W));
+    goToCurrentWeekAction->setShortcutContext(Qt::WindowShortcut);  // Works anywhere in module
     connect(goToCurrentWeekAction, &QAction::triggered, this, &TimelineModule::onGoToCurrentWeek);
 
     auto goToDateButton = new QPushButton("📅 Go to Date");
@@ -290,7 +293,7 @@ QToolBar* TimelineModule::createToolbar()
 
     auto zoomInAction = new QAction(this);
     zoomInAction->setShortcut(QKeySequence::ZoomIn);
-    zoomInAction->setShortcutContext(Qt::WidgetShortcut);  // IMPORTANT: Only active when timeline focused
+    zoomInAction->setShortcutContext(Qt::WindowShortcut);  // Works anywhere in module
     connect(zoomInAction, &QAction::triggered, this, &TimelineModule::onZoomIn);
     addAction(zoomInAction);
 
@@ -303,14 +306,14 @@ QToolBar* TimelineModule::createToolbar()
 
     auto zoomOutAction = new QAction(this);
     zoomOutAction->setShortcut(QKeySequence::ZoomOut);
-    zoomOutAction->setShortcutContext(Qt::WidgetShortcut);  // IMPORTANT: Only active when timeline focused
+    zoomOutAction->setShortcutContext(Qt::WindowShortcut);  // Works anywhere in module
     connect(zoomOutAction, &QAction::triggered, this, &TimelineModule::onZoomOut);
     addAction(zoomOutAction);
 
     // Reset Zoom (Ctrl+0) - MODULE-SPECIFIC
     auto resetZoomAction = new QAction(this);
     resetZoomAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_0));
-    resetZoomAction->setShortcutContext(Qt::WidgetShortcut);  // IMPORTANT: Only active when timeline focused
+    resetZoomAction->setShortcutContext(Qt::WindowShortcut);  // Works anywhere in module
     connect(resetZoomAction, &QAction::triggered, this, &TimelineModule::onResetZoom);
     addAction(resetZoomAction);
 
@@ -325,7 +328,7 @@ QToolBar* TimelineModule::createToolbar()
 
     auto legendAction = new QAction(this);
     legendAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_L));
-    legendAction->setShortcutContext(Qt::WidgetShortcut);  // IMPORTANT: Only active when timeline focused
+    legendAction->setShortcutContext(Qt::WindowShortcut);  // Works anywhere in module
     connect(legendAction, &QAction::triggered, [this]() {
         legendCheckbox_->setChecked(!legendCheckbox_->isChecked());
     });
@@ -340,7 +343,7 @@ QToolBar* TimelineModule::createToolbar()
     toggleSidePanelAction_ = toolbar->addAction("◀ Hide Panel");
     toggleSidePanelAction_->setToolTip("Show/Hide event list panel (Ctrl+P)");
     toggleSidePanelAction_->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_P));
-    toggleSidePanelAction_->setShortcutContext(Qt::WidgetShortcut);  // IMPORTANT: Only active when timeline focused
+    toggleSidePanelAction_->setShortcutContext(Qt::WindowShortcut);  // Works anywhere in module
     connect(toggleSidePanelAction_, &QAction::triggered, this, &TimelineModule::onToggleSidePanelClicked);
 
     return toolbar;
