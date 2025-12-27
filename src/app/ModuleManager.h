@@ -37,7 +37,7 @@ signals:
 
 private:
     QHash<QString, IModule*> modules_;
-    QList<std::unique_ptr<IModule>> moduleOwnership_;
+    std::vector<std::unique_ptr<IModule>> moduleOwnership_;
     QHash<QString, QWidget*> moduleWidgets_;
     QString currentModuleId_;
 };

@@ -7,6 +7,8 @@
 ModuleManager::ModuleManager(QObject* parent)
     : QObject(parent)
 {
+    // std::vector handles move-only types (like unique_ptr) properly
+    moduleOwnership_.reserve(10);
 }
 
 ModuleManager::~ModuleManager()
@@ -35,7 +37,7 @@ void ModuleManager::registerModule(std::unique_ptr<IModule> module)
     IModule* rawPtr = module.get();
     modules_[moduleId] = rawPtr;
 
-    // Store ownership in list using push_back which properly moves
+    // Store ownership in vector using push_back which properly moves
     moduleOwnership_.push_back(std::move(module));
 }
 
