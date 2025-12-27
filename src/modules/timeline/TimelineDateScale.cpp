@@ -48,12 +48,14 @@ void TimelineDateScale::paint(QPainter* painter, const QStyleOptionGraphicsItem*
     double endX = mapper_->dateToX(paddedEnd_);
     double width = endX - startX;
 
-    // Draw background for date scale area across full padded range
-    painter->fillRect(QRectF(startX, 0, width, SCALE_HEIGHT),
-                      QColor(180, 180, 180));
+    // Draw background for date scale area with gradient
+    QLinearGradient backgroundGradient(startX, 0, startX, SCALE_HEIGHT);
+    backgroundGradient.setColorAt(0.0, QColor(245, 248, 250));     // Light blue-gray at top
+    backgroundGradient.setColorAt(1.0, QColor(235, 240, 245));     // Slightly darker at bottom
+    painter->fillRect(QRectF(startX, 0, width, SCALE_HEIGHT), backgroundGradient);
 
-    // Draw separator line
-    painter->setPen(QPen(QColor(200, 200, 200), 2));
+    // Draw separator line with accent color
+    painter->setPen(QPen(QColor(100, 140, 180), 2));  // Professional blue
     painter->drawLine(QPointF(startX, SCALE_HEIGHT), QPointF(endX, SCALE_HEIGHT));
 
     // Draw grid lines first (behind ticks and labels)
@@ -92,8 +94,8 @@ void TimelineDateScale::drawMonthTicks(QPainter* painter)
 
     QDate monthStart(currentDate.year(), currentDate.month(), 1);
 
-    // Use cosmetic pen (width 0) for crisp lines at any zoom
-    painter->setPen(QPen(Qt::black, 0));  // Width 0 = cosmetic
+    // Use darker blue for month ticks (major divisions)
+    painter->setPen(QPen(QColor(70, 100, 130), 0));  // Dark blue-gray
     QFont labelFont = painter->font();
     labelFont.setPointSize(10);
     labelFont.setBold(true);
@@ -122,6 +124,9 @@ void TimelineDateScale::drawMonthTicks(QPainter* painter)
 
         // Position text centered on the month's midpoint
         QRectF textRect(monthCenterX - textWidth / 2.0, 5, textWidth, 20);
+
+        // Use rich navy blue for month/year text
+        painter->setPen(QColor(40, 60, 90));  // Navy blue
         painter->drawText(textRect, Qt::AlignCenter, monthLabel);
 
         monthStart = monthStart.addMonths(1);
@@ -138,7 +143,8 @@ void TimelineDateScale::drawWeekTicks(QPainter* painter)
         currentDate = currentDate.addDays(1);
     }
 
-    painter->setPen(QPen(Qt::black, 0));  // Cosmetic pen
+    // Use medium blue-gray for week ticks
+    painter->setPen(QPen(QColor(100, 130, 160), 0));
 
     while (currentDate <= endDate)
     {
@@ -160,7 +166,8 @@ void TimelineDateScale::drawDayTicks(QPainter* painter)
     QDate currentDate = paddedStart_;
     QDate endDate = paddedEnd_;
 
-    painter->setPen(QPen(Qt::black, 0));  // Cosmetic pen
+    // Use lighter blue-gray for day ticks
+    painter->setPen(QPen(QColor(120, 140, 165), 0));
     QFont dayFont = painter->font();
     dayFont.setPointSize(8);
     painter->setFont(dayFont);
@@ -180,7 +187,13 @@ void TimelineDateScale::drawDayTicks(QPainter* painter)
         {
             QString dayLabel = QString::number(currentDate.day());
             QRectF textRect(xPos - 10, SCALE_HEIGHT - 28, 20, 15);
+
+            // Use dark slate for day numbers
+            painter->setPen(QColor(50, 70, 95));
             painter->drawText(textRect, Qt::AlignCenter, dayLabel);
+
+            // Restore tick color
+            painter->setPen(QPen(QColor(120, 140, 165), 0));
         }
 
         // Draw day-of-week abbreviations centered between day ticks
@@ -219,13 +232,15 @@ void TimelineDateScale::drawDayTicks(QPainter* painter)
                 QFont dowFont = painter->font();
                 dowFont.setPointSize(7);
                 painter->setFont(dowFont);
-                painter->setPen(QPen(QColor(80, 80, 80), 0));  // Darker gray for better readability
+
+                // Use warm gray for day-of-week abbreviations
+                painter->setPen(QPen(QColor(110, 120, 135), 0));
 
                 painter->drawText(dowRect, Qt::AlignCenter, dayOfWeek);
 
-                // Restore original font and pen for day numbers
+                // Restore original font and pen
                 painter->setFont(dayFont);
-                painter->setPen(QPen(Qt::black, 0));
+                painter->setPen(QPen(QColor(120, 140, 165), 0));
             }
         }
 
@@ -239,32 +254,35 @@ void TimelineDateScale::drawHourTicks(QPainter* painter)
     QDate currentDate = paddedStart_;
     QDate endDate = paddedEnd_;
 
-    painter->setPen(QPen(Qt::black, 0));  // Cosmetic pen
+    // Use subtle teal for hour ticks
+    painter->setPen(QPen(QColor(100, 150, 160), 0));
     QFont hourFont = painter->font();
     hourFont.setPointSize(7);
     painter->setFont(hourFont);
 
-    // Get the hour labeling interval based on zoom level
     int labelInterval = getHourLabelInterval();
 
     while (currentDate <= endDate)
     {
-        // Draw tick for each hour (0-23)
         for (int hour = 0; hour < 24; ++hour)
         {
             QDateTime dateTime(currentDate, QTime(hour, 0));
             double xPos = mapper_->dateTimeToX(dateTime);
 
-            // Draw hour tick
             painter->drawLine(QPointF(xPos, SCALE_HEIGHT - HOUR_TICK_HEIGHT),
                               QPointF(xPos, SCALE_HEIGHT));
 
-            // Draw hour label based on interval and zoom level
             if (shouldShowHourLabels() && (hour % labelInterval == 0))
             {
                 QString hourLabel = QString("%1:00").arg(hour, 2, 10, QChar('0'));
                 QRectF textRect(xPos - 15, SCALE_HEIGHT - 42, 30, 12);
+
+                // Use darker teal for hour labels
+                painter->setPen(QColor(70, 110, 120));
                 painter->drawText(textRect, Qt::AlignCenter, hourLabel);
+
+                // Restore tick color
+                painter->setPen(QPen(QColor(100, 150, 160), 0));
             }
         }
 
@@ -278,7 +296,8 @@ void TimelineDateScale::drawHalfHourTicks(QPainter* painter)
     QDate currentDate = paddedStart_;
     QDate endDate = paddedEnd_;
 
-    painter->setPen(QPen(Qt::black, 0));  // Cosmetic pen
+    // Use very light teal for half-hour ticks (most subtle)
+    painter->setPen(QPen(QColor(140, 170, 180), 0));
 
     while (currentDate <= endDate)
     {
@@ -301,13 +320,12 @@ void TimelineDateScale::drawGridLines(QPainter* painter)
     QDate currentDate = paddedStart_;
     QDate endDate = paddedEnd_;
 
-    // Determine grid line frequency based on zoom level
-    painter->setPen(QPen(QColor(230, 230, 230), 0, Qt::DashLine));  // Cosmetic pen
+    // Very subtle grid lines
+    painter->setPen(QPen(QColor(220, 230, 240), 0, Qt::DashLine));
 
     // At high zoom, draw grid lines for days
     if (shouldShowDayTicks() && !shouldShowHourTicks())
     {
-        // Daily grid lines
         while (currentDate <= endDate)
         {
             double xPos = mapper_->dateToX(currentDate);
@@ -322,7 +340,7 @@ void TimelineDateScale::drawGridLines(QPainter* painter)
         currentDate = paddedStart_;
         while (currentDate <= endDate)
         {
-            for (int hour = 0; hour < 24; hour += 6)  // Every 6 hours
+            for (int hour = 0; hour < 24; hour += 6)
             {
                 QDateTime dateTime(currentDate, QTime(hour, 0));
                 double xPos = mapper_->dateTimeToX(dateTime);
