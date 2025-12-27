@@ -96,11 +96,11 @@ private:
     void updateModelFromSize();                     ///< @brief Update the model with new dates based on current size (after resize)
     int calculateLaneFromYPosition() const;         ///< @brief Calculate lane number from current Y position
 
-    enum ResizeHandle { None, LeftEdge, RightEdge };            ///< @brief Detect which edge/corner is under mouse cursor
-    ResizeHandle getResizeHandle(const QPointF& pos) const;     ///< @brief Get resize handle at given position
-    void updateCursor(ResizeHandle handle);                     ///< @brief Update cursor based on resize handle
-    void drawAttachmentIndicator(QPainter* painter);            ///<
-    void drawDragOverlay(QPainter* painter);                    ///<
+    enum ResizeHandle { None, LeftEdge, RightEdge };                            ///< @brief Detect which edge/corner is under mouse cursor
+    ResizeHandle getResizeHandle(const QPointF& pos) const;                     ///< @brief Get resize handle at given position
+    void updateCursor(ResizeHandle handle);                                     ///< @brief Update cursor based on resize handle
+    void drawAttachmentIndicator(QPainter* painter, double iconX);              ///<
+    void drawDragOverlay(QPainter* painter);                                    ///<
 
     TimelineModel* model_ = nullptr;                        ///< Model reference (not owned)
     TimelineCoordinateMapper* mapper_ = nullptr;            ///< Coordinate mapper (not owned)

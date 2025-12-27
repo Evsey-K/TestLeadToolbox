@@ -18,6 +18,7 @@
 #include <QStyleOptionGraphicsItem>
 #include <QUndoStack>
 #include <QMimeData>
+#include <QMouseEvent>
 #include <QUrl>
 #include <QDebug>
 
@@ -35,20 +36,12 @@ TimelineItem::TimelineItem(const QRectF& rect, QGraphicsItem* parent)
     , pen_(Qt::black, 1)
     , skipNextUpdate_(false)
 {
-    // Enable the item to be movable by the user with mouse dragging
-    setFlag(QGraphicsItem::ItemIsMovable);
 
-    // Enable selection highlighting and interaction
-    setFlag(QGraphicsItem::ItemIsSelectable);
-
-    // Send position changes through itemChange
-    setFlag(QGraphicsItem::ItemSendsGeometryChanges);
-
-    // Enable hover events for resize cursor
-    setAcceptHoverEvents(true);
-
-    // Enable drag-and-drop for attachments
-    setAcceptDrops(true);
+    setFlag(QGraphicsItem::ItemIsMovable);                  ///< Enable the item to be movable by the user with mouse dragging
+    setFlag(QGraphicsItem::ItemIsSelectable);               ///< Enable selection highlighting and interaction
+    setFlag(QGraphicsItem::ItemSendsGeometryChanges);       ///< Send position changes through itemChange
+    setAcceptHoverEvents(true);                             ///< Enable hover events for resize cursor
+    setAcceptDrops(true);                                   ///< Enable drag-and-drop for attachments
 }
 
 
@@ -119,43 +112,64 @@ void TimelineItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* opti
                 painter->drawText(rect_.adjusted(5, 0, -5, 0), Qt::AlignVCenter | Qt::AlignLeft, elidedText);
             }
 
-            // Draw lock icon for lane-controlled events (only if item is wide enough)
-            if (event->laneControlEnabled && itemWidth >= 50.0)
+            // Calculate icon positioning based on what icons need to be shown
+            // Icons are positioned right-to-left: [Lock Icon] [Attachment Icon] (right edge)
+            const double LOCK_ICON_SIZE = 16.0;
+            const double ATTACHMENT_ICON_SIZE = 16.0;
+            const double ICON_MARGIN = 4.0;
+            const double ICON_SPACING = 2.0;
+
+            double currentRightEdge = rect_.right() - ICON_MARGIN;
+            bool hasLockIcon = event->laneControlEnabled && itemWidth >= 50.0;
+            bool hasAttachmentIcon = showAttachmentIndicator_ && attachmentCount_ > 0;
+
+            // Draw lock icon for lane-controlled events (rightmost position if both icons present)
+            if (hasLockIcon)
             {
-                // Position icon in top-right corner
-                QRectF iconRect(rect_.right() - 18, rect_.top() + 3, 14, 14);
+                // Position icon at current right edge
+                currentRightEdge -= LOCK_ICON_SIZE;
+                QRectF iconRect(currentRightEdge, rect_.top() + 3, LOCK_ICON_SIZE, LOCK_ICON_SIZE);
 
                 // Draw semi-transparent background circle
                 painter->setBrush(QColor(255, 255, 255, 180));
                 painter->drawEllipse(iconRect);
 
-                // Draw lock icon symbol (simplified)
+                // Draw lock icon symbol (simplified) - scaled up proportionally
                 painter->setPen(QPen(QColor(76, 175, 80), 1.5));  // Green color
                 painter->setBrush(Qt::NoBrush);
 
-                // Lock body (rectangle)
+                // Lock body (rectangle) - scaled proportionally
                 QRectF lockBody(
-                    iconRect.center().x() - 3,
+                    iconRect.center().x() - 3.5,
                     iconRect.center().y(),
-                    6,
-                    4
+                    7,
+                    5
                     );
                 painter->drawRect(lockBody);
 
-                // Lock shackle (arc)
+                // Lock shackle (arc) - scaled proportionally
                 QRectF shackleRect(
-                    iconRect.center().x() - 2,
-                    iconRect.center().y() - 4,
-                    4,
-                    4
+                    iconRect.center().x() - 2.5,
+                    iconRect.center().y() - 4.5,
+                    5,
+                    5
                     );
                 painter->drawArc(shackleRect, 0 * 16, 180 * 16);  // Top half circle
+
+                // Move left for next icon (if any)
+                if (hasAttachmentIcon)
+                {
+                    currentRightEdge -= ICON_SPACING;
+                }
+            }
+
+            // Draw attachment indicator (to the left of lock icon if both present)
+            if (hasAttachmentIcon)
+            {
+                drawAttachmentIndicator(painter, currentRightEdge - ATTACHMENT_ICON_SIZE);
             }
         }
     }
-
-    // Draw attachment indicator
-    drawAttachmentIndicator(painter);
 
     // Draw drag-over overlay
     drawDragOverlay(painter);
@@ -1387,7 +1401,7 @@ void TimelineItem::setAttachmentCount(int count)
 }
 
 
-void TimelineItem::drawAttachmentIndicator(QPainter* painter)
+void TimelineItem::drawAttachmentIndicator(QPainter* painter, double iconX)
 {
     if (!showAttachmentIndicator_ || attachmentCount_ <= 0)
     {
@@ -1396,11 +1410,10 @@ void TimelineItem::drawAttachmentIndicator(QPainter* painter)
 
     // Constants for attachment indicator
     const double ICON_SIZE = 16.0;
-    const double BADGE_SIZE = 14.0;
+    const double BADGE_SIZE = 13.0;
     const double MARGIN = 4.0;
 
     // Position in top-right corner of the item
-    double iconX = rect_.right() - ICON_SIZE - MARGIN;
     double iconY = rect_.top() + MARGIN;
 
     // Save painter state
@@ -1412,27 +1425,38 @@ void TimelineItem::drawAttachmentIndicator(QPainter* painter)
     painter->setPen(QPen(QColor(100, 100, 100), 1));
     painter->drawEllipse(iconRect);
 
-    // Draw simplified paperclip icon
-    painter->setPen(QPen(QColor(60, 60, 60), 1.5));
-    painter->setBrush(Qt::NoBrush);
+    // Draw document/file icon
+    painter->setPen(QPen(QColor(60, 60, 60), 1.2));
+    painter->setBrush(QColor(220, 220, 220));
 
     // Paperclip shape (simplified curved path)
     double centerX = iconX + ICON_SIZE / 2.0;
     double centerY = iconY + ICON_SIZE / 2.0;
 
-    // Draw paperclip as a curved line with hooks
-    QPainterPath clipPath;
-    clipPath.moveTo(centerX - 3, centerY + 4);
-    clipPath.lineTo(centerX - 3, centerY - 1);
-    clipPath.cubicTo(centerX - 3, centerY - 3,
-                     centerX - 1, centerY - 5,
-                     centerX + 1, centerY - 5);
-    clipPath.cubicTo(centerX + 3, centerY - 5,
-                     centerX + 5, centerY - 3,
-                     centerX + 5, centerY - 1);
-    clipPath.lineTo(centerX + 5, centerY + 5);
+    // Document body (small rectangle)
+    QRectF docRect(centerX - 3.5, centerY - 3, 7, 7);
 
-    painter->drawPath(clipPath);
+    // Create path for document with folded corner
+    QPainterPath docPath;
+    docPath.moveTo(docRect.left(), docRect.top());
+    docPath.lineTo(docRect.right() - 2.5, docRect.top());  // Top edge (minus corner)
+    docPath.lineTo(docRect.right(), docRect.top() + 2.5);  // Folded corner diagonal
+    docPath.lineTo(docRect.right(), docRect.bottom());     // Right edge
+    docPath.lineTo(docRect.left(), docRect.bottom());      // Bottom edge
+    docPath.lineTo(docRect.left(), docRect.top());         // Left edge
+    docPath.closeSubpath();
+
+    painter->drawPath(docPath);
+
+    // Draw fold line
+    painter->setPen(QPen(QColor(60, 60, 60), 0.8));
+    painter->drawLine(QPointF(docRect.right() - 2.5, docRect.top()),
+                      QPointF(docRect.right(), docRect.top() + 2.5));
+
+    // Draw horizontal lines to represent text
+    painter->setPen(QPen(QColor(100, 100, 100), 0.6));
+    painter->drawLine(QPointF(centerX - 2, centerY), QPointF(centerX + 2, centerY));
+    painter->drawLine(QPointF(centerX - 2, centerY + 1.5), QPointF(centerX + 2, centerY + 1.5));
 
     // Draw attachment count badge if > 1
     if (attachmentCount_ > 1)

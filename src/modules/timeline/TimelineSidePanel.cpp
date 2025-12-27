@@ -17,6 +17,7 @@
 #include <QKeyEvent>
 #include <QFileDialog>
 #include <QMessageBox>
+#include <QMouseEvent>
 #include <QTabBar>
 #include <algorithm>
 #include <QClipboard>

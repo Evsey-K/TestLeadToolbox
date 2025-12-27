@@ -949,6 +949,12 @@ TimelineEvent EditEventDialog::getEvent() const
     event.laneControlEnabled = laneControlCheckbox_->isChecked();
     event.manualLane = manualLaneSpinner_->value();
 
+    // FIX: When lane control is enabled, set lane to match manualLane
+    if (event.laneControlEnabled)
+    {
+        event.lane = event.manualLane;
+    }
+
     populateTypeSpecificFields(event);
 
     event.color = TimelineModel::colorForType(event.type);
