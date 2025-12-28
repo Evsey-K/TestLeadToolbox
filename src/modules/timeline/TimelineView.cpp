@@ -8,10 +8,13 @@
 #include "TimelineItem.h"
 #include <QWheelEvent>
 #include <QMouseEvent>
+#include <QPointer>
 #include <QResizeEvent>
 #include <QScrollBar>
 #include <QGraphicsItem>
 #include <QMenu>
+#include <QKeyEvent>
+#include <algorithm>
 
 
 TimelineView::TimelineView(TimelineModel* model,
@@ -40,6 +43,10 @@ TimelineView::TimelineView(TimelineModel* model,
     setBackgroundBrush(QBrush(QColor(250, 250, 250)));          ///< Set background color
     setViewportUpdateMode(QGraphicsView::SmartViewportUpdate);  ///< Optimize view updates
     setCacheMode(QGraphicsView::CacheBackground);               ///< Set optimal cache mode
+
+    setFocusPolicy(Qt::StrongFocus);
+    setFocus();
+    qDebug() << "🎯 TimelineView constructor - Focus policy set. Has focus:" << hasFocus();
 
     // Initialize minimum zoom based on current viewport
     updateMinimumZoom();
@@ -158,8 +165,34 @@ void TimelineView::wheelEvent(QWheelEvent* event)
 }
 
 
+bool TimelineView::event(QEvent* event)
+{
+    // Intercept Tab/Backtab BEFORE Qt's focus system handles them
+    if (event->type() == QEvent::KeyPress)
+    {
+        QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
+
+        qDebug() << "⚡ TimelineView::event() - Key:" << keyEvent->key();
+
+        // Handle Tab/Shift+Tab ourselves
+        if (keyEvent->key() == Qt::Key_Tab || keyEvent->key() == Qt::Key_Backtab)
+        {
+            qDebug() << "⚡ Intercepting Tab - routing to keyPressEvent()";
+            keyPressEvent(keyEvent);
+            return true;  // Event consumed - don't let Qt handle it
+        }
+    }
+
+    // Pass other events to base class
+    return QGraphicsView::event(event);
+}
+
+
 void TimelineView::mousePressEvent(QMouseEvent* event)
 {
+    qDebug() << "🖱️ Mouse click - Setting focus. Current focus:" << hasFocus();
+    setFocus();
+
     if (event->button() == Qt::RightButton)
     {
         // Store press position for right-click
@@ -384,6 +417,9 @@ void TimelineView::mouseReleaseEvent(QMouseEvent* event)
                 // Clicked on empty space without Ctrl → deselect all
                 scene_->clearSelection();
             }
+
+            // Ensure focus remains on view for keyboard navigation
+            setFocus();
         }
     }
 
@@ -425,6 +461,150 @@ void TimelineView::scrollContentsBy(int dx, int dy)
     {
         scene_->updateVersionNamePosition();
     }
+}
+
+
+void TimelineView::keyPressEvent(QKeyEvent* event)
+{
+    // Handle Tab and Shift+Tab for event navigation
+    if (event->key() == Qt::Key_Tab || event->key() == Qt::Key_Backtab)
+    {
+        if (!scene_ || !model_)
+        {
+            event->ignore();
+            return;
+        }
+
+        // Build sorted list of event IDs from the MODEL (stable source of truth)
+        // This avoids caching any TimelineItem pointers
+        QVector<TimelineEvent> allEvents = model_->getAllEvents();
+        QList<QString> eventIds;
+
+        for (const TimelineEvent& event : allEvents)
+        {
+            // Only include non-archived events
+            if (!event.archived)
+            {
+                eventIds.append(event.id);
+            }
+        }
+
+        if (eventIds.isEmpty())
+        {
+            event->ignore();
+            return;
+        }
+
+        // Sort event IDs by their start date using the model
+        std::sort(eventIds.begin(), eventIds.end(),
+                  [this](const QString& idA, const QString& idB) {
+                      const TimelineEvent* evtA = model_->getEvent(idA);
+                      const TimelineEvent* evtB = model_->getEvent(idB);
+
+                      if (!evtA || !evtB) return false;
+
+                      return evtA->startDate < evtB->startDate;
+                  });
+
+        // Find the currently selected event ID (if any)
+        QString currentSelectedId;
+        int currentIndex = -1;
+
+        QList<QGraphicsItem*> selectedItems = scene_->selectedItems();
+        if (!selectedItems.isEmpty())
+        {
+            // Get the first selected TimelineItem
+            for (QGraphicsItem* item : selectedItems)
+            {
+                TimelineItem* timelineItem = qgraphicsitem_cast<TimelineItem*>(item);
+                if (timelineItem)
+                {
+                    currentSelectedId = timelineItem->eventId();
+                    break;
+                }
+            }
+        }
+
+        // Find the index of currently selected event in our sorted list
+        if (!currentSelectedId.isEmpty())
+        {
+            currentIndex = eventIds.indexOf(currentSelectedId);
+        }
+
+        // Calculate next/previous index
+        int nextIndex = -1;
+
+        if (event->key() == Qt::Key_Tab && !(event->modifiers() & Qt::ShiftModifier))
+        {
+            // Tab: Move to next event
+            if (currentIndex == -1)
+                nextIndex = 0;
+            else if (currentIndex < eventIds.size() - 1)
+                nextIndex = currentIndex + 1;
+            else
+                nextIndex = 0;  // Wrap to first
+        }
+        else  // Backtab or Shift+Tab
+        {
+            // Shift+Tab: Move to previous event
+            if (currentIndex == -1)
+                nextIndex = eventIds.size() - 1;
+            else if (currentIndex > 0)
+                nextIndex = currentIndex - 1;
+            else
+                nextIndex = eventIds.size() - 1;  // Wrap to last
+        }
+
+        // Get the next event ID
+        if (nextIndex >= 0 && nextIndex < eventIds.size())
+        {
+            QString nextEventId = eventIds[nextIndex];
+
+            // Look up the actual TimelineItem by ID (right before use - never cached)
+            TimelineItem* nextItem = scene_->findItemByEventId(nextEventId);
+
+            if (!nextItem)
+            {
+                // Item doesn't exist in scene (shouldn't happen, but be safe)
+                event->accept();
+                return;
+            }
+
+            // Verify item is still valid and in our scene
+            if (nextItem->scene() != scene_)
+            {
+                event->accept();
+                return;
+            }
+
+            // Clear all selections
+            scene_->clearSelection();
+
+            // Re-verify item is still valid after clearing selection
+            // (clearSelection could theoretically trigger side effects)
+            nextItem = scene_->findItemByEventId(nextEventId);
+            if (!nextItem || nextItem->scene() != scene_)
+            {
+                event->accept();
+                return;
+            }
+
+            // Select the item
+            nextItem->setSelected(true);
+
+            // Scroll to make it visible (use sceneBoundingRect for safety)
+            ensureVisible(nextItem->sceneBoundingRect(), 100, 50);
+
+            // Emit signal to update detail panel
+            emit scene_->itemClicked(nextEventId);
+        }
+
+        event->accept();
+        return;
+    }
+
+    // Pass other key events to base class
+    QGraphicsView::keyPressEvent(event);
 }
 
 

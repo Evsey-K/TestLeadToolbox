@@ -261,10 +261,11 @@ void TimelineItem::updateItemFlags()
 
     QGraphicsItem::GraphicsItemFlags flags = QGraphicsItem::ItemSendsGeometryChanges;
 
-    if (!event->isLocked) {
-        flags |= QGraphicsItem::ItemIsSelectable;
-    }
+    // Always allow selection (even for locked events)
+    // This enables right-click context menu and toolbar edit button
+    flags |= QGraphicsItem::ItemIsSelectable;
 
+    // Only allow movement if event can be manipulated
     if (event->canManipulateInView()) {
         flags |= QGraphicsItem::ItemIsMovable;
     }
@@ -276,7 +277,8 @@ void TimelineItem::updateItemFlags()
 }
 
 
-void TimelineItem::updateVisualState() {
+void TimelineItem::updateVisualState()
+{
     update(); // Trigger repaint
 }
 
@@ -454,6 +456,52 @@ void TimelineItem::mousePressEvent(QGraphicsSceneMouseEvent* event)
     qDebug() << "║ rect_:" << rect_;
     qDebug() << "║ isSelected():" << isSelected();
 
+    // Check lock state before allowing any interaction
+    bool isLocked = false;
+    bool isFixed = false;
+
+    if (model_ && !eventId_.isEmpty())
+    {
+        const TimelineEvent* evt = model_->getEvent(eventId_);
+        if (evt)
+        {
+            isLocked = evt->isLocked;
+            isFixed = evt->isFixed;
+        }
+    }
+
+    // If locked or fixed, prevent resize and drag but allow selection
+    if (isLocked || isFixed)
+    {
+        qDebug() << "║ Event is " << (isLocked ? "LOCKED" : "FIXED")
+                 << " - blocking resize and drag, but allowing selection";
+
+        // Allow selection by handling click appropriately
+        if (!isSelected())
+        {
+            // If not selected, select it
+            if (!(event->modifiers() & (Qt::ControlModifier | Qt::ShiftModifier)))
+            {
+                // Normal click: clear other selections and select this one
+                if (scene())
+                {
+                    scene()->clearSelection();
+                }
+            }
+            setSelected(true);
+        }
+
+        // Emit clicked signal to update detail panel
+        if (!eventId_.isEmpty())
+        {
+            emit clicked(eventId_);
+        }
+
+        qDebug() << "╚═══════════════════════════════════════════════════════════";
+        event->accept();
+        return;
+    }
+
     // Check if clicking on a resize handle
     if (resizable_)
     {
@@ -481,6 +529,8 @@ void TimelineItem::mousePressEvent(QGraphicsSceneMouseEvent* event)
     {
         QList<QGraphicsItem*> selectedItems = scene()->selectedItems();
 
+        qDebug() << "║ Selected items count:" << selectedItems.size();
+
         if (selectedItems.size() > 1)
         {
             // Multi-drag mode: record all selected item positions
@@ -492,6 +542,8 @@ void TimelineItem::mousePressEvent(QGraphicsSceneMouseEvent* event)
             for (QGraphicsItem* item : selectedItems)
             {
                 multiDragStartPositions_[item] = item->pos();
+
+                qDebug() << "║ Multi-drag: storing start position for item at" << item->pos();
 
                 TimelineItem* tItem = qgraphicsitem_cast<TimelineItem*>(item);
                 if (tItem)
@@ -1439,7 +1491,26 @@ void TimelineItem::hoverMoveEvent(QGraphicsSceneHoverEvent* event)
     if (!resizable_)
     {
         QGraphicsObject::hoverMoveEvent(event);
+        return;
+    }
 
+    // Check lock state - don't change cursor for locked/fixed events
+    bool isLocked = false;
+    bool isFixed = false;
+    if (model_ && !eventId_.isEmpty())
+    {
+        const TimelineEvent* evt = model_->getEvent(eventId_);
+        if (evt)
+        {
+            isLocked = evt->isLocked;
+            isFixed = evt->isFixed;
+        }
+    }
+
+    // If locked or fixed, keep the ForbiddenCursor and don't show resize handles
+    if (isLocked || isFixed)
+    {
+        QGraphicsObject::hoverMoveEvent(event);
         return;
     }
 

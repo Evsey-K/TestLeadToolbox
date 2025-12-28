@@ -165,6 +165,9 @@ void TimelineScene::updateVersionNamePosition()
 
 void TimelineScene::rebuildFromModel()
 {
+    // Clear selection BEFORE deleting items to prevent re-entrancy issues
+    clearSelection();
+
     // Clear all existing event items (but keep date scale and markers)
     for (auto* item : eventIdToItem_.values())
     {

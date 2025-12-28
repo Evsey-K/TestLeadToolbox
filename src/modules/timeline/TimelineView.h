@@ -66,6 +66,8 @@ protected:
     void mouseReleaseEvent(QMouseEvent* event) override;                    ///< @brief Override to handle right-click panning end and context menu
     void resizeEvent(QResizeEvent* event) override;                         ///< @brief Override to recalculate minimum zoom on viewport resize
     void scrollContentsBy(int dx, int dy) override;                         ///< @brief Override to update version name position on scroll
+    void keyPressEvent(QKeyEvent* event) override;                          ///< @brief Override to handle Tab/Shift+Tab navigation between events
+    bool event(QEvent* event) override;                                     ///<
 
 private:
     void updateMinimumZoom();                                               ///< @brief Calculate and set minimum zoom based on viewport and padding
