@@ -3,9 +3,18 @@
 #include "ModuleManager.h"
 #include "shared/interfaces/IModule.h"
 #include <QDebug>
+#include <QSettings>
+
+
+namespace {
+constexpr const char* kSettingsGroup = "Modules";
+constexpr const char* kSettingsKeyOrder = "order";
+}
+
 
 ModuleManager::ModuleManager(QObject* parent)
     : QObject(parent)
+    , orderLoaded_(false)
 {
     // std::vector handles move-only types (like unique_ptr) properly
     moduleOwnership_.reserve(10);
@@ -39,11 +48,14 @@ void ModuleManager::registerModule(std::unique_ptr<IModule> module)
 
     // Store ownership in vector using push_back which properly moves
     moduleOwnership_.push_back(std::move(module));
+
+    // Keep ordering coherent as modules arrive (important if loadModuleOrder() ran early)
+    reconcileOrder();
 }
 
 QStringList ModuleManager::moduleIds() const
 {
-    return modules_.keys();
+    return orderedModuleIds_;
 }
 
 IModule* ModuleManager::module(const QString& moduleId) const
@@ -96,4 +108,96 @@ void ModuleManager::activateModule(const QString& moduleId)
     } else {
         qWarning() << "ModuleManager::activateModule - Module not found:" << moduleId;
     }
+}
+
+void ModuleManager::setModuleOrder(const QStringList& orderedIds)
+{
+    // Store as "loaded/user order" source, then reconcile deterministically
+    loadedOrderIds_ = orderedIds;
+    orderLoaded_ = true;
+
+    const QStringList before = orderedModuleIds_;
+    reconcileOrder();
+
+    if (orderedModuleIds_ != before) {
+        emit moduleOrderChanged();
+        qDebug() << "ModuleManager: Module order updated:" << orderedModuleIds_;
+    }
+}
+
+void ModuleManager::saveModuleOrder() const
+{
+    QSettings settings;
+    settings.beginGroup(kSettingsGroup);
+    settings.setValue(kSettingsKeyOrder, orderedModuleIds_);
+    settings.endGroup();
+
+    qDebug() << "ModuleManager: Saved module order:" << orderedModuleIds_;
+}
+
+void ModuleManager::loadModuleOrder()
+{
+    QSettings settings;
+    settings.beginGroup(kSettingsGroup);
+
+    loadedOrderIds_.clear();
+    if (settings.contains(kSettingsKeyOrder)) {
+        loadedOrderIds_ = settings.value(kSettingsKeyOrder).toStringList();
+        orderLoaded_ = true;
+        qDebug() << "ModuleManager: Loaded raw module order:" << loadedOrderIds_;
+    } else {
+        orderLoaded_ = false;
+    }
+
+    settings.endGroup();
+
+    const QStringList before = orderedModuleIds_;
+    reconcileOrder();
+
+    if (orderedModuleIds_ != before) {
+        emit moduleOrderChanged();
+        qDebug() << "ModuleManager: Applied module order after load:" << orderedModuleIds_;
+    }
+}
+
+QStringList ModuleManager::registrationOrderIds() const
+{
+    QStringList ids;
+    ids.reserve(static_cast<int>(moduleOwnership_.size()));
+
+    for (const auto& owned : moduleOwnership_) {
+        if (owned) {
+            ids.append(owned->moduleId());
+        }
+    }
+
+    return ids;
+}
+
+void ModuleManager::reconcileOrder()
+{
+    // Canonical deterministic base is always registration order
+    const QStringList regOrder = registrationOrderIds();
+
+    QStringList result;
+    result.reserve(regOrder.size());
+
+    // If we have a loaded/user order, apply it first (only for modules that exist)
+    if (orderLoaded_) {
+        for (const QString& id : loadedOrderIds_) {
+            if (modules_.contains(id) && !result.contains(id)) {
+                result.append(id);
+            }
+        }
+    }
+
+    // Append any remaining modules deterministically in registration order
+    for (const QString& id : regOrder) {
+        if (modules_.contains(id) && !result.contains(id)) {
+            result.append(id);
+        }
+    }
+
+    // If nothing is registered yet, keep it empty (safe early-load)
+    orderedModuleIds_ = result;
 }

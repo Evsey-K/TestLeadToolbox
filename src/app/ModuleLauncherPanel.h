@@ -1,20 +1,23 @@
 // src/app/ModuleLauncherPanel.h
-#pragma once
 
+
+#pragma once
 #include <QWidget>
 
+
 class ModuleManager;
-class QVBoxLayout;
-class QPushButton;
+class QListWidget;
+class QListWidgetItem;
 class QLabel;
+
 
 /**
  * @class ModuleLauncherPanel
- * @brief Professional navigation panel for selecting application modules
+ * @brief Professional module navigation panel using Qt item-view architecture
  *
- * Displays a vertical list of module launcher buttons with icons, names,
- * and descriptions. Handles module selection and communicates with the
- * ModuleManager to coordinate module activation.
+ * - Native drag & drop reordering (InternalMove)
+ * - Persistent module order via ModuleManager
+ * - Clean activation & selection handling
  */
 class ModuleLauncherPanel : public QWidget
 {
@@ -24,24 +27,24 @@ public:
     explicit ModuleLauncherPanel(ModuleManager* moduleManager, QWidget* parent = nullptr);
     ~ModuleLauncherPanel();
 
-    void refresh();     ///< Refreshes the panel to reflect current module registrations
+    void refresh();
 
 signals:
-    void moduleLaunchRequested(const QString& moduleId);        ///< Emitted when user requests to launch a module
+    void moduleLaunchRequested(const QString& moduleId);
 
 private slots:
-    void onModuleButtonClicked();
+    void onItemClicked(QListWidgetItem* item);
     void onCurrentModuleChanged(const QString& moduleId);
+    void onOrderChanged();
 
 private:
     void setupUI();
-    void createModuleButtons();
-    QPushButton* createModuleButton(const QString& moduleId);
+    void populateList();
+    QStringList currentListOrder() const;
 
 private:
     ModuleManager* moduleManager_;
-    QVBoxLayout* buttonLayout_;
+    QListWidget* moduleList_;
     QLabel* titleLabel_;
-    QMap<QString, QPushButton*> moduleButtons_;
     QString currentModuleId_;
 };
