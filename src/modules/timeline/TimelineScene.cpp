@@ -19,6 +19,17 @@
 #include <qgraphicsview.h>
 
 
+// Helper: Treat midnight-to-midnight events as "all-day style" for display purposes
+static bool isAllDayStyleEvent(const TimelineEvent& e)
+{
+    return e.startDate.isValid()
+    && e.endDate.isValid()
+        && e.startDate.time() == QTime(0, 0)
+        && e.endDate.time() == QTime(0, 0)
+        && e.endDate.date() >= e.startDate.date();
+}
+
+
 TimelineScene::TimelineScene(TimelineModel* model, TimelineCoordinateMapper* mapper, QObject* parent)
     : QGraphicsScene(parent)
     , model_(model)
@@ -48,12 +59,45 @@ TimelineScene::TimelineScene(TimelineModel* model, TimelineCoordinateMapper* map
 }
 
 
+// TimelineScene.cpp
+
 void TimelineScene::drawBackground(QPainter* painter, const QRectF& rect)
 {
-    // Fill the entire exposed region with the timeline background color
-    // This ensures padding areas beyond version boundaries render correctly
-    // The color matches TimelineView's background brush (250, 250, 250)
-    painter->fillRect(rect, QColor(250, 250, 250));
+    // Define coordinate boundaries
+    const double HEADER_TOP = -180.0;      // Top of header area (version name + legend)
+    const double HEADER_BOTTOM = 0.0;      // Bottom of header / top of date scale
+
+    // ========== HEADER AREA (Version Name + Legend) ==========
+    QRectF headerRect(rect.left(), HEADER_TOP, rect.width(), HEADER_BOTTOM - HEADER_TOP);
+    QRectF headerIntersect = rect.intersected(headerRect);
+
+    if (!headerIntersect.isEmpty())
+    {
+        // Bold gradient that's clearly visible - matches your existing blue palette
+        QLinearGradient headerGradient(headerIntersect.left(), HEADER_TOP,
+                                       headerIntersect.left(), HEADER_BOTTOM);
+
+        // Use stronger colors from your existing palette
+        headerGradient.setColorAt(0.0, QColor(215, 230, 242));  // Light blue (clearly visible)
+        headerGradient.setColorAt(0.5, QColor(225, 235, 245));  // Lighter middle
+        headerGradient.setColorAt(1.0, QColor(245, 248, 250));  // Blends into date scale
+
+        painter->fillRect(headerIntersect, headerGradient);
+
+        // Optional: Add a subtle separator line at the bottom of header
+        painter->setPen(QPen(QColor(180, 200, 220), 1));
+        painter->drawLine(QPointF(headerIntersect.left(), HEADER_BOTTOM),
+                          QPointF(headerIntersect.right(), HEADER_BOTTOM));
+    }
+
+    // ========== TIMELINE AREA (Below Date Scale) ==========
+    QRectF timelineRect(rect.left(), HEADER_BOTTOM, rect.width(), rect.bottom() - HEADER_BOTTOM);
+    QRectF timelineIntersect = rect.intersected(timelineRect);
+
+    if (!timelineIntersect.isEmpty())
+    {
+        painter->fillRect(timelineIntersect, QColor(250, 250, 250));
+    }
 }
 
 
@@ -194,8 +238,13 @@ void TimelineScene::rebuildFromModel()
 
     double height = DATE_SCALE_OFFSET + LaneAssigner::calculateSceneHeight(model_->maxLane(), ITEM_HEIGHT, LANE_SPACING);
 
+    // Extend scene rect upward to include header area (version name + legend)
+    // Version name is at Y = -150, so we need to start the scene rect above that
+    const double HEADER_TOP = -180.0;               // Provides space for version name and legend
+    double totalHeight = height - HEADER_TOP;       // Total height from header top to scene bottom
+
     // Set scene rect with padding
-    setSceneRect(startX, 0, width, height);
+    setSceneRect(startX, HEADER_TOP, width, totalHeight);
 
     // Update date scale and current date marker heights
     if (dateScale_)
@@ -337,24 +386,20 @@ TimelineItem* TimelineScene::createItemForEvent(const QString& eventId)
     // Calculate Y position based on lane (offset by date scale height)
     double yPos = DATE_SCALE_OFFSET + LaneAssigner::laneToY(event->lane, ITEM_HEIGHT, LANE_SPACING);
 
-    // Calculate rectangle using appropriate method based on zoom level
-    QRectF rect;
-    if (mapper_->pixelsPerday() >= 192.0)
+    // Always render using DateTime precision so timed events remain accurate at any zoom level.
+    // Preserve legacy "inclusive day" look for all-day style events (midnight-to-midnight).
+    QDateTime displayStart = event->startDate;
+    QDateTime displayEnd = event->endDate;
+
+    if (isAllDayStyleEvent(*event))
     {
-        // Hour precision - use DateTime rendering (no extra day added)
-        rect = mapper_->dateTimeRangeToRect(event->startDate,
-                                            event->endDate,
-                                            yPos,
-                                            ITEM_HEIGHT);
+        displayEnd = displayEnd.addDays(1);
     }
-    else
-    {
-        // Day precision - use Date rendering (adds +1 day to end for visual inclusion)
-        rect = mapper_->dateRangeToRect(event->startDate.date(),
-                                        event->endDate.date(),
-                                        yPos,
-                                        ITEM_HEIGHT);
-    }
+
+    QRectF rect = mapper_->dateTimeRangeToRect(displayStart,
+                                               displayEnd,
+                                               yPos,
+                                               ITEM_HEIGHT);
 
     // Create the item
     TimelineItem* item = new TimelineItem(rect);
@@ -416,24 +461,21 @@ void TimelineScene::updateItemFromEvent(TimelineItem* item, const QString& event
     // Calculate Y position based on lane (offset by date scale height)
     double yPos = DATE_SCALE_OFFSET + LaneAssigner::laneToY(event->lane, ITEM_HEIGHT, LANE_SPACING);
 
-    // Recalculate position and size using appropriate method based on zoom level
-    QRectF newRect;
-    if (mapper_->pixelsPerday() >= 192.0)
+    // Always render using DateTime precision so timed events remain accurate at any zoom level.
+    // Preserve legacy "inclusive day" look for all-day style events (midnight-to-midnight).
+    QDateTime displayStart = event->startDate;
+    QDateTime displayEnd = event->endDate;
+
+    if (isAllDayStyleEvent(*event))
     {
-        // Hour precision - use DateTime rendering (no extra day added)
-        newRect = mapper_->dateTimeRangeToRect(event->startDate,
-                                               event->endDate,
-                                               yPos,
-                                               ITEM_HEIGHT);
+        displayEnd = displayEnd.addDays(1);
     }
-    else
-    {
-        // Day precision - use Date rendering (adds +1 day to end for visual inclusion)
-        newRect = mapper_->dateRangeToRect(event->startDate.date(),
-                                           event->endDate.date(),
-                                           yPos,
-                                           ITEM_HEIGHT);
-    }
+
+    QRectF newRect = mapper_->dateTimeRangeToRect(displayStart,
+                                                  displayEnd,
+                                                  yPos,
+                                                  ITEM_HEIGHT);
+
 
     // CRITICAL: Reset item position to (0,0) before setting rect
     // The rect coordinates are absolute scene coordinates, not relative to item position
@@ -478,7 +520,11 @@ void TimelineScene::updateSceneHeight()
     // Dynamically adjust scene height based on lane count
     double height = DATE_SCALE_OFFSET + LaneAssigner::calculateSceneHeight(model_->maxLane(), ITEM_HEIGHT, LANE_SPACING);
 
-    setSceneRect(startX, 0, width, height);
+    // Extend scene rect upward to include header area
+    const double HEADER_TOP = -180.0;
+    double totalHeight = height - HEADER_TOP;
+
+    setSceneRect(startX, HEADER_TOP, width, totalHeight);
 
     // Update date scale and marker heights
     if (dateScale_)

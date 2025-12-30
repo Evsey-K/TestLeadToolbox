@@ -182,8 +182,9 @@ double TimelineCoordinateMapper::totalWidth() const
 
 double TimelineCoordinateMapper::snapXToNearestTick(double xCoord) const
 {
-    // Determine snap interval based on zoom level
-    // These thresholds MUST match TimelineDateScale rendering logic
+    // This method now ONLY snaps when appropriate tick marks are visible
+    // For zoom levels where ticks aren't shown, return the coordinate unchanged to preserve
+    // hour/minute precision in the visual representation
 
     if (pixelsPerDay_ >= 960.0)
     {
