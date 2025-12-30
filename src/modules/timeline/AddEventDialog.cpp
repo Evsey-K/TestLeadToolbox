@@ -178,10 +178,11 @@ void AddEventDialog::setupUi()
 
     // ========== BUTTONS ==========
     QDialogButtonBox* buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+    buttonBox->setContentsMargins(10, 0, 10, 0);  // Add left/right margins to button box
 
     // ========== MAIN DIALOG LAYOUT ==========
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(0, 0, 0, 10);
+    mainLayout->setContentsMargins(0, 0, 0, 15);
     mainLayout->setSpacing(10);
     mainLayout->addWidget(contentWidget);
     mainLayout->addWidget(buttonBox);

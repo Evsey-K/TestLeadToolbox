@@ -98,71 +98,94 @@ void TimelineView::updateMinimumZoom()
 
 void TimelineView::wheelEvent(QWheelEvent* event)
 {
-    // Check if Ctrl key is pressed for zoom
     if (event->modifiers() & Qt::ControlModifier)
     {
-        // Define zoom factor
-        const double zoomFactor = 1.15;
+        const double baseZoomFactor = 1.15;
 
-        // Get the center of the viewport in widget coordinates
-        QPointF viewportCenter(viewport()->width() / 2.0, viewport()->height() / 2.0);
+        // --- NEW: use mouse position as zoom anchor ---
+        const QPointF mouseViewportPos = event->position();
+        const QPointF mouseScenePosBefore = mapToScene(mouseViewportPos.toPoint());
 
-        // Map viewport center to scene coordinates BEFORE zoom
-        QPointF scenePosBefore = mapToScene(viewportCenter.toPoint());
+        // Preserve the datetime under the mouse
+        const QDateTime anchorDateTime = mapper_->xToDateTime(mouseScenePosBefore.x());
 
-        // Convert scene position toDateTime (preserve the DATETIME at high zoom, not just date)
-        QDateTime centerDateTime = mapper_->xToDateTime(scenePosBefore.x());
+        // Old zoom for min/max clamp detection
+        const double oldZoom = mapper_->pixelsPerday();
 
-        // Store old zoom level for comparison
-        double oldZoom = mapper_->pixelsPerday();
-
-        // Determine zoom direction and apply zoom to mapper only
-        if (event->angleDelta().y() > 0)
+        // --- NEW: apply zoom using pow() so fast wheel / multi-notch feels stable ---
+        // Typical mouse wheel notch is 120. Trackpads may produce smaller deltas.
+        const double steps = static_cast<double>(event->angleDelta().y()) / 120.0;
+        if (qFuzzyIsNull(steps))
         {
-            // Zoom in
-            mapper_->zoom(zoomFactor);
-        }
-        else
-        {
-            // Zoom out
-            mapper_->zoom(1.0 / zoomFactor);
-        }
-
-        // Check if zoom level actually changed (it won't if we hit min/max limits)
-        double newZoom = mapper_->pixelsPerday();
-        if (qFuzzyCompare(oldZoom, newZoom))
-        {
-            // Zoom didn't change - we're at a limit, don't rebuild
             event->accept();
             return;
         }
 
-        // Rebuild scene with new scale (updates all item positions and sizes at native resolution)
+        const double factor = std::pow(baseZoomFactor, steps);
+        mapper_->zoom(factor);
+
+        const double newZoom = mapper_->pixelsPerday();
+        if (qFuzzyCompare(oldZoom, newZoom))
+        {
+            event->accept();
+            return;
+        }
+
         scene_->rebuildFromModel();
 
-        // Convert the SAME datetime back to new scene coordinates (after zoom and rebuild)
-        double newSceneX = mapper_->dateTimeToX(centerDateTime);
+        // Anchor X after rebuild
+        const double newSceneX = mapper_->dateTimeToX(anchorDateTime);
 
-        // Use centerOn to directly center on the target point
-        centerOn(newSceneX, scenePosBefore.y());
+        // --- NEW: "soft centering" so outer zoom levels don’t jump around ---
+        // At low zoom: keep anchor near the mouse (stable control).
+        // As you zoom in: gradually pull it toward the viewport center.
+        const double minPpd = mapper_->minPixelsPerDay();
+        const double fullCenterPpd = 192.0; // same threshold your DateScale uses for hour ticks
+
+        double t = 0.0;
+        if (fullCenterPpd > minPpd)
+        {
+            t = (newZoom - minPpd) / (fullCenterPpd - minPpd);
+            t = qBound(0.0, t, 1.0);
+        }
+
+        // Optional: give it a tiny baseline centering so it still "helps" even when zoomed out
+        // (set to 0.0 if you want strictly "stay under mouse" at minimum zoom)
+        const double minCenterPull = 0.0;
+        t = minCenterPull + (1.0 - minCenterPull) * t;
+
+        const double viewportCenterX = viewport()->width() / 2.0;
+        const double desiredViewportX = mouseViewportPos.x() + (viewportCenterX - mouseViewportPos.x()) * t;
+
+        // Keep Y stable (don’t jump vertically based on mouse Y)
+        const QPointF viewportCenter(viewportCenterX, viewport()->height() / 2.0);
+        const double currentCenterSceneY = mapToScene(viewportCenter.toPoint()).y();
+
+        // In your setup, scene units are pixels (no QGraphicsView scaling),
+        // so this offset is correct in scene coordinates.
+        const double newCenterSceneX = newSceneX + (viewportCenterX - desiredViewportX);
+
+        centerOn(newCenterSceneX, currentCenterSceneY);
 
         event->accept();
+        return;
     }
     else if (event->modifiers() & Qt::ShiftModifier)
     {
-        // Shift + Mouse wheel: Vertical scrolling
         int delta = event->angleDelta().y();
         verticalScrollBar()->setValue(verticalScrollBar()->value() - delta);
         event->accept();
+        return;
     }
     else
     {
-        // Default: Horizontal scrolling (no modifiers)
         int delta = event->angleDelta().y();
         horizontalScrollBar()->setValue(horizontalScrollBar()->value() - delta);
         event->accept();
+        return;
     }
 }
+
 
 
 bool TimelineView::event(QEvent* event)

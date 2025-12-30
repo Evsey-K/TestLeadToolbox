@@ -199,6 +199,7 @@ void EditEventDialog::setupUi()
     // Custom horizontal layout for buttons instead of QDialogButtonBox
     QHBoxLayout* buttonLayout = new QHBoxLayout();
     buttonLayout->setSpacing(10);
+    buttonLayout->setContentsMargins(10, 0, 10, 0);
 
     // Delete button on the LEFT side
     deleteButton_ = new QPushButton("Delete");
@@ -237,7 +238,7 @@ void EditEventDialog::setupUi()
 
     // ========== MAIN DIALOG LAYOUT ==========
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(0, 0, 0, 10);
+    mainLayout->setContentsMargins(0, 0, 0, 15);
     mainLayout->setSpacing(10);
     mainLayout->addWidget(contentWidget);
     mainLayout->addLayout(buttonLayout);
