@@ -1,6 +1,5 @@
 // AttachmentListWidget.cpp
 
-
 #include "AttachmentListWidget.h"
 #include <QFileDialog>
 #include <QMessageBox>
@@ -9,7 +8,9 @@
 #include <QDropEvent>
 #include <QUrl>
 #include <QDebug>
-
+#include <QStyle>
+#include <QDir>
+#include <algorithm>
 
 AttachmentListWidget::AttachmentListWidget(QWidget* parent)
     : QWidget(parent)
@@ -20,16 +21,11 @@ AttachmentListWidget::AttachmentListWidget(QWidget* parent)
     setAcceptDrops(true);
 }
 
-
 AttachmentListWidget::~AttachmentListWidget()
 {
-    // Explicitly disconnect from AttachmentManager singleton to prevent
-    // crashes when the dialog is destroyed while signals might still be pending
     disconnect(&AttachmentManager::instance(), nullptr, this, nullptr);
-
     qDebug() << "AttachmentListWidget destroyed for event:" << eventId_;
 }
-
 
 void AttachmentListWidget::setupUI()
 {
@@ -37,20 +33,18 @@ void AttachmentListWidget::setupUI()
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(5);
 
-    // List widget with controlled height
     listWidget_ = new QListWidget();
     listWidget_->setIconSize(QSize(ICON_SIZE, ICON_SIZE));
     listWidget_->setSelectionMode(QAbstractItemView::ExtendedSelection);
     listWidget_->setAlternatingRowColors(true);
     listWidget_->setDragDropMode(QAbstractItemView::NoDragDrop);
 
-    // Set minimum and maximum heights for the list
     listWidget_->setMinimumHeight(80);
     listWidget_->setMaximumHeight(150);
 
     mainLayout->addWidget(listWidget_);
 
-    // Button row - using icon-only buttons for compact display
+    // Button row (optional; can be hidden if parent provides a header Add button)
     QHBoxLayout* buttonLayout = new QHBoxLayout();
     buttonLayout->setSpacing(5);
 
@@ -89,7 +83,6 @@ void AttachmentListWidget::setupUI()
 
     mainLayout->addLayout(buttonLayout);
 
-    // Connect signals
     connect(addButton_, &QPushButton::clicked, this, &AttachmentListWidget::onAddClicked);
     connect(removeButton_, &QPushButton::clicked, this, &AttachmentListWidget::onRemoveClicked);
     connect(openButton_, &QPushButton::clicked, this, &AttachmentListWidget::onOpenClicked);
@@ -98,6 +91,18 @@ void AttachmentListWidget::setupUI()
     connect(listWidget_, &QListWidget::itemSelectionChanged, this, &AttachmentListWidget::onSelectionChanged);
 }
 
+void AttachmentListWidget::setAddButtonVisible(bool visible)
+{
+    if (addButton_)
+    {
+        addButton_->setVisible(visible);
+    }
+}
+
+void AttachmentListWidget::requestAddAttachments()
+{
+    onAddClicked();
+}
 
 void AttachmentListWidget::setEventId(const QString& eventId)
 {
@@ -109,7 +114,6 @@ void AttachmentListWidget::setEventId(const QString& eventId)
 
     refresh();
 }
-
 
 void AttachmentListWidget::refresh()
 {
@@ -134,7 +138,6 @@ void AttachmentListWidget::refresh()
 
     qDebug() << "║ Fetching attachments from AttachmentManager...";
 
-    // Get attachments from AttachmentManager
     QList<Attachment> attachments = AttachmentManager::instance().getAttachments(numericEventId_);
 
     qDebug() << "║ Found" << attachments.size() << "attachment(s)";
@@ -149,7 +152,6 @@ void AttachmentListWidget::refresh()
         return;
     }
 
-    // Add each attachment to the list
     for (int i = 0; i < attachments.size(); ++i)
     {
         addAttachmentToList(attachments[i], i);
@@ -162,7 +164,6 @@ void AttachmentListWidget::refresh()
     qDebug() << "╚════════════════════════════════════════════════════════════";
 }
 
-
 void AttachmentListWidget::clear()
 {
     eventId_.clear();
@@ -171,7 +172,6 @@ void AttachmentListWidget::clear()
     statusLabel_->setText("No attachments");
     updateButtons();
 }
-
 
 void AttachmentListWidget::dragEnterEvent(QDragEnterEvent* event)
 {
@@ -186,7 +186,6 @@ void AttachmentListWidget::dragEnterEvent(QDragEnterEvent* event)
     }
 }
 
-
 void AttachmentListWidget::dropEvent(QDropEvent* event)
 {
     if (!event->mimeData()->hasUrls() || numericEventId_ == 0)
@@ -195,7 +194,6 @@ void AttachmentListWidget::dropEvent(QDropEvent* event)
         return;
     }
 
-    // Extract file paths
     QStringList filePaths;
     for (const QUrl& url : event->mimeData()->urls())
     {
@@ -213,7 +211,6 @@ void AttachmentListWidget::dropEvent(QDropEvent* event)
 
     qDebug() << "AttachmentListWidget: Dropped" << filePaths.size() << "file(s)";
 
-    // Add attachments
     QStringList errors;
     bool anySuccess = AttachmentManager::instance().addMultipleAttachments(
         numericEventId_,
@@ -222,24 +219,17 @@ void AttachmentListWidget::dropEvent(QDropEvent* event)
         errors
         );
 
-    // Show feedback
-    if (anySuccess && errors.isEmpty())
-    {
-        qDebug() << "AttachmentListWidget: Successfully added all files";
-    }
-    else if (!errors.isEmpty())
+    if (!errors.isEmpty())
     {
         QString message = "Failed to add some files:\n\n" + errors.join("\n");
         QMessageBox::warning(this, "Attachment Error", message);
     }
 
-    // Refresh list
     refresh();
     emit attachmentsChanged();
 
     event->acceptProposedAction();
 }
-
 
 void AttachmentListWidget::onAddClicked()
 {
@@ -271,11 +261,7 @@ void AttachmentListWidget::onAddClicked()
         errors
         );
 
-    if (anySuccess && errors.isEmpty())
-    {
-        qDebug() << "AttachmentListWidget: Successfully added all files";
-    }
-    else if (!errors.isEmpty())
+    if (!errors.isEmpty())
     {
         QString message = "Failed to add some files:\n\n" + errors.join("\n");
         QMessageBox::warning(this, "Attachment Error", message);
@@ -285,17 +271,14 @@ void AttachmentListWidget::onAddClicked()
     emit attachmentsChanged();
 }
 
-
 void AttachmentListWidget::onRemoveClicked()
 {
     QList<QListWidgetItem*> selectedItems = listWidget_->selectedItems();
-
     if (selectedItems.isEmpty())
     {
         return;
     }
 
-    // Confirm deletion
     QString message = (selectedItems.size() == 1)
                           ? QString("Remove attachment \"%1\"?").arg(selectedItems[0]->text())
                           : QString("Remove %1 attachments?").arg(selectedItems.size());
@@ -312,7 +295,6 @@ void AttachmentListWidget::onRemoveClicked()
         return;
     }
 
-    // Get indices to remove (sorted in reverse order to avoid index shifting)
     QList<int> indices;
     for (QListWidgetItem* item : selectedItems)
     {
@@ -320,7 +302,6 @@ void AttachmentListWidget::onRemoveClicked()
     }
     std::sort(indices.begin(), indices.end(), std::greater<int>());
 
-    // Remove attachments
     for (int index : indices)
     {
         bool success = AttachmentManager::instance().removeAttachment(numericEventId_, index);
@@ -334,11 +315,9 @@ void AttachmentListWidget::onRemoveClicked()
     emit attachmentsChanged();
 }
 
-
 void AttachmentListWidget::onOpenClicked()
 {
     QList<QListWidgetItem*> selectedItems = listWidget_->selectedItems();
-
     if (selectedItems.isEmpty())
     {
         return;
@@ -358,11 +337,9 @@ void AttachmentListWidget::onOpenClicked()
     }
 }
 
-
 void AttachmentListWidget::onRevealClicked()
 {
     QList<QListWidgetItem*> selectedItems = listWidget_->selectedItems();
-
     if (selectedItems.isEmpty())
     {
         return;
@@ -398,38 +375,32 @@ void AttachmentListWidget::onItemDoubleClicked(QListWidgetItem* item)
     }
 }
 
-
 void AttachmentListWidget::onSelectionChanged()
 {
     updateButtons();
 }
 
-
 void AttachmentListWidget::updateButtons()
 {
     bool hasSelection = !listWidget_->selectedItems().isEmpty();
-    bool hasSingleSelection = listWidget_->selectedItems().size() == 1;
+    bool hasSingleSelection = (listWidget_->selectedItems().size() == 1);
 
-    removeButton_->setEnabled(hasSelection);
-    openButton_->setEnabled(hasSingleSelection);
-    revealButton_->setEnabled(hasSingleSelection);
+    if (removeButton_) removeButton_->setEnabled(hasSelection);
+    if (openButton_) openButton_->setEnabled(hasSingleSelection);
+    if (revealButton_) revealButton_->setEnabled(hasSingleSelection);
 }
-
 
 void AttachmentListWidget::addAttachmentToList(const Attachment& attachment, int index)
 {
     QListWidgetItem* item = new QListWidgetItem();
 
-    // Set icon
     item->setIcon(attachment.icon());
 
-    // Set text: filename + size
     QString displayText = QString("%1 (%2)")
                               .arg(attachment.displayName)
                               .arg(attachment.sizeString());
     item->setText(displayText);
 
-    // Set tooltip with full details
     QString tooltip = QString("File: %1\nSize: %2\nType: %3\nAdded: %4")
                           .arg(attachment.filePath)
                           .arg(attachment.sizeString())
@@ -444,12 +415,10 @@ void AttachmentListWidget::addAttachmentToList(const Attachment& attachment, int
     if (!attachment.exists())
     {
         tooltip += "\n⚠ WARNING: File no longer exists!";
-        item->setForeground(QBrush(QColor(200, 0, 0)));  // Red text for missing files
+        item->setForeground(QBrush(QColor(200, 0, 0)));
     }
 
     item->setToolTip(tooltip);
-
-    // Store index as user data
     item->setData(Qt::UserRole, index);
 
     listWidget_->addItem(item);

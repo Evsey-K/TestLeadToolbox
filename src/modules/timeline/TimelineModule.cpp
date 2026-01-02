@@ -68,6 +68,8 @@ TimelineModule::TimelineModule(QWidget* parent)
     // Create undo stack BEFORE setupUi()
     setupUndoStack();
 
+    model_->setUndoStack(undoStack_);
+
     setupUi();
     setupConnections();
     setupAutoSave();

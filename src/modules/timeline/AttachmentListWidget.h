@@ -1,6 +1,5 @@
 // AttachmentListWidget.h
 
-
 #pragma once
 #include "../../shared/models/AttachmentModel.h"
 #include <QWidget>
@@ -11,6 +10,8 @@
 #include <QLabel>
 #include <QGroupBox>
 
+class QDragEnterEvent;
+class QDropEvent;
 
 /**
  * @class AttachmentListWidget
@@ -22,13 +23,6 @@
  * - Drag-and-drop file addition
  * - Double-click to open files
  * - Real-time updates when attachments change
- *
- * Usage:
- * @code
- *   AttachmentListWidget* widget = new AttachmentListWidget(this);
- *   widget->setEventId(eventId);
- *   widget->refresh();
- * @endcode
  */
 class AttachmentListWidget : public QWidget
 {
@@ -38,17 +32,22 @@ public:
     explicit AttachmentListWidget(QWidget* parent = nullptr);
     ~AttachmentListWidget() override;
 
-    void setEventId(const QString& eventId);                        ///< @brief Set the event ID whose attachments to display
-    QString eventId() const { return eventId_; }                    ///< @brief Get the current event ID
-    void refresh();                                                 ///< @brief Refresh the attachment list from AttachmentManager
-    void clear();                                                   ///< @brief Clear the widget (removes event ID and clears list)
+    void setEventId(const QString& eventId);                        ///< Set the event ID whose attachments to display
+    QString eventId() const { return eventId_; }                    ///< Get the current event ID
+    void refresh();                                                 ///< Refresh the attachment list from AttachmentManager
+    void clear();                                                   ///< Clear the widget (removes event ID and clears list)
+
+    void setAddButtonVisible(bool visible);                         ///< Show/hide the internal Add button (for header-driven UIs)
+
+public slots:
+    void requestAddAttachments();                                   ///< External "Add" trigger (header button calls this)
 
 signals:
-    void attachmentsChanged();                                      ///< @brief Emitted when attachments are added or removed
+    void attachmentsChanged();                                      ///< Emitted when attachments are added or removed
 
 protected:
-    void dragEnterEvent(QDragEnterEvent* event) override;           ///< @brief Handle drag-enter events for file drops
-    void dropEvent(QDropEvent* event) override;                     ///< @brief Handle drop events to add attachments
+    void dragEnterEvent(QDragEnterEvent* event) override;
+    void dropEvent(QDropEvent* event) override;
 
 private slots:
     void onAddClicked();
@@ -67,12 +66,14 @@ private:
     uint numericEventId_ = -1;  // Cached hash of eventId_
 
     // UI Components
-    QListWidget* listWidget_;
-    QPushButton* addButton_;
-    QPushButton* removeButton_;
-    QPushButton* openButton_;
-    QPushButton* revealButton_;
-    QLabel* statusLabel_;
+    QListWidget* listWidget_ = nullptr;
+
+    QPushButton* addButton_ = nullptr;
+    QPushButton* removeButton_ = nullptr;
+    QPushButton* openButton_ = nullptr;
+    QPushButton* revealButton_ = nullptr;
+
+    QLabel* statusLabel_ = nullptr;
 
     // Constants
     static constexpr int ICON_SIZE = 32;

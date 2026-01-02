@@ -201,6 +201,7 @@ set(SRC
 # ----------------------------------------------------------------------------
 
 add_executable(${PROJECT_NAME} ${SRC}
+    src/modules/timeline/EventDetailsWidget.h src/modules/timeline/EventDetailsWidget.cpp
 )
 
 # ----------------------------------------------------------------------------

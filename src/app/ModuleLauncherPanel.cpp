@@ -11,6 +11,35 @@
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <QSignalBlocker>
+#include <QProxyStyle>
+#include <QStyleOption>
+#include <QPainter>
+
+// Suppresses the "focus rectangle" (dotted/rounded outline) while keeping actual focus.
+// This preserves keyboard navigation capability for future work.
+namespace
+{
+class NoFocusRectStyle final : public QProxyStyle
+{
+public:
+    explicit NoFocusRectStyle(QStyle* baseStyle = nullptr)
+        : QProxyStyle(baseStyle)
+    {
+    }
+
+    void drawPrimitive(PrimitiveElement element,
+                       const QStyleOption* option,
+                       QPainter* painter,
+                       const QWidget* widget = nullptr) const override
+    {
+        if (element == QStyle::PE_FrameFocusRect) {
+            return; // <-- removes the black rounded focus indicator
+        }
+
+        QProxyStyle::drawPrimitive(element, option, painter, widget);
+    }
+};
+} // namespace
 
 ModuleLauncherPanel::ModuleLauncherPanel(ModuleManager* moduleManager, QWidget* parent)
     : QWidget(parent)
@@ -76,9 +105,14 @@ void ModuleLauncherPanel::setupUI()
     moduleList_->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     moduleList_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     moduleList_->setIconSize(QSize(32, 32));
-    moduleList_->setSortingEnabled(false);
+
+    // Keep focus enabled (for keyboard navigation capability),
+    // but remove the painted focus rectangle.
+    moduleList_->setFocusPolicy(Qt::StrongFocus);
+    moduleList_->setStyle(new NoFocusRectStyle(moduleList_->style()));
 
     // Styling to match your existing buttons (professional)
+    // NOTE: The focus rectangle is handled by NoFocusRectStyle above.
     moduleList_->setStyleSheet(
         "QListWidget { border: none; background: transparent; }"
         "QListWidget::item {"
@@ -87,6 +121,7 @@ void ModuleLauncherPanel::setupUI()
         "  border: 1px solid #ccc;"
         "  border-radius: 4px;"
         "  background: #f8f8f8;"
+        "  color: #222;"
         "}"
         "QListWidget::item:hover {"
         "  background: #e8e8e8;"
@@ -96,6 +131,13 @@ void ModuleLauncherPanel::setupUI()
         "  background: #d0e8ff;"
         "  border-color: #0078d7;"
         "  font-weight: bold;"
+        "  color: #111;"
+        "}"
+        "QListWidget::item:selected:active {"
+        "  color: #111;"
+        "}"
+        "QListWidget::item:selected:!active {"
+        "  color: #111;"
         "}"
         );
 

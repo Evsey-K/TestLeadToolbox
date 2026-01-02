@@ -13,6 +13,10 @@
 #include <QMap>
 
 
+class QUndoStack;
+
+
+
 // Forward declarations
 using TimelineEventType = int;
 constexpr TimelineEventType TimelineEventType_Meeting = 0;
@@ -147,6 +151,9 @@ public:
 
     bool setEventLockState(const QString& eventId, bool fixed, bool locked);
 
+    void setUndoStack(QUndoStack* stack) { undoStack_ = stack; }
+    QUndoStack* undoStack() const { return undoStack_; }
+
     void setVersionDates(const QDate& start, const QDate& end);
     QDate versionStartDate() const { return versionStart_; }
     QDate versionEndDate() const { return versionEnd_; }
@@ -197,7 +204,7 @@ private slots:
 private:
     void assignLanesToEvents();
     QString generateEventId() const;
-
+    QUndoStack* undoStack_ = nullptr;
     QDate versionStart_;
     QDate versionEnd_;
     QString versionName_;

@@ -4,6 +4,7 @@
 #include "TimelineModel.h"
 #include "LaneAssigner.h"
 #include <QUuid>
+#include <QUndoStack>
 
 
 TimelineModel::TimelineModel(QObject* parent)
